@@ -1,6 +1,6 @@
 # MAW-bd 变更记录
 
-## 1.6.0-beta.4（bdversion 精简）
+## 1.0.0（macOS 首个正式版）
 
 - 产品收窄为：双 Qwen ASR → 文稿对齐 → DeepSeek 保守校对 → MAWE → SRT / 本地 FCPXML 网页
 - 新增 `maw/bdversion`（manuscript / alignment / status / deepseek / dual_asr / project_meta）
@@ -18,5 +18,6 @@
 - 修正从空白编辑器直接导入 `.mosp` 时未启用后端波形生成的问题；大媒体会读取或生成本地波形缓存，不再交给浏览器整段解码
 - 修正 macOS 包内本地 ASR 误加载 GUI LLM 模块导致的 `ModuleNotFoundError`
 - 修正 Launcher 启动时误报“请通过 MAW-bd 应用启动本界面”，以及选择一次媒体重复记录三条日志的问题
+- 修正首版 GitHub Actions 中 Ruff 导入顺序、重复定义和未使用导入错误
 
 历史完整变更见上游仓库 CHANGELOG（本分支不再维护多供应商版本史）。

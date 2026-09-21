@@ -22,12 +22,6 @@ from threading import Event, Lock
 from typing import BinaryIO, Final, final
 
 from maw.app_paths import default_emoji_font_path
-def find_ass_style(*a, **k):
-    return None
-
-def load_ass_style_library(*a, **k):
-    return {"styles": [], "assProfiles": []}
-
 from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
 from maw.media_cache import embed_media_caches
 from maw.gui_config import (
@@ -52,7 +46,7 @@ from maw.gui_config import (
     provider_for_model,
     save_env,
 )
-from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
+from maw.gui_platform import asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.output_naming import format_elapsed, maw_root
@@ -94,6 +88,14 @@ from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, instal
 from maw.project_preview import JsonValue
 
 
+def find_ass_style(*a, **k):
+    return None
+
+
+def load_ass_style_library(*a, **k):
+    return {"styles": [], "assProfiles": []}
+
+
 OPEN_DIALOG = 10
 SAVE_DIALOG = 30
 FOLDER_DIALOG = 20
@@ -106,8 +108,6 @@ class _Removed:
 LocalRuntimeCancelled = LocalRuntimeError = LocalRuntimeStatus = _Removed
 def install_local_runtime(*a, **k):
     raise RuntimeError("本地运行时已移除")
-def managed_runtime_status(*a, **k):
-    return {"status": "removed"}
 def recover_local_runtime_install(*a, **k):
     raise RuntimeError("本地运行时已移除")
 def resolve_model_cache_root(*a, **k):
@@ -224,7 +224,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.6.0-beta.4"
+BUNDLED_APP_VERSION = "1.0.0"
 MOSE_VERSION = "0.1.0"
 
 

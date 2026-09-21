@@ -13,7 +13,6 @@ from pathlib import Path
 from threading import Event
 from typing import Final
 
-from maw.gui_config import load_env
 from maw.output_naming import format_elapsed, operation_suffix
 from maw.postprocess import (
     FixedProcessRequest,
