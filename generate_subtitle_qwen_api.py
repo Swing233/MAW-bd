@@ -399,7 +399,7 @@ def generate_srt(segments: list[dict]) -> str:
     for i, seg in enumerate(segments, 1):
         start = format_timestamp(seg["start"])
         end = format_timestamp(seg["end"])
-        text = seg["text"].strip()
+        text = _re.sub(r"\s*[\r\n]+\s*", " ", str(seg["text"])).strip()
         lines.append(f"{i}\n{start} --> {end}\n{text}\n")
     return "\n".join(lines)
 
@@ -501,9 +501,16 @@ def _split_long_group(items: list[dict], max_len: int, weak_punct: set) -> list[
     return [items]
 
 
-QWEN_AUDIO_NATURAL_TARGET_LEN = 13
-QWEN_AUDIO_NATURAL_MAX_LEN = 18
-QWEN_AUDIO_NATURAL_MIN_LEN = 7
+# 中文字幕的正常阅读长度与绝对安全上限是两个不同概念。正常切分会
+# 尽量落在 10-16 字；只有找不到可靠词边界时才允许接近 25 字。
+CJK_PREFERRED_MIN_LEN = 10
+CJK_PREFERRED_MAX_LEN = 16
+QWEN_AUDIO_NATURAL_TARGET_LEN = 14
+QWEN_AUDIO_NATURAL_MAX_LEN = 20
+QWEN_AUDIO_HARD_MAX_LEN = 25
+QWEN_AUDIO_NATURAL_MIN_LEN = 5
+QWEN_AUDIO_SOFT_GAP_MS = 450
+QWEN_AUDIO_STRONG_GAP_MS = 750
 
 
 def _split_cjk_group_naturally(
@@ -512,16 +519,19 @@ def _split_cjk_group_naturally(
     target_len: int,
     max_len: int,
     min_len: int,
+    normal_max_len: int | None = None,
+    soft_gap_ms: int = QWEN_AUDIO_SOFT_GAP_MS,
+    strong_gap_ms: int = QWEN_AUDIO_STRONG_GAP_MS,
 ) -> list[list[dict]]:
-    """用词性和 API 字词边界切分无内部标点的长中文片段。
+    """用动态规划、词性、标点和真实停顿切分长中文片段。
 
-    Qwen-Audio 可能把数十秒的中文内容作为一个 sentence 返回，且只在末尾
-    给出句号。此时按 21 字硬切会把短语截断；这里在 API word 边界内，优先
-    选择接近目标长度且位于名词/动词短语末尾的边界。它只处理没有可靠
-    内部标点的 Qwen-Audio 兜底片段，普通标点切句和其他模型保持不变。
+    该函数是云端 Qwen、本地 ASR 与手动重新断句共用的核心。它只在真实
+    item 边界或 jieba 完整词边界上选点；普通上限影响评分，25 字只作为
+    找不到更自然边界时的硬兜底。
     """
     text_total = "".join(item.get("text", "") for item in items)
-    if len(text_total) <= max_len:
+    normal_max_len = min(max_len, normal_max_len or QWEN_AUDIO_NATURAL_MAX_LEN)
+    if len(text_total) <= normal_max_len:
         return [items]
 
     try:
@@ -550,6 +560,15 @@ def _split_cjk_group_naturally(
     for token in tokens:
         by_start[token[0]] = token
         by_end[token[1]] = token
+    protected_spans = [
+        match.span()
+        for match in _re.finditer(
+            r"https?://\S+|www\.\S+|[A-Za-z][A-Za-z0-9]*(?:[._/+:-][A-Za-z0-9]+)+|"
+            r"v?\d+(?:\.\d+)+|\d+(?:\.\d+)?(?:个|分钟|秒|倍|次|岁|年|月|天|元|公里|米|厘米|毫米|GB|MB|kg)",
+            text_total,
+            _re.IGNORECASE,
+        )
+    ]
     favorable_flags = {"n", "nr", "ns", "nt", "nz", "vn", "l", "y", "o"}
     acceptable_flags = {"v", "m", "q", "a", "i", "eng"}
     weak_flags = {"d", "p", "r", "uj", "c", "u", "f", "xc", "ul"}
@@ -562,6 +581,11 @@ def _split_cjk_group_naturally(
         "或者", "然后", "如果", "更", "很", "只", "需要", "打开", "填写",
         "点击", "交给", "全都",
     }
+    prepositions = {"把", "被", "从", "向", "往", "对", "对于", "关于", "在", "于", "给", "跟", "和", "与"}
+    conjunctions = {"和", "与", "并", "并且", "而且", "但是", "如果", "因为", "所以", "虽然", "或者", "以及"}
+    auxiliaries = {"会", "能", "可以", "应该", "要", "想", "需要", "必须", "可能", "正在", "已经"}
+    negations = {"不", "没", "没有", "未", "别", "勿", "无法"}
+    titles = {"老师", "教授", "博士", "医生", "先生", "女士", "经理", "主任", "总监", "工程师", "同学"}
     clause_endings = {
         "吧", "要求", "速度", "秒", "字幕", "难题", "力气", "会员", "一遍", "图标",
         "音频", "工程", "时间码", "文字", "老师", "喽",
@@ -577,7 +601,10 @@ def _split_cjk_group_naturally(
         if end_index >= len(items):
             return True
         boundary = item_ends[end_index - 1]
-        return not any(start < boundary < end for start, end, _word, _flag in tokens)
+        return not (
+            any(start < boundary < end for start, end, _word, _flag in tokens)
+            or any(start < boundary < end for start, end in protected_spans)
+        )
 
     def boundary_score(end_index: int) -> float:
         boundary = item_ends[end_index - 1]
@@ -619,12 +646,28 @@ def _split_cjk_group_naturally(
                 score -= 8.0
             if following[2] in {"如果", "但是", "不过", "接下来", "此外", "除此之外", "比如", "左键", "顶上"}:
                 score += 5.0
+            if current[2] in prepositions | conjunctions | auxiliaries | negations:
+                score -= 14.0
+            if following[2] in titles and current[3] in {"nr", "n", "nz"}:
+                score -= 14.0
+            if current[3] in {"a", "ad", "an"} and following[3] in {"n", "nr", "ns", "nt", "nz"}:
+                score -= 9.0
+            if current[3] == "v" and following[3] in {"n", "nr", "ns", "nt", "nz", "r"} and len(following[2]) <= 3:
+                score -= 7.0
+            if current[3] in {"n", "nz", "eng"} and following[3] in {"v", "vn"} and len(following[2]) <= 2:
+                score -= 8.0
         if current and current[2] in continuation_endings:
             score -= 12.0
         if current and current[2] in clause_endings:
             score += 3.0
         if any(char in weak_punctuation for char in items[end_index - 1].get("text", "")):
-            score += 4.0
+            score += 14.0
+        if end_index < len(items):
+            gap = int(items[end_index].get("start") or 0) - int(items[end_index - 1].get("end") or 0)
+            if gap >= strong_gap_ms:
+                score += 12.0
+            elif gap >= soft_gap_ms:
+                score += 6.0
         return score
 
     paths: list[tuple[float, list[int]] | None] = [None] * (len(items) + 1)
@@ -647,8 +690,17 @@ def _split_cjk_group_naturally(
             score = (
                 previous[0]
                 + boundary_score(end_index)
+                - 6.0
                 - abs(length - target_len) * 0.35
+                - (max(0, length - normal_max_len) ** 2) * 1.8
+                + (2.0 if CJK_PREFERRED_MIN_LEN <= length <= CJK_PREFERRED_MAX_LEN else 0.0)
+                - max(0, CJK_PREFERRED_MIN_LEN - length) * 1.4
+                - (8.0 if length < min_len and end_index == len(items) else 0.0)
             )
+            duration_ms = int(items[end_index - 1].get("end") or 0) - int(items[start_index].get("start") or 0)
+            if duration_ms > 0:
+                chars_per_second = length * 1000.0 / duration_ms
+                score -= max(0.0, chars_per_second - 10.0) * 0.45
             candidate = (score, previous[1] + [end_index])
             if best is None or candidate[0] > best[0]:
                 best = candidate
@@ -687,12 +739,17 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
     WEAK_PUNCT = set("，、：,;")
 
     def to_seg(group):
-        text = "".join(it["text"] for it in group)
+        clean_items = []
+        for source in group:
+            item = dict(source)
+            item["text"] = _re.sub(r"\s*[\r\n]+\s*", " ", str(item.get("text") or ""))
+            clean_items.append(item)
+        text = "".join(it["text"] for it in clean_items)
         return {
-            "start": group[0]["start"],
-            "end": group[-1]["end"],
+            "start": clean_items[0]["start"],
+            "end": clean_items[-1]["end"],
             "text": text,
-            "items": [dict(it) for it in group],
+            "items": clean_items,
         }
 
     final: list[list[dict]] = []
@@ -712,7 +769,8 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
         merged: list[list[dict]] = []
         for grp in raw_groups:
             seg_text = "".join(it["text"] for it in grp)
-            if merged and len(seg_text) < min_len:
+            complete_sentence = any(c in STRONG_PUNCT for c in str(grp[-1].get("text") or ""))
+            if merged and len(seg_text) < min_len and not complete_sentence:
                 previous_length = sum(len(item.get("text", "")) for item in merged[-1])
                 if previous_length + len(seg_text) <= max_len:
                     merged[-1].extend(grp)
@@ -723,7 +781,8 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
         if len(merged) >= 2:
             last_text = "".join(it["text"] for it in merged[-1])
             previous_text = "".join(it["text"] for it in merged[-2])
-            if len(last_text) < min_len and len(previous_text) + len(last_text) <= max_len:
+            last_complete = any(c in STRONG_PUNCT for c in str(merged[-1][-1].get("text") or ""))
+            if len(last_text) < min_len and not last_complete and len(previous_text) + len(last_text) <= max_len:
                 merged[-2].extend(merged.pop())
 
         for grp in merged:
@@ -733,7 +792,8 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
                 final.extend(_split_cjk_group_naturally(
                     grp,
                     target_len=natural_target_len,
-                    max_len=natural_max_len or max_len,
+                    max_len=QWEN_AUDIO_HARD_MAX_LEN,
+                    normal_max_len=natural_max_len or max_len,
                     min_len=min_len,
                 ))
 
@@ -813,11 +873,16 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
     3. 本身超长的句子（> max_words 词）优先按弱标点断，兜底硬切
     """
     def to_seg(group: list[dict]) -> dict:
+        clean_items = []
+        for source in group:
+            item = dict(source)
+            item["text"] = _re.sub(r"\s*[\r\n]+\s*", " ", str(item.get("text") or ""))
+            clean_items.append(item)
         return {
-            "start": group[0]["start"],
-            "end": group[-1]["end"],
-            "text": "".join(it["text"] for it in group),
-            "items": [dict(it) for it in group],
+            "start": clean_items[0]["start"],
+            "end": clean_items[-1]["end"],
+            "text": "".join(it["text"] for it in clean_items),
+            "items": clean_items,
         }
 
     final: list[list[dict]] = []
@@ -834,7 +899,8 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
 
         merged: list[list[dict]] = []
         for grp in raw_groups:
-            if merged and len(grp) < min_words:
+            complete_sentence = _ends_with_punct(grp[-1]["text"], _western_strong_end())
+            if merged and len(grp) < min_words and not complete_sentence:
                 if len(merged[-1]) + len(grp) <= max_words:
                     merged[-1].extend(grp)
                 else:
@@ -844,6 +910,7 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
         if (
             len(merged) >= 2
             and len(merged[-1]) < min_words
+            and not _ends_with_punct(merged[-1][-1]["text"], _western_strong_end())
             and len(merged[-2]) + len(merged[-1]) <= max_words
         ):
             merged[-2].extend(merged.pop())
@@ -1077,6 +1144,53 @@ def build_interpolated_items(
     return items
 
 
+def build_semantic_estimated_items(
+    text: str,
+    start_ms: int,
+    end_ms: int,
+    *,
+    normal_max_len: int,
+) -> list[dict]:
+    """Choose semantic text pieces, then assign contiguous estimated ranges.
+
+    Returned values are internal only. Callers must remove ``items`` and mark
+    the resulting cue ``timing_estimated`` before writing a project.
+    """
+
+    clean = _re.sub(r"\s*[\r\n]+\s*", " ", str(text or "")).strip()
+    if not clean:
+        return []
+    try:
+        import jieba
+        tokens = [str(token) for token in jieba.cut(clean) if str(token)]
+    except ImportError:
+        tokens = _re.findall(r"[A-Za-z0-9]+(?:['’._/+:-][A-Za-z0-9]+)*|.", clean, _re.DOTALL)
+    semantic = [{"text": token, "start": 0, "end": 0} for token in tokens]
+    segments = split_words_to_segments(
+        semantic,
+        max_len=max(1, int(normal_max_len)),
+        min_len=QWEN_AUDIO_NATURAL_MIN_LEN,
+        gap_split_ms=0,
+        natural_target_len=QWEN_AUDIO_NATURAL_TARGET_LEN,
+        natural_max_len=max(1, int(normal_max_len)),
+    )
+    pieces = [str(segment.get("text") or "") for segment in segments if segment.get("text")]
+    if not pieces:
+        pieces = [clean]
+    total = sum(len(piece) for piece in pieces)
+    span = max(1, end_ms - start_ms)
+    result: list[dict] = []
+    cursor = start_ms
+    consumed = 0
+    for index, piece in enumerate(pieces):
+        consumed += len(piece)
+        boundary = end_ms if index == len(pieces) - 1 else start_ms + round(span * consumed / total)
+        boundary = max(cursor + 1, min(end_ms, boundary))
+        result.append({"text": piece, "start": cursor, "end": boundary})
+        cursor = boundary
+    return result
+
+
 def build_interpolated_word_items(
     text: str,
     start_ms: int,
@@ -1131,7 +1245,10 @@ def split_coarse_segment(
     - 超长且无 items 的段插值时间拆分（连续语言按标点切块，单词型按
       空白分词），结果不携带 items。
     """
-    text = str(segment.get("text") or "")
+    text = _re.sub(r"\s*[\r\n]+\s*", " ", str(segment.get("text") or ""))
+    if text != str(segment.get("text") or ""):
+        segment = {**segment, "text": text}
+        segment.pop("items", None)
     if split_mode == "word":
         overlong = len(text.split()) > max_words
     else:
@@ -1149,14 +1266,18 @@ def split_coarse_segment(
             gap_split_ms=gap_split_ms,
             max_words=max_words,
             min_words=min_words,
+            natural_cjk=split_mode != "word",
             split_mode=split_mode,
         )
     else:
         if split_mode == "word":
             pseudo_items = build_interpolated_word_items(text, segment["start"], segment["end"])
         else:
-            pseudo_items = build_interpolated_items(
-                text, segment["start"], segment["end"], max_piece_len=max_len
+            pseudo_items = build_semantic_estimated_items(
+                text,
+                segment["start"],
+                segment["end"],
+                normal_max_len=max_len,
             )
         if not pseudo_items:
             return [segment]
@@ -1167,11 +1288,15 @@ def split_coarse_segment(
             gap_split_ms=0,
             max_words=max_words,
             min_words=min_words,
+            natural_cjk=split_mode != "word",
             split_mode=split_mode,
         )
         # 插值时间是近似值，不得伪装成词级精度写进工程。
         pieces = [
-            {key: value for key, value in piece.items() if key != "items"}
+            {
+                **{key: value for key, value in piece.items() if key != "items"},
+                "timing_estimated": True,
+            }
             for piece in pieces
         ]
     if not pieces:
@@ -1360,7 +1485,8 @@ def submit_filetrans(base_url: str, api_key: str, file_url: str,
     elif is_qwen3_model(model):
         params = {
             "channel_id": [0],
-            "enable_words": enable_words,
+            # 真实 word 时间是自然断句的依据，qwen3 路径必须始终请求。
+            "enable_words": True,
             "enable_itn": enable_itn,
         }
         if language:
@@ -1794,6 +1920,7 @@ def build_segments_preserving_speakers(
             gap_split_ms=gap_split_ms,
             max_words=max_words,
             min_words=min_words,
+            natural_cjk=split_mode != "word",
             split_mode=split_mode,
         )
         run_segments = repair_nonpositive_duration_segments(run_segments)
@@ -1903,10 +2030,6 @@ def build_segments_from_api_sentences(
         sentence_segments: list[dict] = []
         for run in split_items_by_speaker(items):
             run_text = "".join(item.get("text", "") for item in run)
-            has_internal_punctuation = any(
-                any(char in (set(_COARSE_PIECE_BREAK_PUNCT) | _EXTRA_STRONG_PUNCT) for char in item.get("text", ""))
-                for item in run[:-1]
-            )
             run_segments = split_segments_auto(
                 run,
                 max_len=max_len,
@@ -1918,7 +2041,6 @@ def build_segments_from_api_sentences(
                 natural_cjk=(
                     len(run_text) > max_len
                     and is_cjk_dominant(run)
-                    and not has_internal_punctuation
                 ),
             )
             run_segments = repair_nonpositive_duration_segments(run_segments)
@@ -2126,8 +2248,8 @@ def main():
     parser.add_argument("input", help="输入视频或音频文件路径")
     parser.add_argument("-o", "--output", help="输出 SRT 路径（默认与输入同目录）")
     parser.add_argument(
-        "-l", "--max-len", type=int, default=18,
-        help="每条字幕最大字数（默认 18；仅 CJK 内容生效，空格语言按词数自动处理）",
+        "-l", "--max-len", type=int, default=20,
+        help="中文普通字幕上限（默认 20；自然边界目标约 14 字，25 字仅为绝对兜底）",
     )
     parser.add_argument(
         "--min-len", type=int, default=5,
@@ -2158,8 +2280,8 @@ def main():
         help="额外强断句符号集合（来自共享断句配置；每个字符并入强断句符号，默认空）",
     )
     parser.add_argument(
-        "--gap-split", type=int, default=800,
-        help="静音切句阈值（毫秒），相邻字停顿超过此值则切句（默认 800）",
+        "--gap-split", type=int, default=750,
+        help="真实强停顿切句阈值（毫秒，默认 750；自然评分另使用 450ms 软停顿）",
     )
     parser.add_argument(
         "--speaker", action="store_true",

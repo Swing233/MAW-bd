@@ -11,8 +11,24 @@ from typing import Any
 
 
 def asset_path(relative: str) -> Path:
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-    return base / relative
+    """Resolve a packaged asset for source and frozen macOS .app layouts."""
+
+    candidates: list[Path] = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass))
+    if getattr(sys, "frozen", False):
+        exe = Path(sys.executable).resolve()
+        if exe.parent.name == "MacOS":
+            candidates.append(exe.parent.parent / "Resources")
+        candidates.append(exe.parent / "_internal")
+        candidates.append(exe.parent)
+    candidates.append(Path(__file__).resolve().parents[1])
+    for base in candidates:
+        path = base / relative
+        if path.exists():
+            return path
+    return candidates[0] / relative
 
 
 def startupinfo() -> Any | None:

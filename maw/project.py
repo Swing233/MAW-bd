@@ -760,7 +760,42 @@ def _validate_segment(
     _validate_frame_pair(segment, path, errors)
     if "speaker" in segment and (not isinstance(segment["speaker"], str) or not segment["speaker"].strip()):
         errors.append(ProjectValidationError(f"{path}.speaker", "must be a non-empty string"))
+    if "timing_estimated" in segment and not isinstance(segment["timing_estimated"], bool):
+        errors.append(ProjectValidationError(f"{path}.timing_estimated", "must be a boolean"))
+    if "proofread" in segment and segment["proofread"] is not None:
+        _validate_proofread(segment["proofread"], path, errors)
     _validate_items(segment, path, errors)
+
+
+PROOFREAD_STATUSES = frozenset({"verified", "improvised", "uncertain", "manual"})
+
+
+def _validate_proofread(proofread: object, segment_path: str, errors: list[ProjectValidationError]) -> None:
+    """Optional per-segment speech-first proofread metadata (old projects omit it)."""
+
+    path = f"{segment_path}.proofread"
+    if not isinstance(proofread, dict):
+        errors.append(ProjectValidationError(path, "must be an object"))
+        return
+    status = proofread.get("status")
+    if status is not None and status not in PROOFREAD_STATUSES:
+        errors.append(
+            ProjectValidationError(
+                f"{path}.status",
+                f"must be one of {', '.join(sorted(PROOFREAD_STATUSES))}",
+            )
+        )
+    score = proofread.get("match_score")
+    if score is not None:
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            errors.append(ProjectValidationError(f"{path}.match_score", "must be a number"))
+        elif not 0.0 <= float(score) <= 1.0:
+            errors.append(ProjectValidationError(f"{path}.match_score", "must be between 0 and 1"))
+    for key in ("script_text", "asr_original", "secondary_asr", "corrected", "reason"):
+        if key in proofread and proofread[key] is not None and not isinstance(proofread[key], str):
+            errors.append(ProjectValidationError(f"{path}.{key}", "must be a string or null"))
+    if "match_range" in proofread and proofread["match_range"] is not None and not isinstance(proofread["match_range"], dict):
+        errors.append(ProjectValidationError(f"{path}.match_range", "must be an object"))
 
 
 def _validate_items(segment: JsonDict, path: str, errors: list[ProjectValidationError]) -> None:

@@ -337,245 +337,30 @@ DOUBAO_MODELS: Final[tuple[ModelConfig, ...]] = (
 QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
         id=QWEN_AUDIO_MODEL_ID,
-        label="qwen-audio-3.0-asr（热词 / 上下文）",
+        label="qwen-audio-3.0-asr（默认）",
         env_key="DASHSCOPE_API_KEY",
-        note="支持即时热词、上下文与说话人分离",
-        price_note="阿里云百炼参考价：北京 ¥0.00022 / 秒（约 ¥0.792 / 小时），新加坡 ¥0.00026 / 秒（约 ¥0.936 / 小时）；音频输入按时长计费，输出免费。",
+        note="双 Qwen 主识别模型；支持热词与上下文",
+        price_note="阿里云百炼按时长计费，以控制台为准。",
         supports_speaker=True,
         supports_context=True,
         supports_hotwords=True,
         supports_vocabulary=True,
-        languages=FUNASR_LANGUAGES,
-    ),
-    ModelConfig(
-        id="fun-asr",
-        label="fun-asr（支持说话人）",
-        env_key="DASHSCOPE_API_KEY",
-        note="支持说话人分离与词级时间戳",
-        price_note="阿里云百炼参考价：北京 ¥0.00022 / 秒（约 ¥0.792 / 小时），新加坡 ¥0.00026 / 秒（约 ¥0.936 / 小时）；音频输入按时长计费，输出免费。",
-        supports_speaker=True,
-        languages=FUNASR_LANGUAGES,
+        languages=LANGUAGES,
     ),
     ModelConfig(
         id=QWEN3_ASR_MODEL_ID,
-        label="qwen3-asr（准确率更高）",
+        label="qwen3-asr（交叉验证副模型）",
         env_key="DASHSCOPE_API_KEY",
-        price_note="阿里云百炼参考价：北京 ¥0.00022 / 秒（约 ¥0.792 / 小时），新加坡 ¥0.00026 / 秒（约 ¥0.936 / 小时）；音频输入按时长计费，输出免费。",
+        note="双模型模式下的第二 ASR；不改写主时间轴",
+        price_note="阿里云百炼按时长计费，以控制台为准。",
         languages=LANGUAGES,
-    ),
-)
-
-OPENAI_ASR_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="whisper-1",
-        label="whisper-1",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="支持 Prompt；Whisper 提示词最多 224 tokens。",
-        openrouter_note="OpenRouter 参考价：$0.006 / 分钟；需由接口返回 segments 或 words 时间戳。价格和可用能力以 OpenRouter 模型页为准。",
-        price_note="OpenAI 官方参考价：$0.006 / 分钟；需由接口返回 segments 或 words 时间戳。",
-        supports_prompt=True,
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-4o-transcribe",
-        label="gpt-4o-transcribe",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="支持 Prompt；需由接口返回 segments 或 words 时间戳。",
-        openrouter_note="OpenRouter 参考价：输入 $2.50 / 1M tokens，输出 $10 / 1M tokens；需由接口返回 segments 或 words 时间戳。",
-        price_note="OpenAI 官方参考价：输入 $2.50 / 1M audio tokens，输出 $10 / 1M audio tokens；需由接口返回 segments 或 words 时间戳。",
-        supports_prompt=True,
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-4o-mini-transcribe",
-        label="gpt-4o-mini-transcribe",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="支持 Prompt；需由接口返回 segments 或 words 时间戳。",
-        openrouter_note="OpenRouter 参考价：输入 $1.25 / 1M tokens，输出 $5 / 1M tokens；需由接口返回 segments 或 words 时间戳。",
-        price_note="OpenAI 官方参考价：输入 $1.25 / 1M audio tokens，输出 $5 / 1M audio tokens；需由接口返回 segments 或 words 时间戳。",
-        supports_prompt=True,
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-transcribe",
-        label="gpt-transcribe（支持关键词）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="OpenAI 官方推荐的文件转写模型；支持 Prompt 和 Keywords，需由接口返回时间戳。",
-        openrouter_note="OpenRouter 参考价：$0.0045 / 分钟；支持 Prompt、Keywords 和 languages[]，需由接口返回时间戳。",
-        price_note="OpenAI 官方参考价：$0.0045 / 分钟。",
-        supports_prompt=True,
-        supports_keywords=True,
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="gpt-4o-transcribe-diarize",
-        label="gpt-4o-transcribe-diarize（说话人分离）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="OpenAI 官方说话人分离模型；返回段级 speaker 与时间戳，OpenRouter 不支持。",
-        openrouter_note="OpenRouter 不支持 diarize；请改用 OpenAI 官方 Base URL。",
-        price_note="OpenAI 官方参考价：输入 $2.50 / 1M audio tokens，输出 $10 / 1M audio tokens。",
-        supports_speaker=True,
-        supports_diarization=True,
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="whisper-large-v3-turbo",
-        label="whisper-large-v3-turbo（OpenRouter）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        openrouter_note="OpenRouter 参考价：$0.04 / 小时；需由接口返回 segments 或 words 时间戳。",
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id="whisper-large-v3",
-        label="whisper-large-v3（OpenRouter）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        openrouter_note="OpenRouter 参考价：$0.0015 / 分钟；需由接口返回 segments 或 words 时间戳。",
-        languages=LANGUAGES,
-    ),
-    ModelConfig(
-        id=OPENAI_ASR_MODEL_ID,
-        label="自定义（Custom）",
-        env_key="MAW_OPENAI_ASR_API_KEY",
-        note="选择后填写自定义 ASR 模型名",
-        languages=LANGUAGES,
-    ),
-)
-
-SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="stt-async-v5",
-        label="Soniox Async STT（v5，上下文）",
-        env_key="SONIOX_API_KEY",
-        note="支持 general、text、terms 和 translation_terms 上下文",
-        price_note="Soniox 参考价：异步文件转写约 $0.10 / 小时；按 token 计费，音频输入 $1.50 / 1M，输入文本和输出文本各 $3.50 / 1M。",
-        supports_speaker=True,
-        supports_context=True,
-        languages=SONIOX_LANGUAGES,
-    ),
-)
-
-TENCENT_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="16k_zh_en_2.0",
-        label="腾讯云录音文件识别（大模型 2.0）",
-        env_key="TENCENT_SECRET_ID",
-        note="SecretId 写入此处；SecretKey 请在本机 .env 配置",
-        price_note="腾讯云参考价：录音文件识别大模型 2.0 后付费 ¥0.8 / 小时；60 小时预付包 ¥48。",
-        supports_speaker=True,
-        languages=LANGUAGES,
-    ),
-)
-
-LOCAL_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="qwen3-asr-local",
-        label="Qwen3-ASR 0.6B（推荐）",
-        env_key="",
-        note="本地运行；首次准备会加载 Qwen3-ASR 与 Forced Aligner",
-        languages=LANGUAGES,
-        kind="local",
-        engine="qwen-asr",
-        model_ref="Qwen/Qwen3-ASR-0.6B",
-        required_model_refs=("Qwen/Qwen3-ForcedAligner-0.6B",),
-        requires_runtime=("qwen_asr", "torch"),
-    ),
-    ModelConfig(
-        id="qwen3-asr-1.7b-local",
-        label="Qwen3-ASR 1.7B",
-        env_key="",
-        note="更高识别质量；与 0.6B 共用 Qwen3 Forced Aligner",
-        languages=LANGUAGES,
-        kind="local",
-        engine="qwen-asr",
-        model_ref="Qwen/Qwen3-ASR-1.7B",
-        required_model_refs=("Qwen/Qwen3-ForcedAligner-0.6B",),
-        requires_runtime=("qwen_asr", "torch"),
-    ),
-    ModelConfig(
-        id="fun-asr-nano-local",
-        label="Fun-ASR-Nano 2512（GPU）",
-        env_key="",
-        note="LLM-ASR 路线；默认配合 FSMN-VAD，中英日及中文方言，建议使用 CUDA",
-        languages=FUN_ASR_NANO_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="FunAudioLLM/Fun-ASR-Nano-2512",
-        requires_runtime=("funasr", "torchaudio"),
-        hidden=True,
-    ),
-    ModelConfig(
-        id="funasr-local",
-        label="FunASR paraformer-zh",
-        env_key="",
-        note="本地运行；使用 FunASR 上游模型缓存",
-        languages=FUNASR_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="paraformer-zh",
-        requires_runtime=("funasr", "torchaudio"),
-        # FunASR model zoo 把 paraformer-zh 解析为这个 ModelScope ID；
-        # GUI 不能导入 FunASR，扫描缓存时需要显式的映射。
-        cache_refs=("iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",),
-        hidden=True,
-    ),
-    ModelConfig(
-        id="sensevoice-small-local",
-        label="SenseVoice Small",
-        env_key="",
-        note="多语种本地识别；默认配合 FSMN-VAD，CPU/GPU 都可运行",
-        languages=SENSEVOICE_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="iic/SenseVoiceSmall",
-        requires_runtime=("funasr", "torchaudio"),
-    ),
-    ModelConfig(
-        id="moss-transcribe-diarize-local",
-        label="MOSS Transcribe-Diarize 0.9B（无字词时间码）",
-        env_key="",
-        # 无字词级时间码是 MOSS 输出契约的硬限制；MAW 不伪造 items，也不对
-        # 模型段做字数硬切，必须在模型说明里提前告知。
-        note="端到端转写与说话人分离；仅段级时间戳，无字词级时间码；需要独立的 Transformers 5.x 运行环境，建议 CUDA",
-        supports_speaker=True,
-        languages=LANGUAGES,
-        kind="local",
-        engine="moss",
-        model_ref="OpenMOSS-Team/MOSS-Transcribe-Diarize",
-        requires_runtime=("moss_transcribe_diarize", "transformers", "torch"),
-    ),
-    ModelConfig(
-        id="whisper-large-v3-local",
-        label="Faster-Whisper large-v3（实验）",
-        env_key="",
-        note="OpenAI Whisper 多语种本地识别；CTranslate2 运行时自带 VAD，无说话人分离；GPU 运行需要用户自行安装 CUDA 12 和 cuDNN 9，否则自动回退到 CPU",
-        languages=LANGUAGES,
-        kind="local",
-        engine="whisper",
-        # Hugging Face Hub 上的官方 CTranslate2 转换版；词级时间戳由上游内部处理
-        model_ref="Systran/faster-whisper-large-v3",
-        requires_runtime=("faster_whisper",),
-    ),
-)
-
-# 必剪（B 站非官方免费接口）：仅中文、无语言参数，单文件上限见 maw/bcut.py
-BCUT_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
-    ("", "中文（自动识别）"),
-)
-
-BCUT_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="bcut-asr",
-        label="必剪 ASR（免 Key / 仅中文）",
-        env_key="",
-        note="逐字毫秒时间戳；无需 API Key",
-        languages=BCUT_LANGUAGES,
     ),
 )
 
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
-        label="阿里云百炼（QwenASR / FunASR）",
+        label="阿里云百炼 Qwen ASR",
         key_url="https://platform.qianwenai.com/home/",
         models=QWEN_MODELS,
         regions=REGIONS,
@@ -583,85 +368,12 @@ PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
         supports_speaker=True,
         common_languages=QWEN_COMMON_LANGUAGES,
     ),
-    ProviderConfig(
-        id="soniox",
-        label="Soniox STT",
-        key_url="https://console.soniox.com",
-        models=SONIOX_MODELS,
-        regions=(),
-        languages=SONIOX_LANGUAGES,
-        supports_speaker=True,
-        multi_language=True,
-        common_languages=SONIOX_COMMON_LANGUAGES,
-    ),
-    ProviderConfig(
-        id="doubao",
-        label="豆包语音识别（火山引擎）",
-        key_url="https://console.volcengine.com/speech/new/setting/apikeys",
-        models=DOUBAO_MODELS,
-        regions=(),
-        languages=DOUBAO_LANGUAGES,
-        supports_speaker=True,
-        common_languages=DOUBAO_COMMON_LANGUAGES,
-        note=(
-            "媒体会直接上传到火山引擎；base64 直传单文件 ≤25MB 且 ≤120 分钟，"
-            "MAW 会先提取为低码率单声道音频再提交。"
-        ),
-    ),
-    ProviderConfig(
-        id="tencent",
-        label="腾讯云录音文件识别",
-        key_url="https://console.cloud.tencent.com/tokenhub/apikey",
-        models=TENCENT_MODELS,
-        regions=(),
-        languages=LANGUAGES,
-        common_languages=QWEN_COMMON_LANGUAGES,
-        note="需要 TENCENT_SECRET_ID 与 TENCENT_SECRET_KEY；大于 5MB 的媒体请使用 COS URL",
-        hidden=True,
-    ),
-    ProviderConfig(
-        id="openai",
-        label="OpenAI（及兼容接口）",
-        key_url="https://platform.openai.com/api-keys",
-        models=OPENAI_ASR_MODELS,
-        regions=(),
-        languages=LANGUAGES,
-        common_languages=QWEN_COMMON_LANGUAGES,
-        note="默认连接 OpenAI 官方服务；OpenRouter 会自动适配预设模型 ID。其他中转站请选择“自定义（Custom）”并填写服务商提供的完整模型名；接口必须返回 segments 或 words 时间戳。",
-        secondary_key_url=OPENROUTER_ASR_KEY_URL,
-    ),
-    ProviderConfig(
-        id="local",
-        label="本地模型（Beta）",
-        key_url="",
-        models=LOCAL_MODELS,
-        regions=(),
-        languages=LANGUAGES,
-        supports_speaker=False,
-        common_languages=QWEN_COMMON_LANGUAGES,
-        kind="local",
-        requires_api_key=False,
-    ),
-    # 实验性供应商，置底展示：非官方接口，风险与上限见 note 与 maw/bcut.py
-    ProviderConfig(
-        id="bcut",
-        label="必剪 ASR（非官方 · 免费 · 实验性）",
-        key_url="https://github.com/SocialSisterYi/bcut-asr",
-        models=BCUT_MODELS,
-        regions=(),
-        languages=BCUT_LANGUAGES,
-        requires_api_key=False,
-        supports_language=False,
-        note=(
-            "非官方免费接口：无需 API Key，仅支持中文，单文件上限 2 小时；"
-            "接口可能随时变更、失效或触发限流，请勿高频调用。"
-            "重要或批量任务建议使用上方正式供应商。"
-        ),
-    ),
 )
 
 MODELS: Final[tuple[ModelConfig, ...]] = PROVIDERS[0].models
-LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = tuple(model for model in QWEN_MODELS if model.id == QWEN3_ASR_MODEL_ID)
+LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = tuple(
+    model for model in QWEN_MODELS if model.id == QWEN3_ASR_MODEL_ID
+)
 
 
 def load_env(path: Path = DEFAULT_ENV_PATH) -> dict[str, str]:

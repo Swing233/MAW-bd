@@ -50,7 +50,12 @@ from maw.console import configure_utf8_stdio  # noqa: E402
 from maw import quapeaks  # noqa: E402
 from maw.project_backups import backup_directory_candidates, write_backup  # noqa: E402
 from maw.app_paths import default_server_settings_path, legacy_server_settings_path  # noqa: E402
-from maw.ass_styles import load_ass_style_library, save_ass_style_library  # noqa: E402
+def load_ass_style_library(*a, **k):
+    return {"styles": [], "assProfiles": []}
+
+def save_ass_style_library(*a, **k):
+    return None
+
 from maw.ffmpeg import resolve_ffmpeg_tools  # noqa: E402
 from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
 from maw.project import (  # noqa: E402
@@ -77,7 +82,12 @@ from maw.project_io import INLINE_CACHE_KEYS, strip_inline_caches  # noqa: E402
 from maw.waveform import (  # noqa: E402
     audio_track_from_payloads,
 )
-from maw.lottie_glyphs import LottieGlyphError, vectorize_lottie_animation  # noqa: E402
+class LottieGlyphError(RuntimeError):
+    pass
+
+def vectorize_lottie_animation(*a, **k):
+    raise LottieGlyphError("lottie removed in focused build")
+
 
 
 MAX_RECENT_PROJECTS = 10
@@ -96,6 +106,8 @@ STICKER_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", 
 
 # 省略 --port 时从这里开始找空闲端口；连续这么多个都不可用属于异常环境，给出明确报错。
 DEFAULT_EDITOR_PORT = 8250
+HEAVY_FEATURES_REMOVED = "editor-heavy-features-removed"
+
 EDITOR_PORT_ATTEMPTS = 64
 
 
@@ -643,12 +655,12 @@ def build_server_page(
         server_config_json=json.dumps({
             "saveUrl": "/api/project",
             "requestToken": request_token,
-            "stickerRootUrl": "/api/stickers/root",
-            "portableStickerExportUrl": "/api/exports/sticker-otio",
-            "otiozStickerExportUrl": "/api/exports/sticker-otioz",
-            "otiozTimelineExportUrl": "/api/exports/timeline-otioz",
-            "lottieExportUrl": "/api/exports/lottie",
-            "ografExportUrl": "/api/exports/ograf",
+            "stickerRootUrl": None,
+            "portableStickerExportUrl": None,
+            "otiozStickerExportUrl": None,
+            "otiozTimelineExportUrl": None,
+            "lottieExportUrl": None,
+            "ografExportUrl": None,
             "waveformUrl": "/api/waveform",
             "startupStatusUrl": "/api/startup-status",
             "startupStatus": startup_status.get("status", "ready"),
@@ -667,7 +679,7 @@ def build_server_page(
             "attachUrl": "/api/project/attach",
             "settingsUrl": "/api/settings",
             "recentProjects": [item.to_json() for item in settings.recent_projects],
-            "assStylesUrl": "/api/ass-styles",
+            "assStylesUrl": None,
             "autoOpenLastProject": settings.auto_open_last_project,
             "savedWorkspaces": settings.saved_workspaces,
             "presetWorkspaces": settings.preset_workspaces,
@@ -1724,18 +1736,6 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.update_ass_styles()
         elif path == "/api/prproj":
             self.send_json(HTTPStatus.NOT_IMPLEMENTED, PRPROJ_CAPABILITY)
-        elif path == "/api/stickers/root":
-            self.set_sticker_root()
-        elif path == "/api/exports/sticker-otio":
-            self.export_sticker_otio()
-        elif path == "/api/exports/sticker-otioz":
-            self.export_sticker_otioz()
-        elif path == "/api/exports/timeline-otioz":
-            self.export_timeline_otioz()
-        elif path == "/api/exports/lottie":
-            self.export_lottie()
-        elif path == "/api/exports/ograf":
-            self.export_ograf()
         else:
             self.send_localized_error(HTTPStatus.NOT_FOUND, "未知 API")
 
@@ -2204,7 +2204,10 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
 
     def handle_request(self, *, include_body: bool) -> None:
         path = urlsplit(self.path).path
-        if path == "/api/prproj-capability":
+        if path in {"/api/ass-styles", "/api/prproj-capability"}:
+            if path == "/api/ass-styles":
+                self.send_json({"error": "removed", "detail": HEAVY_FEATURES_REMOVED}, status=501)
+                return
             self.send_json(HTTPStatus.OK, PRPROJ_CAPABILITY)
             return
         if path == "/api/startup-status":

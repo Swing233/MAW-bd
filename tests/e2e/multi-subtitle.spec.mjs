@@ -977,12 +977,10 @@ test('marquee selection includes secondary waveform cues', async ({ page }) => {
   const extensionBox = await waitForLayoutBox(extensionBlock, '副字幕波形块没有布局');
   const row = extensionBlock.locator('xpath=ancestor::*[contains(@class, "waveform-row")]');
   const rowBox = await waitForLayoutBox(row, '多重字幕波形行没有布局');
-  await page.keyboard.down('Shift');
   await page.mouse.move(Math.max(rowBox.x + 4, extensionBox.x - 32), extensionBox.y + extensionBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(extensionBox.x + extensionBox.width / 2, extensionBox.y + extensionBox.height / 2);
   await page.mouse.up();
-  await page.keyboard.up('Shift');
   await expect(extensionBlock).toHaveClass(/selected/);
 });
 

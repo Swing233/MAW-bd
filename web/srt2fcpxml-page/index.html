@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SRT → FCPXML · MAW</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <h1>SRT → FCPXML</h1>
+      <p class="sub">
+        本地转换，不上传网络。算法移植自 MIT 项目
+        <a href="https://github.com/GanymedeNil/srt2fcpxml" target="_blank" rel="noopener">GanymedeNil/srt2fcpxml</a>
+        （Final Cut Pro X 10.4.6 FCPXML 模板）。
+      </p>
+    </header>
+
+    <section class="card">
+      <h2>1. 字幕 SRT</h2>
+      <div class="row">
+        <label class="file-btn">
+          选择 .srt 文件
+          <input type="file" id="srtFile" accept=".srt,text/plain" hidden />
+        </label>
+        <span id="fileName" class="muted">未选择文件</span>
+      </div>
+      <textarea id="srtText" rows="12" spellcheck="false"
+        placeholder="1&#10;00:00:00,000 --> 00:00:02,000&#10;你好&#10;&#10;2&#10;00:00:02,000 --> 00:00:04,500&#10;Final Cut 字幕"></textarea>
+    </section>
+
+    <section class="card">
+      <h2>2. 参数</h2>
+      <div class="grid">
+        <label>帧率
+          <select id="fps">
+            <option value="23.98">23.98</option>
+            <option value="24">24</option>
+            <option value="25" selected>25</option>
+            <option value="29.97">29.97</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+            <option value="59.94">59.94</option>
+            <option value="60">60</option>
+          </select>
+        </label>
+        <label>分辨率
+          <select id="res">
+            <option value="1920x1080" selected>1920 × 1080</option>
+            <option value="3840x2160">3840 × 2160</option>
+            <option value="2880x2160">2880 × 2160</option>
+          </select>
+        </label>
+        <label>工程名
+          <input type="text" id="projectName" value="MAW Subtitles" />
+        </label>
+        <label>输出文件名
+          <input type="text" id="outputName" value="subtitles.fcpxml" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card actions">
+      <button type="button" id="convertBtn" class="primary">生成 FCPXML</button>
+      <button type="button" id="downloadBtn" disabled>下载 .fcpxml</button>
+      <button type="button" id="copyBtn" disabled class="ghost">复制 XML</button>
+      <p id="status" class="status" role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>3. 预览</h2>
+      <pre id="preview" class="preview">// 转换结果将显示在这里</pre>
+    </section>
+
+    <footer class="foot">
+      <p>
+        许可：转换逻辑依据 MIT License（Copyright (c) 2019 GanymedeNil）移植为浏览器端实现。
+        详见 <code>THIRD_PARTY_NOTICES.md</code> 与上游仓库 LICENSE。
+      </p>
+      <p class="muted">MAW bdversion · 字幕真源仍是 .mosp；本页仅负责 SRT → FCPXML。</p>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

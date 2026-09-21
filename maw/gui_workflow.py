@@ -23,8 +23,18 @@ from maw.gui_platform import asset_path, popen_process_tree, process_group_kwarg
 from maw.media import read_bwf_time_reference
 from maw.output_naming import maw_root
 from maw.qwen_audio import split_qwen_audio_hotwords
-from maw.local_runtime import default_runtime_root, model_cache_environment
-from maw.runtimes import LOCAL
+
+
+def default_runtime_root() -> Path:
+    return Path.home() / ".local" / "share" / "MAW" / "local-runtime"
+
+
+def model_cache_environment(**kwargs):
+    return {}
+
+
+class LOCAL:
+    spec = type("S", (), {"key": "local"})()
 
 
 @dataclass(frozen=True, slots=True)

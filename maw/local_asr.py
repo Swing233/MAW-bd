@@ -44,6 +44,10 @@ from maw.language import (
     timestamp_granularity_for_items,
 )
 from maw.project_io import write_mosp
+from maw.local_segment import (
+    split_items_sentence_aware,
+    split_coarse_segments_sentence_aware,
+)
 
 
 ProgressCallback = Callable[[str], None]
@@ -52,7 +56,7 @@ VIDEO_EXTENSIONS = frozenset({
     ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v",
 })
 
-QWEN_DEFAULT_MODEL = "Qwen/Qwen3-ASR-0.6B"
+QWEN_DEFAULT_MODEL = "Qwen/Qwen3-ASR-1.7B"
 QWEN_DEFAULT_FORCED_ALIGNER = "Qwen/Qwen3-ForcedAligner-0.6B"
 QWEN_DEFAULT_CHUNK_SECONDS = 30
 QWEN_MAX_NEW_TOKENS = 1024
@@ -1792,6 +1796,7 @@ def _resplit_engine_segment(
         gap_split_ms=gap_split_ms,
         max_words=max_words,
         min_words=min_words,
+        natural_cjk=split_mode != "word",
         split_mode=split_mode,
     )
     if not rebuilt:
@@ -1829,9 +1834,9 @@ def build_local_segments(
     transcription: LocalTranscription,
     *,
     duration_ms: int,
-    max_len: int = 18,
+    max_len: int = 20,
     min_len: int = 5,
-    gap_split_ms: int = 800,
+    gap_split_ms: int = 750,
     max_words: int = DEFAULT_MAX_WORDS,
     min_words: int = DEFAULT_MIN_WORDS,
     strip_tail_punct: str = _LOCAL_TAIL_PUNCT,
@@ -1846,17 +1851,27 @@ def build_local_segments(
             # with interpolated in-segment times, mirroring the cloud
             # coarse-segment path. Pieces carry no items because interpolated
             # times must not pose as word-level precision.
-            segments.extend(
-                split_coarse_segments(
-                    [dict(source) for source in transcription.segments],
-                    max_len=max_len,
-                    min_len=min_len,
-                    gap_split_ms=gap_split_ms,
-                    max_words=max_words,
-                    min_words=min_words,
-                    split_mode=transcription.split_mode or None,
+            if (transcription.split_mode or "continuous") == "continuous":
+                segments.extend(
+                    split_coarse_segments_sentence_aware(
+                        [dict(source) for source in transcription.segments],
+                        max_len=max_len,
+                        min_len=min_len,
+                        gap_split_ms=gap_split_ms,
+                    )
                 )
-            )
+            else:
+                segments.extend(
+                    split_coarse_segments(
+                        [dict(source) for source in transcription.segments],
+                        max_len=max_len,
+                        min_len=min_len,
+                        gap_split_ms=gap_split_ms,
+                        max_words=max_words,
+                        min_words=min_words,
+                        split_mode=transcription.split_mode or None,
+                    )
+                )
         else:
             for source in transcription.segments:
                 segments.extend(
@@ -1871,15 +1886,39 @@ def build_local_segments(
                     )
                 )
     elif transcription.items:
-        segments = split_segments_auto(
-            transcription.items,
-            max_len=max_len,
-            min_len=min_len,
-            gap_split_ms=gap_split_ms,
-            max_words=max_words,
-            min_words=min_words,
-            split_mode=transcription.split_mode or None,
-        )
+        if (transcription.split_mode or "continuous") == "continuous":
+            groups = split_items_sentence_aware(
+                transcription.items,
+                max_len=max_len,
+                min_len=min_len,
+                gap_split_ms=gap_split_ms,
+            )
+            segments = []
+            for group in groups:
+                if not group:
+                    continue
+                segments.append(
+                    {
+                        "start": int(group[0].get("start") or 0),
+                        "end": int(group[-1].get("end") or 0),
+                        "text": "".join(str(it.get("text") or "") for it in group),
+                        **(
+                            {"timing_estimated": True}
+                            if any(item.get("timing_estimated") for item in group)
+                            else {"items": list(group)}
+                        ),
+                    }
+                )
+        else:
+            segments = split_segments_auto(
+                transcription.items,
+                max_len=max_len,
+                min_len=min_len,
+                gap_split_ms=gap_split_ms,
+                max_words=max_words,
+                min_words=min_words,
+                split_mode=transcription.split_mode or None,
+            )
     elif transcription.text:
         segments = [{"start": 0, "end": max(duration_ms, 1), "text": transcription.text, "items": []}]
     else:

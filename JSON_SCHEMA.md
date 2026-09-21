@@ -382,6 +382,37 @@
 
 候选的 `alternativeGroupId` 表示同一文稿行的局部录制组；相邻候选之间默认最多相隔 `10000ms`，且最多跨过 `8` 个源字幕段，限制值记录在对齐结果的 `settings.alternativeMaxGapMs` 与 `settings.alternativeMaxCues` 中。不同组的完整命中不会自动作为 `Alternative` 禁用，而会以 `kind: "extra"`、`reasonCode: "distant-match"` 进入可确认范围，默认保留。
 
+### 1.3b proofread 校对元数据（可选，精简版 maw/bdversion）
+
+`segments[*].proofread` 是**语音优先**校对域写入的可选元数据。**不改变** `start/end/items/text` 的时间语义；旧工程没有该字段时完全兼容。
+
+```json
+"proofread": {
+  "status": "verified | improvised | uncertain | manual",
+  "match_score": 0.93,
+  "match_range": { "unit_start": 12, "unit_end": 14, "char_start": 80, "char_end": 120 },
+  "script_text": "文稿对应原文",
+  "asr_original": "主 ASR 原文",
+  "secondary_asr": null,
+  "corrected": null,
+  "reason": null,
+  "disagreement": null
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `status` | string\|null | `verified` 绿 / `improvised` 黄 / `uncertain` 红 / `manual` 不自动上色 |
+| `match_score` | number\|null | 0–1 匹配分 |
+| `script_text` | string\|null | 文稿片段（仅参考） |
+| `asr_original` | string\|null | 主 ASR 原文 |
+| `corrected` | string\|null | 保守校对建议；**默认不自动覆盖 text** |
+| `reason` | string\|null | 修改/状态原因 |
+
+顶层可选 `proofread_run`（`moy.asr.proofread.v1`）记录本次对齐运行摘要，不参与字幕真源。
+
+颜色：`status` 映射复用 `maw/colors.py` 五色（green/yellow/red）；**禁止**另建色系统。
+
 ### 1.4 preview 预览呈现
 
 `preview` 记录预览呈现层的设置，与字幕时间/文本完全解耦。目前定义两个子几何：`preview.subtitle`（字幕预览框，编辑器里 `#overlay`）与 `preview.sticker`（表情包预览层，编辑器里 `#sticker-overlay-layer`），都是在播放器区域内的几何，以 player-wrap 矩形的**归一化分数**存储，因此在播放器缩放和跨机传输后仍然一致。
@@ -549,6 +580,7 @@
   "text": "字幕文本",
   "items": [ ... ],
   "speaker": "1",
+  "timing_estimated": false,
   "sticker": null,
   "sticker_ref": null,
   "color": null,
@@ -564,8 +596,9 @@
 | `end` | `int` | **必填** | 段结束时间，**单位毫秒**，要求 `end > start` |
 | `start_frame` | `int` | 否 | 与 `end_frame` 成对出现的帧起始编号；`timebase.unit` 为 `frames` 时由编辑器使用 |
 | `end_frame` | `int` | 否 | 与 `start_frame` 成对出现的帧结束编号，要求 `end_frame > start_frame` |
-| `text` | `string` | **必填** | 字幕显示文本。可含 `\n` 表示换行（在编辑器里渲染为 `<br>`） |
+| `text` | `string` | **必填** | 字幕显示文本。新生成字幕始终为单行；旧工程里的换行仍兼容读取，SRT 导出时折叠为空格 |
 | `items` | `array<object>` | 推荐填 | 字级时间戳数组。用于「双击拆分时按字分配时间」。可填 `[]`，此时拆分会按字符比例估算时间点 |
+| `timing_estimated` | `bool` | 否 | `true` 表示该段由句级时间按文本比例估算边界；此时不携带伪造的字词级 `items`，也不能把估算边界当作真实停顿 |
 | `disabled` | `bool` | 否 | 禁用该字幕；预览、隐藏禁用项和默认导出会跳过它 |
 | `speaker` | `string` | 否 | 说话人标签（非空字符串）。保存供应商返回的 opaque ID（如 Soniox 的 `"1"`/`"2"`），不转换为整数或姓名。仅当该段所有带语音 items 都是同一 speaker 时才写入；缺少该字段的旧工程继续有效 |
 | `sticker` | `object\|null` | 否 | 表情包 head 信息。见第四节 |
@@ -811,6 +844,7 @@ uv run python edit.py your_generated.mosp
 | `segments[i].start_frame` | int | ❌ | 帧编号，与 `end_frame` 成对 |
 | `segments[i].end_frame` | int | ❌ | 帧编号，与 `start_frame` 成对 |
 | `segments[i].text` | string | ✅ | 显示文本 |
+| `segments[i].timing_estimated` | bool | ❌ | 句级时间拆分后的估算边界标记 |
 | `segments[i].items` | array | 推荐 | 字级时间戳，可 `[]` |
 | `segments[i].disabled` | bool | ❌ | 禁用该字幕 |
 | `segments[i].items[k].text` | string | ✅ | 单字/词 |

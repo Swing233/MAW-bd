@@ -22,7 +22,12 @@ from threading import Event, Lock
 from typing import BinaryIO, Final, final
 
 from maw.app_paths import default_emoji_font_path
-from maw.ass_styles import find_ass_style, load_ass_style_library
+def find_ass_style(*a, **k):
+    return None
+
+def load_ass_style_library(*a, **k):
+    return {"styles": [], "assProfiles": []}
+
 from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
 from maw.media_cache import embed_media_caches
 from maw.gui_config import (
@@ -48,20 +53,9 @@ from maw.gui_config import (
     save_env,
 )
 from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
-from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
+from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.output_naming import format_elapsed, maw_root
-from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee, redact_sensitive_text
-from maw.local_runtime import (
-    LocalRuntimeCancelled,
-    LocalRuntimeError,
-    LocalRuntimeStatus,
-    install_local_runtime,
-    managed_runtime_status,
-    recover_local_runtime_install,
-    resolve_model_cache_root,
-)
-from maw.local_models import inspect_local_model, local_model_payload, prepare_local_model as prepare_model
 from maw.media import resolve_default_audio_track, resolve_project_media
 from maw.notify import send_system_notification
 from maw.postprocess import FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
@@ -79,8 +73,6 @@ from maw.postprocess_ffmpeg import (
     run_extract_audio as process_extract_audio,
     run_ffconcat_rebuild as process_ffconcat_rebuild,
 )
-from maw.postprocess_match import DEFAULT_SPLIT_PUNCTUATION, SCRIPT_EXTENSIONS, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
-from maw.postprocess_ocr import OcrDedupRequest, OcrRegion
 from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, test_llm_connection
 from maw.postprocess_pipeline import (
     PostprocessCancelled,
@@ -96,17 +88,127 @@ from maw.postprocess_pipeline import (
     validate_plan,
 )
 from maw.postprocess_pipeline import PostprocessPipelineError
-from maw.script_alignment import normalize_gap_remove_settings
 from maw.text_conversion import TextConversionUnavailable, normalize_text_conversion_mode
-from maw.ocr_runtime import OCR_MODEL_ID, OCR_MODEL_IDS, OCR_MODEL_LABELS, OCR_MODEL_TYPES, OcrRuntimeCancelled, OcrRuntimeError, install_ocr_runtime, managed_ocr_runtime_status, ocr_model_type, ocr_models_payload, recover_ocr_runtime_install, run_ocr_in_runtime
 from maw.waveform import is_waveform_payload
+from maw.local_log import LocalLogSink, TeeWriter, default_log_directory, install_stdio_tee, redact_sensitive_text
 from maw.project_preview import JsonValue
-from maw.soniox import SonioxContextError, build_soniox_context
 
 
 OPEN_DIALOG = 10
 SAVE_DIALOG = 30
 FOLDER_DIALOG = 20
+
+# --- focused-build stubs for removed features (no network/local ASR/OCR/match) ---
+class _Removed:
+    def __init__(self, *a, **k):
+        raise RuntimeError("该功能已在精简版移除")
+
+LocalRuntimeCancelled = LocalRuntimeError = LocalRuntimeStatus = _Removed
+def install_local_runtime(*a, **k):
+    raise RuntimeError("本地运行时已移除")
+def managed_runtime_status(*a, **k):
+    return {"status": "removed"}
+def recover_local_runtime_install(*a, **k):
+    raise RuntimeError("本地运行时已移除")
+def resolve_model_cache_root(*a, **k):
+    return None
+def inspect_local_model(*a, **k):
+    raise RuntimeError("本地模型已移除")
+def local_model_payload(*a, **k):
+    return []
+def prepare_model(*a, **k):
+    raise RuntimeError("本地模型已移除")
+prepare_local_model = prepare_model
+DEFAULT_SPLIT_PUNCTUATION = frozenset()
+SCRIPT_EXTENSIONS = frozenset({".txt", ".md", ".markdown"})
+MatchCoverageError = SubtitleMatchError = _Removed
+ScriptMatchRequest = _Removed
+def run_script_match(*a, **k):
+    raise RuntimeError("旧文稿匹配已移除，请使用 maw.bdversion")
+process_script_match = run_script_match
+def prepare_script_text(*a, **k):
+    return "", ""
+def processed_script_text(text, **k):
+    return text
+def _has_complete_item_timings(*a, **k):
+    return False
+def _match_project(*a, **k):
+    raise RuntimeError("旧文稿匹配已移除")
+def _match_project_with_character_timings(*a, **k):
+    raise RuntimeError("旧文稿匹配已移除")
+def _read_script(*a, **k):
+    raise RuntimeError("旧文稿匹配已移除")
+OcrDedupRequest = OcrRegion = _Removed
+OCR_MODEL_ID = ""
+OCR_MODEL_IDS: tuple[str, ...] = ()
+OCR_MODEL_LABELS: dict[str, str] = {}
+OCR_MODEL_TYPES: dict[str, str] = {}
+OcrRuntimeCancelled = OcrRuntimeError = _Removed
+def install_ocr_runtime(*a, **k):
+    raise RuntimeError("OCR 已移除")
+def managed_ocr_runtime_status(*a, **k):
+    class _St:
+        ready = False
+        status = "removed"
+        path = ""
+        python_path = ""
+        detail = "OCR runtime removed in focused build"
+        runtime_version = ""
+        model_id = ""
+        model_installed = False
+        model_path = ""
+
+        def to_payload(self):
+            return {
+                "status": self.status,
+                "ready": self.ready,
+                "path": self.path,
+                "pythonPath": self.python_path,
+                "detail": self.detail,
+                "runtimeVersion": self.runtime_version,
+                "modelId": self.model_id,
+                "modelInstalled": self.model_installed,
+                "modelPath": self.model_path,
+            }
+
+    return _St()
+
+
+def managed_runtime_status(*a, **k):
+    class _St:
+        ready = False
+        status = "removed"
+        path = ""
+        python_path = ""
+        detail = "local runtime removed in focused build"
+
+        def to_payload(self):
+            return {
+                "status": self.status,
+                "ready": self.ready,
+                "path": self.path,
+                "pythonPath": self.python_path,
+                "detail": self.detail,
+            }
+
+    return _St()
+def ocr_model_type(*a, **k):
+    return None
+def ocr_models_payload(*a, **k):
+    return []
+def recover_ocr_runtime_install(*a, **k):
+    raise RuntimeError("OCR 已移除")
+def run_ocr_in_runtime(*a, **k):
+    raise RuntimeError("OCR 已移除")
+def normalize_gap_remove_settings(value=None):
+    return {}
+SonioxContextError = _Removed
+def build_soniox_context(*a, **k):
+    raise RuntimeError("Soniox 已移除")
+def build_alignment_serve_command(*a, **k):
+    raise RuntimeError("口播对齐已移除")
+
+
 WINDOW_TITLE = "MAW Launcher"
 MEDIA_EXTS: Final = frozenset({".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"})
 MOSE_REGISTRY_KEY = r"Software\Moy\MOSE"
@@ -477,9 +579,27 @@ class LauncherPaths:
 
 def default_paths() -> LauncherPaths:
     # 冻结（PyInstaller / AppImage）时资源在 sys._MEIPASS（如 dist/MAW/_internal），
-    # 源码运行时在仓库根；与 maw.gui_platform.asset_path 的取法保持一致。
-    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
-    return LauncherPaths(root=root, env_path=DEFAULT_ENV_PATH, launcher_html=root / "web" / "launcher" / "index.html")
+    # macOS .app 可能把 datas 放在 Contents/Resources，而 _MEIPASS 指向 Frameworks。
+    candidates: list[Path] = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass))
+    if getattr(sys, "frozen", False):
+        exe = Path(sys.executable).resolve()
+        if exe.parent.name == "MacOS":
+            candidates.append(exe.parent.parent / "Resources")
+        candidates.append(exe.parent / "_internal")
+        candidates.append(exe.parent)
+    candidates.append(Path(__file__).resolve().parents[1])
+    root = candidates[0]
+    launcher_html = root / "web" / "launcher" / "index.html"
+    for cand in candidates:
+        cand_launcher = cand / "web" / "launcher" / "index.html"
+        if cand_launcher.is_file():
+            root = cand
+            launcher_html = cand_launcher
+            break
+    return LauncherPaths(root=root, env_path=DEFAULT_ENV_PATH, launcher_html=launcher_html)
 
 
 def _independent_app_child_environment() -> dict[str, str]:
@@ -2979,41 +3099,32 @@ class LauncherApi:
 def run_app(*, debug: bool = False, devtools: bool = False, server_port: int | None = None) -> None:
     import webview
 
-    # pywebview opens DevTools automatically in debug mode when this setting is
-    # enabled. Keep debug mode and automatic DevTools opening independently
-    # controllable so normal development does not force an extra window.
+    from maw.focus_launcher import FocusedLauncherApi
+
     webview.settings["OPEN_DEVTOOLS_IN_DEBUG"] = devtools
     paths = default_paths()
-    # 事件流与进程内 print/traceback 共用同一个 sink：单锁单文件。
     log_sink = LocalLogSink()
-    api = LauncherApi(paths=paths, default_server_port=server_port, log_sink=log_sink)
+    api = FocusedLauncherApi(paths=paths, default_server_port=server_port, log_sink=log_sink)
     install_stdio_tee(log_sink)
     launcher_url = paths.launcher_html.resolve().as_uri()
     window = webview.create_window(
-        WINDOW_TITLE,
+        "MAW-bd",
         url=launcher_url,
         js_api=api,
-        width=900,
-        height=880,
-        min_size=(760, 640),
-        background_color="#16181d",
+        width=1120,
+        height=820,
+        min_size=(800, 640),
+        background_color="#0f1216",
         text_select=True,
     )
     if window is not None:
         window.events.closing += lambda: api.shutdown()
-        # 在窗口首次显示时就同步标题栏颜色，避免内容尚未绘制时露出白色原生标题栏。
-        window.events.shown += lambda: apply_dark_title_bar(WINDOW_TITLE)
 
         def _on_loaded() -> None:
             api.pump.start()
 
         window.events.loaded += _on_loaded
-    icon = _launcher_icon_path()
-    webview.start(
-        lambda: bind_launcher_drop(window, api),
-        debug=debug or devtools,
-        icon=str(icon) if icon.exists() else None,
-    )
+    webview.start(debug=debug or devtools)
 
 
 def bind_launcher_drop(window: object | None, api: LauncherApi) -> None:

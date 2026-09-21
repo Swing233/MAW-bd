@@ -168,7 +168,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(waveformPanel.locator('.help-subtitle')).toHaveText(['空白波形区', '波形区字幕操作']);
   await expect(waveformPanel).toContainText('按当前时间基准拆分字幕');
   await expect(waveformPanel).not.toContainText('红色播放指针');
-  await expect(waveformPanel.locator('.help-important').filter({ hasText: 'Shift+拖拽空白处' })).toHaveCount(1);
+  await expect(waveformPanel.locator('.help-important').filter({ hasText: '拖拽空白处' })).toHaveCount(1);
   await expect(waveformPanel.locator('.help-important').filter({ hasText: '绑定到主副字幕（自动匹配）' })).toHaveCount(1);
   await expect(waveformPanel.locator('.help-important').filter({ hasText: '将选中的副字幕的时长对齐到绑定主字幕' })).toHaveCount(1);
   await helpPanel.getByRole('tab', { name: '微调字幕', exact: true }).click();

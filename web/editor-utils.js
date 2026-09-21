@@ -6477,6 +6477,121 @@ export default MawDynamicCaptions;
     };
   }
 
+
+  // FCPXML export (srt2fcpxml / GanymedeNil MIT algorithm, browser port)
+  const FCPXML_FRAME_RATES = {
+    '23.98': [24000, 1001],
+    '24': [24, 1],
+    '25': [25, 1],
+    '29.97': [30000, 1001],
+    '30': [30, 1],
+    '50': [50, 1],
+    '59.94': [60000, 1001],
+    '60': [60, 1],
+  };
+
+  function fcpxmlFrameMapString(fpsValue) {
+    const isFloat = String(fpsValue).includes('.');
+    if (isFloat) {
+      const v = parseFloat(fpsValue);
+      return '1001/' + String(Math.round(v) * 1000);
+    }
+    const iv = parseInt(fpsValue, 10);
+    return '100/' + String(iv * 100);
+  }
+
+  function fcpxmlFrameDurationFormat(fpsValue) {
+    const isFloat = String(fpsValue).includes('.');
+    if (isFloat) {
+      const v = parseFloat(fpsValue);
+      return { mol: 1001, den: Math.round(v) * 1000 };
+    }
+    const iv = parseInt(fpsValue, 10);
+    return { mol: 100, den: iv * 100 };
+  }
+
+  function fcpxmlFrameDuration(fpsValue) {
+    return String(fpsValue).includes('.') ? parseFloat(fpsValue) : parseInt(fpsValue, 10);
+  }
+
+  function escapeXmlText(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function buildFcpxmlFromSegments(segments, options = {}) {
+    const fpsKey = String(options.fps || '25');
+    if (!FCPXML_FRAME_RATES[fpsKey]) throw new Error('不支持的帧率: ' + fpsKey);
+    const res = String(options.resolution || '1920x1080');
+    const parts = res.toLowerCase().split('x');
+    const width = parseInt(parts[0], 10);
+    const height = parseInt(parts[1], 10);
+    if (!(width > 0 && height > 0)) throw new Error('不支持的分辨率: ' + res);
+    const projectName = String(options.projectName || 'MAW Subtitles');
+
+    const cues = [];
+    (segments || []).forEach((seg, i) => {
+      if (!seg || seg.disabled === true) return;
+      const text = String(seg.text || '').trim();
+      if (!text) return;
+      const start = Number(seg.start);
+      const end = Number(seg.end);
+      if (!(Number.isFinite(start) && Number.isFinite(end) && end > start)) return;
+      cues.push({ start: start / 1000, end: end / 1000, text, name: text.split('\n')[0].slice(0, 80), index: i + 1 });
+    });
+    if (!cues.length) throw new Error('没有可导出的字幕');
+
+    const fps = fcpxmlFrameDuration(fpsKey);
+    const { mol, den } = fcpxmlFrameDurationFormat(fpsKey);
+    const frameDurationAttr = fcpxmlFrameMapString(fpsKey) + 's';
+    const fmtName = 'FFVideoFormat' + width + 'x' + height + 'p' + Math.round(fps * 100);
+    const endSec = Math.max.apply(null, cues.map(c => c.end));
+    const seqDurationAttr = String(Math.round(endSec * fps) * mol) + '/' + String(den) + 's';
+    const projectStart = 3.6 * den * mol;
+    const gapDurationAttr = String(Math.round(endSec * fps) * mol) + '/' + String(den) + 's';
+    const gapStartAttr = String(projectStart) + '/' + String(den) + 's';
+    const effectUid = '.../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti';
+
+    const titleParts = cues.map((item, index) => {
+      const tsId = 'ts' + (index + 1);
+      const offsetNum = Math.round(item.start * fps) * mol + projectStart;
+      const offsetAttr = String(offsetNum) + '/' + String(den) + 's';
+      const durNum = (Math.round((item.end - item.start) * fps) * mol * 120000.0) / den;
+      const durationAttr = String(durNum) + '/120000s';
+      const titleStartAttr = String(projectStart) + '/' + String(den) + 's';
+      return '<title name="' + escapeXmlText(item.name) + '" lane="1" offset="' + offsetAttr + '" ref="r2" duration="' + durationAttr + '" start="' + titleStartAttr + '">' +
+        '<param name="Position" key="9999/999166631/999166633/1/100/101" value="0 -450"/>' +
+        '<param name="Alignment" key="9999/999166631/999166633/2/354/999169573/401" value="1 (Center)"/>' +
+        '<param name="Flatten" key="9999/999166631/999166633/2/351" value="1"/>' +
+        '<text><text-style ref="' + tsId + '">' + escapeXmlText(item.text) + '</text-style></text>' +
+        '<text-style-def id="' + tsId + '"><text-style font="PingFang SC" fontSize="52" fontFace="Semibold" fontColor="0.999993 1 1 1" bold="1" shadowColor="0 0 0 0.75" shadowOffset="5 315" alignment="center"/></text-style-def>' +
+        '</title>';
+    });
+
+    return '<?xml version="1.0" encoding="UTF-8" ?>\n<!DOCTYPE fcpxml>\n<fcpxml version="1.7">\n' +
+      '    <resources>\n' +
+      '        <format id="r1" name="' + fmtName + '" frameDuration="' + frameDurationAttr + '" width="' + width + '" height="' + height + '" colorSpace="1-1-1 (Rec. 709)"/>\n' +
+      '        <effect id="r2" name="Basic Title" uid="' + effectUid + '"/>\n' +
+      '    </resources>\n' +
+      '    <library>\n' +
+      '        <event name="' + escapeXmlText(projectName) + '">\n' +
+      '            <project name="' + escapeXmlText(projectName) + '" uid="' + escapeXmlText(projectName) + '" modDate="2020-01-01 00:00:00 +0800">\n' +
+      '                <sequence format="r1" duration="' + seqDurationAttr + '" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">\n' +
+      '                    <spine>\n' +
+      '                        <gap name="Gap" offset="0s" duration="' + gapDurationAttr + '" start="' + gapStartAttr + '">\n' +
+      titleParts.join('\n') + '\n' +
+      '                        </gap>\n' +
+      '                    </spine>\n' +
+      '                </sequence>\n' +
+      '            </project>\n' +
+      '        </event>\n' +
+      '    </library>\n' +
+      '</fcpxml>\n';
+  }
+
   window.AsrEditorUtils = {
     PROJECT_SCHEMA,
     supportsProjectSchema,
@@ -6626,6 +6741,8 @@ export default MawDynamicCaptions;
     repairGroupReferenceIndices,
     shiftSelectionAfterRemoval,
     buildSrtPayload,
+    buildFcpxmlFromSegments,
+    FCPXML_FRAME_RATES,
     normalizeAssFontFamily,
     normalizeAssFontSize,
     resolveAssFontSize,

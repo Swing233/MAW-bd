@@ -1,5 +1,11 @@
 # Third-party notices
 
+## Upstream project attribution
+
+MAW-bd 是 [Moyf/moys-asr-workflow](https://github.com/Moyf/moys-asr-workflow) 的修改版本。原项目及 MAW / MAWE 核心架构由 [Moyf](https://github.com/Moyf) 创建，并由其上游贡献者共同维护。本仓库保留上游提交历史与 `AGPL-3.0-only` 许可证；后续修改继续按同一许可证发布。
+
+## External components
+
 本仓库不打包模型或云端 API 服务。默认的 `MAW-Windows` 与 `MAW-macOS-arm64` 包会附带对应平台的 `ffmpeg` 与 `ffprobe`；可选的 `MAW-lite` 包不含 FFmpeg；Linux 的 `MAW-Linux-x86_64.AppImage` 始终内置静态 `ffmpeg`/`ffprobe`（BtbN 构建）。Windows 包还会在 `bootstrap/` 携带嵌入式 Python（python-3.11.9-embed-amd64.zip）与 `get-pip.py`，供用户通过 GUI 创建本地 ASR 运行环境。运行时可能使用下列外部组件；许可证和服务条款以各项目及服务方的最新文本为准。
 
 | Component | Purpose | License / terms |
@@ -30,5 +36,6 @@
 | Volcengine / Doubao Speech Recognition | Speech recognition API | External service; subject to Volcengine terms, billing, and privacy policy |
 | [OpenRouter](https://openrouter.ai/) | OpenAI-compatible API router used for ASR models | External service; subject to OpenRouter and the selected upstream provider's terms, billing, and privacy policy |
 | [DeepSeek](https://www.deepseek.com/) / [Zhipu Coding Plan](https://open.bigmodel.cn/) / Alibaba Cloud Model Studio Qwen / custom OpenAI-compatible endpoint | Optional subtitle text post-processing in the Launcher toolbox | External services; subject to the selected provider's terms, billing, and privacy policy |
+| [GanymedeNil/srt2fcpxml](https://github.com/GanymedeNil/srt2fcpxml) | Browser SRT → FCPXML conversion page (`web/srt2fcpxml-page/` / session `index.html`); FCP X 10.4.6-style FCPXML template logic ported to JavaScript | **MIT License** — Copyright (c) 2019 GanymedeNil. Full text in upstream [LICENSE](https://github.com/GanymedeNil/srt2fcpxml/blob/master/LICENSE). Product uses this local webpage path instead of maintaining a separate Python FCPXML exporter as the primary flow. |
 
 The `web/` editor, Python scripts, and documentation in this repository are distributed under the repository's `AGPL-3.0-only` license unless a file states otherwise.

@@ -47,7 +47,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         epilog=(
             "示例:\n"
             "  MAW.exe -i \"clip.mp3\" -o \"clip.srt\" \"clip.mosp\"\n"
-            "  MAW.exe --provider soniox -i \"clip.mp4\" -o \"clip.srt\"\n"
+            "  MAW.exe --provider qwen -i \"clip.mp4\" -o \"clip.srt\"\n"
             "  MAW.exe --server 8250\n"
             "  MAW.exe --stop-server 8250\n"
             "\n"
@@ -91,7 +91,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--mosp", dest="mosp_output", help="单独指定 .mosp 工程输出路径（等价于 -o SRT MOSP 的第二个路径）")
     parser.add_argument(
         "--provider",
-        choices=("qwen", "soniox", "doubao", "tencent", "openai", "bcut"),
+        choices=("qwen",),
         default="qwen",
         help="ASR 供应商（默认 qwen；openai 为 OpenAI 兼容接口）",
     )
@@ -388,37 +388,17 @@ def _generator_args(args: argparse.Namespace, input_path: Path, srt_path: Path) 
 
 
 def _invoke_generator(provider: str, argv: Sequence[str]) -> int:
-    if provider == "soniox":
-        import generate_subtitle_soniox_api as generator
-
-        script_name = "generate_subtitle_soniox_api.py"
-    elif provider == "doubao":
-        import generate_subtitle_doubao_api as generator
-
-        script_name = "generate_subtitle_doubao_api.py"
-    elif provider == "bcut":
-        import generate_subtitle_bcut_api as generator
-
-        script_name = "generate_subtitle_bcut_api.py"
-    elif provider == "tencent":
-        import generate_subtitle_tencent_api as generator
-
-        script_name = "generate_subtitle_tencent_api.py"
-    elif provider == "openai":
-        import generate_subtitle_openai_api as generator
-
-        script_name = "generate_subtitle_openai_api.py"
-    else:
-        import generate_subtitle_qwen_api as generator
-
-        script_name = "generate_subtitle_qwen_api.py"
-    old_argv = sys.argv[:]
+    if provider != "qwen":
+        raise SystemExit(f"精简版仅支持 --provider qwen，收到：{provider}")
+    import generate_subtitle_qwen_api as generator
+    script_name = "generate_subtitle_qwen_api.py"
+    print(f"运行 {script_name} ...", flush=True)
+    old_argv = sys.argv
     try:
         sys.argv = [script_name, *argv]
-        result = generator.main()
+        return int(generator.main() or 0)
     finally:
         sys.argv = old_argv
-    return 0 if result is None else int(result)
 
 
 def _run_server(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:

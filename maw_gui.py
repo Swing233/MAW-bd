@@ -18,25 +18,12 @@ _INTERNAL_FLAGS = frozenset(
     {
         "--smoke-import",
         "--transcribe",
-        "--transcribe-soniox",
-        "--transcribe-doubao",
-        "--transcribe-local",
-        "--transcribe-bcut",
-        "--transcribe-tencent",
-        "--transcribe-openai",
         "--serve",
-        "--serve-alignment",
     }
 )
 _TRANSCRIPTION_FLAGS = frozenset(
     {
         "--transcribe",
-        "--transcribe-soniox",
-        "--transcribe-doubao",
-        "--transcribe-local",
-        "--transcribe-bcut",
-        "--transcribe-tencent",
-        "--transcribe-openai",
     }
 )
 _GUI_DEBUG_FLAGS = frozenset({"-dbg", "--debug", "-dt", "--devtools"})
@@ -59,47 +46,8 @@ def _gui_port_value(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Moy's ASR Workflow GUI")
     parser.add_argument("--smoke-import", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--transcribe",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--transcribe-soniox",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--transcribe-doubao",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--transcribe-local",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--transcribe-bcut",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument("--transcribe-tencent", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--transcribe-openai",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--serve",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "--serve-alignment",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
+    parser.add_argument("--transcribe", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "-dbg",
         "--debug",
@@ -134,22 +82,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.transcribe:
         return _run_internal_transcribe(rest)
-    if args.transcribe_soniox:
-        return _run_internal_transcribe_soniox(rest)
-    if args.transcribe_doubao:
-        return _run_internal_transcribe_doubao(rest)
-    if args.transcribe_local:
-        return _run_internal_transcribe_local(rest)
-    if args.transcribe_bcut:
-        return _run_internal_transcribe_bcut(rest)
-    if args.transcribe_tencent:
-        return _run_internal_transcribe_tencent(rest)
-    if args.transcribe_openai:
-        return _run_internal_transcribe_openai(rest)
     if args.serve:
         return _run_internal_serve(rest)
-    if args.serve_alignment:
-        return _run_internal_alignment_serve(rest)
 
     from maw.gui_web import run_app
 
@@ -208,7 +142,7 @@ def _show_unknown_startup_hint() -> None:
         "MAW 启动时遇到未识别错误。\n\n"
         "此提示不会替代随后出现的完整错误信息。请先查看发布包内的 FAQ-常见问题.txt；"
         "如仍无法解决，可前往项目 Issue 页面反馈：\n"
-        "https://github.com/Moyf/moys-asr-workflow/issues/new\n\n"
+        "https://github.com/Swing233/MAW-bd/issues/new\n\n"
         "随后将保留并显示原始错误详情。"
     )
     try:
@@ -346,78 +280,6 @@ def _run_internal_transcribe(argv: Sequence[str]) -> int:
     return 0 if result is None else int(result)
 
 
-def _run_internal_transcribe_soniox(argv: Sequence[str]) -> int:
-    import generate_subtitle_soniox_api
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_soniox_api.py", *argv]
-        result = generate_subtitle_soniox_api.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
-def _run_internal_transcribe_doubao(argv: Sequence[str]) -> int:
-    import generate_subtitle_doubao_api
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_doubao_api.py", *argv]
-        result = generate_subtitle_doubao_api.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
-def _run_internal_transcribe_local(argv: Sequence[str]) -> int:
-    import generate_subtitle_local
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_local.py", *argv]
-        result = generate_subtitle_local.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
-def _run_internal_transcribe_bcut(argv: Sequence[str]) -> int:
-    import generate_subtitle_bcut_api
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_bcut_api.py", *argv]
-        result = generate_subtitle_bcut_api.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
-def _run_internal_transcribe_tencent(argv: Sequence[str]) -> int:
-    import generate_subtitle_tencent_api
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_tencent_api.py", *argv]
-        result = generate_subtitle_tencent_api.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
-def _run_internal_transcribe_openai(argv: Sequence[str]) -> int:
-    import generate_subtitle_openai_api
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["generate_subtitle_openai_api.py", *argv]
-        result = generate_subtitle_openai_api.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
-
 def _run_internal_serve(argv: Sequence[str]) -> int:
     server_dir = Path(__file__).resolve().parent / "server-editor"
     if str(server_dir) not in sys.path:
@@ -431,25 +293,6 @@ def _run_internal_serve(argv: Sequence[str]) -> int:
     finally:
         sys.argv = old_argv
     return 0 if result is None else int(result)
-
-
-def _run_internal_alignment_serve(argv: Sequence[str]) -> int:
-    server_path = Path(__file__).resolve().parent / "server-align" / "serve.py"
-    spec = importlib.util.spec_from_file_location("_maw_alignment_server", server_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"无法加载口播对齐 Server：{server_path}")
-    serve = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = serve
-    spec.loader.exec_module(serve)
-
-    old_argv = sys.argv[:]
-    try:
-        sys.argv = ["serve.py", *argv]
-        result = serve.main()
-    finally:
-        sys.argv = old_argv
-    return 0 if result is None else int(result)
-
 
 if __name__ == "__main__":
     raise SystemExit(run_entrypoint())

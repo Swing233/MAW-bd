@@ -2762,8 +2762,8 @@
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
-        this.setStatus('等待波形数据');
-        this.empty.textContent = '加载媒体后显示波形（大媒体需要先用 MAW 生成波形后拖入）';
+        this.setStatus('暂无波形（字幕可编辑）');
+        this.empty.textContent = '若已关联媒体，波形会稍后生成；也可重新打开编辑器。字幕编辑不受影响。';
         this.empty.classList.remove('hidden');
         if (render) this.render();
         return false;
@@ -3269,11 +3269,11 @@
           this.beginCreateCueDrag(event, row, track);
           return;
         }
-        // Shift+左键在空白处拖动：框选字幕块（追加进现有多选），
-        // 不进入下方的清除选中/seek/播放头拖拽路径
+        // 左键在空白处直接拖动：框选字幕块；按住 Shift 时追加到已有选择。
+        // 命中字幕块仍由块自己的 pointerdown 处理，因此拖动字幕行为不变。
+        // 未达到拖动阈值的普通点击继续清除选择并跳转播放头。
         if (
           event.button === 0 &&
-          event.shiftKey &&
           !event.ctrlKey &&
           !event.metaKey &&
           !event.altKey &&
@@ -3281,7 +3281,14 @@
           !this.isCustomLayout()
         ) {
           event.preventDefault();
-          this.beginMarqueeDrag(event);
+          const geometry = this.captureRowGeometry(row);
+          this.beginMarqueeDrag(event, {
+            additive: event.shiftKey,
+            onClick: event.shiftKey ? null : (clickEvent) => {
+              this.options.clearSelection?.();
+              this.seekFromPointer(clickEvent, row, false, geometry);
+            },
+          });
           return;
         }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
@@ -3507,7 +3514,7 @@
           event.preventDefault();
           event.stopPropagation();
           if (event.ctrlKey || event.metaKey) return;
-          if (this.options.enterCueEditor) this.options.enterCueEditor(index);
+          if (this.options.enterCueEditor) this.options.enterCueEditor(index, block);
           else this.options.activateCue?.(index);
         });
         row.appendChild(block);
@@ -3594,7 +3601,7 @@
           block.addEventListener('dblclick', (event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (this.options.enterOverlayCueEditor) this.options.enterOverlayCueEditor(index);
+          if (this.options.enterOverlayCueEditor) this.options.enterOverlayCueEditor(index, block);
           });
           row.appendChild(block);
         }
@@ -3652,7 +3659,7 @@
           event.preventDefault();
           event.stopPropagation();
           if (event.ctrlKey || event.metaKey) return;
-          if (this.options.enterExtensionCueEditor) this.options.enterExtensionCueEditor(index);
+          if (this.options.enterExtensionCueEditor) this.options.enterExtensionCueEditor(index, block);
           else this.options.activateExtensionCue?.(index);
         });
         row.appendChild(block);
@@ -4497,12 +4504,12 @@
       window.addEventListener('pointercancel', onCancel, { once: true });
     }
 
-    // Shift+左键框选：在波形空白处按下并拖动，画出选框，松开后把与选框相交的
-    // 字幕块追加进当前多选（与 Shift 范围选同为追加语义）。选框挂在
+    // 空白处左键框选：直接拖动替换当前选择；Shift+拖动追加进当前多选。
+    // 选框挂在
     // #waveform-content 内、与行同坐标系，滚动时自动跟随；多行虚拟化重建
     // 会清掉覆盖层与块上的预览类，因此每帧重新挂载、重新命中。位移低于
-    // 阈值的 Shift+点击视为空操作，不触发空白区既有的清除选中/seek。
-    beginMarqueeDrag(event) {
+    // 阈值的普通点击走原有 seek，Shift+点击仍为空操作。
+    beginMarqueeDrag(event, { additive = true, onClick = null } = {}) {
       const content = this.content;
       const startRect = content.getBoundingClientRect();
       const start = { x: event.clientX - startRect.left, y: event.clientY - startRect.top };
@@ -4572,12 +4579,15 @@
         clearPreview();
         removeOverlay();
         if (commit && drawing) {
+          if (!additive) this.options.clearSelection?.();
           if (hits.main.size > 0) {
             this.options.addCueSelection?.([...hits.main].sort((a, b) => a - b));
           }
           if (hits.extension.size > 0) {
             this.options.addExtensionSelection?.([...hits.extension].sort((a, b) => a - b));
           }
+        } else if (commit && !drawing) {
+          onClick?.(lastEvent);
         }
       };
       const onMove = (moveEvent) => {

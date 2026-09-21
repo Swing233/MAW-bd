@@ -1,6 +1,6 @@
-// Waveform Shift+drag marquee selection regression — shared scenario suite.
+// Waveform direct-drag marquee selection regression — shared scenario suite.
 // Runs identical assertions against both localhost server and portable HTML.
-// Marquee is performed with real Shift+left-button mouse drags on blank waveform.
+// Marquee is performed with real left-button mouse drags on blank waveform.
 // All waits are on observable DOM/DATA state (no arbitrary sleeps).
 import { test, expect } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
@@ -95,9 +95,9 @@ async function marqueeGeometry(page) {
   };
 }
 
-// Real Shift+left-drag between two viewport points, in small steps.
-async function shiftDrag(page, start, end, steps = 8) {
-  await page.keyboard.down('Shift');
+// Real left-drag between two viewport points; Shift preserves additive selection.
+async function marqueeDrag(page, start, end, { additive = false, steps = 8 } = {}) {
+  if (additive) await page.keyboard.down('Shift');
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   for (let i = 1; i <= steps; i += 1) {
@@ -110,7 +110,7 @@ async function shiftDrag(page, start, end, steps = 8) {
 
 async function finishDrag(page) {
   await page.mouse.up();
-  await page.keyboard.up('Shift');
+  try { await page.keyboard.up('Shift'); } catch (_) {}
 }
 
 test.beforeEach(async ({ page }) => {
@@ -144,16 +144,16 @@ function attachErrorCollector(page) {
 async function runMarqueeScenarios(page, openEditor) {
   const errors = attachErrorCollector(page);
 
-  // --- Scenario 1: Shift+drag selects blocks 1 and 2, without seeking ---
+  // --- Scenario 1: direct drag selects blocks 1 and 2, without seeking ---
   await openEditor(page);
   let geo = await marqueeGeometry(page);
-  await shiftDrag(page, geo.start, geo.end);
+  await marqueeDrag(page, geo.start, geo.end);
   await finishDrag(page);
   await expectMarqueeSelection(page, [1, 2]);
   expect(await getSelectedIndices(page), 'marquee selects blocks 1+2').toEqual([1, 2]);
   const selCount = await page.locator('#sel-count').textContent();
   expect(selCount.trim(), 'selection count badge').toBe('2');
-  expect(await getPlayerTime(page), 'Shift+drag must not seek (dragPlayhead on)').toBeLessThan(0.5);
+  expect(await getPlayerTime(page), 'direct drag must not seek (dragPlayhead on)').toBeLessThan(0.5);
   // 窗口外的 idx 4 块即使存在于 DOM（hidden）也不得被框选命中
   expect(
     await page.locator('.waveform-cue-block[data-idx="4"].selected').count(),
@@ -166,7 +166,7 @@ async function runMarqueeScenarios(page, openEditor) {
   await page.locator('.waveform-cue-block[data-idx="0"]').first().click();
   await page.waitForSelector('.cue[data-idx="0"].selected', { timeout: 5000 });
   geo = await marqueeGeometry(page);
-  await shiftDrag(page, geo.start, geo.end);
+  await marqueeDrag(page, geo.start, geo.end, { additive: true });
   await finishDrag(page);
   await expectMarqueeSelection(page, [0, 1, 2]);
   expect(await getSelectedIndices(page), 'marquee unions with previous selection').toEqual([0, 1, 2]);
@@ -175,9 +175,7 @@ async function runMarqueeScenarios(page, openEditor) {
   // --- Scenario 3: Shift+click (no drag) on blank waveform is a no-op ---
   await openEditor(page);
   geo = await marqueeGeometry(page);
-  await page.keyboard.down('Shift');
-  await page.mouse.move(geo.start.x, geo.start.y);
-  await page.mouse.down();
+  await marqueeDrag(page, geo.start, geo.start, { additive: true, steps: 0 });
   await page.mouse.up();
   await page.keyboard.up('Shift');
   // Give the app a beat to misbehave, then confirm nothing changed.
@@ -192,7 +190,6 @@ async function runMarqueeScenarios(page, openEditor) {
   await openEditor(page);
   geo = await marqueeGeometry(page);
   const b1Box = await page.locator('.waveform-cue-block[data-idx="1"]').first().boundingBox();
-  await page.keyboard.down('Shift');
   await page.mouse.move(geo.start.x, geo.start.y);
   await page.mouse.down();
   // 先拖进块 1 的垂直范围（矩形已覆盖块 1、尚未碰到块 2），验证预览出现
@@ -202,7 +199,6 @@ async function runMarqueeScenarios(page, openEditor) {
   // 继续拖完整个框选路径再松开
   await page.mouse.move(geo.end.x, geo.end.y, { steps: 4 });
   await page.mouse.up();
-  await page.keyboard.up('Shift');
   await expectMarqueeSelection(page, [1, 2]);
   expect(await page.locator('.waveform-marquee').count(), 'overlay removed after release').toBe(0);
   expect(await page.locator('.waveform-cue-block.marquee-preview').count(), 'preview classes cleaned up').toBe(0);

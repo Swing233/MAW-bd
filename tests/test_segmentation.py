@@ -41,9 +41,9 @@ class WesternSplitTests(unittest.TestCase):
 
         segments = split_words_to_segments_western(items, gap_split_ms=1500)
 
-        # " Yes."（1 词）并入前句；末尾 " Ok."（1 词）并入前句
+        # 有完整句末标点的短句保留自己的 ASR 句子边界。
         self.assertEqual([s["text"] for s in segments],
-                         [" I said so. Yes.", " And then we went home. Ok."])
+                         [" I said so.", " Yes.", " And then we went home.", " Ok."])
 
     def test_western_does_not_merge_short_sentence_past_word_limit(self) -> None:
         items = _words([
@@ -162,9 +162,10 @@ class AutoTrackTests(unittest.TestCase):
 
         segments = split_segments_auto(items, max_len=21, min_len=5, gap_split_ms=1500)
 
-        self.assertEqual(len(segments), 2)
+        self.assertEqual(len(segments), 3)
         self.assertEqual(segments[0]["text"], "今天。")
-        self.assertEqual(segments[1]["text"], " hello world. OK.")
+        self.assertEqual(segments[1]["text"], " hello world.")
+        self.assertEqual(segments[2]["text"], " OK.")
 
     def test_auto_output_passes_project_validation(self) -> None:
         items = _words([

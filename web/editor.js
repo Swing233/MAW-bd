@@ -2107,6 +2107,78 @@ updateUndoRedoButtons();
 const nowEl = document.getElementById('now');
 const searchEl = document.getElementById('search');
 const visibleCountEl = document.getElementById('visible-count');
+let proofreadFilterId = 'all';
+const proofreadFilterDropdown = document.getElementById('proofread-filter-dropdown');
+const proofreadFilterButton = document.getElementById('proofread-filter-btn');
+const proofreadFilterMenu = document.getElementById('proofread-filter-menu');
+
+function renderProofreadPanel(segment) {
+  const panel = document.getElementById('cue-panel-proofread');
+  if (!panel || !window.MaweProofread) return;
+  const detail = window.MaweProofread.renderDetail(segment);
+  const has = Boolean(segment && (detail.status || detail.scriptText || detail.asrOriginal
+    || detail.secondaryAsr || detail.corrected || detail.reason));
+  panel.hidden = !has;
+  if (!has) return;
+  const statusEl = document.getElementById('cue-panel-proofread-status');
+  const scoreEl = document.getElementById('cue-panel-proofread-score');
+  if (statusEl) {
+    statusEl.textContent = detail.statusLabel;
+    statusEl.dataset.status = detail.status || '';
+    statusEl.className = 'proofread-status' + (detail.status ? ' is-' + detail.status : '');
+  }
+  if (scoreEl) {
+    scoreEl.textContent = detail.matchScore != null ? `匹配 ${Math.round(detail.matchScore * 100)}%` : '';
+  }
+  const map = {
+    'cue-panel-proofread-script': detail.scriptText,
+    'cue-panel-proofread-asr': detail.asrOriginal,
+    'cue-panel-proofread-secondary': detail.secondaryAsr,
+    'cue-panel-proofread-corrected': detail.corrected,
+    'cue-panel-proofread-reason': detail.reason,
+  };
+  Object.keys(map).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = map[id] || '—';
+  });
+}
+
+function buildProofreadFilterMenu() {
+  if (!proofreadFilterMenu || !window.MaweProofread) return;
+  proofreadFilterMenu.replaceChildren();
+  window.MaweProofread.FILTERS.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dropdown-item proofread-filter-item' + (proofreadFilterId === item.id ? ' active' : '');
+    btn.dataset.filter = item.id;
+    btn.setAttribute('role', 'menuitem');
+    btn.textContent = item.label;
+    btn.addEventListener('click', () => {
+      proofreadFilterId = item.id;
+      if (proofreadFilterButton) {
+        proofreadFilterButton.textContent = item.id === 'all' ? '校对' : `校对·${item.label}`;
+        proofreadFilterButton.classList.toggle('filter-active', item.id !== 'all');
+      }
+      buildProofreadFilterMenu();
+      applySearch(searchEl?.value || '');
+    });
+    proofreadFilterMenu.appendChild(btn);
+  });
+}
+
+if (proofreadFilterButton && proofreadFilterMenu) {
+  buildProofreadFilterMenu();
+  proofreadFilterButton.addEventListener('click', () => {
+    const open = proofreadFilterMenu.classList.toggle('open');
+    proofreadFilterButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', (event) => {
+    if (!proofreadFilterDropdown?.contains(event.target)) {
+      proofreadFilterMenu.classList.remove('open');
+      proofreadFilterButton.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
 const totalCountEl = document.getElementById('total-count');
 const selCountEl = document.getElementById('sel-count');
 const overlayEl = document.getElementById('overlay');
@@ -2357,6 +2429,11 @@ const cuePanelSticker = document.getElementById('cue-panel-sticker');
 const cuePanelAddSticker = document.getElementById('cue-panel-add-sticker');
 const cuePanelSplit = document.getElementById('cue-panel-split');
 const cuePanelSplitKey = document.getElementById('cue-panel-split-key');
+const waveformCueEditModal = document.getElementById('waveform-cue-edit-modal');
+const waveformCueEditMeta = document.getElementById('waveform-cue-edit-meta');
+const waveformCueEditText = document.getElementById('waveform-cue-edit-text');
+const waveformCueEditCancel = document.getElementById('waveform-cue-edit-cancel');
+const waveformCueEditSave = document.getElementById('waveform-cue-edit-save');
 const cuesEmpty = document.getElementById('cues-empty');
 const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
@@ -6957,8 +7034,10 @@ function renderCurrentCuePanel() {
     cuePanelCharsPerSecond.textContent = '0.00';
     cuePanelSticker.replaceChildren();
     cuePanelSticker.textContent = window.MAWE_I18N?.translateText?.('未选择') || '未选择';
+    if (window.MaweProofread) renderProofreadPanel(null);
     return;
   }
+  if (window.MaweProofread) renderProofreadPanel(seg);
   if (document.activeElement !== cuePanelText || !cuePanelUndoPushed) cuePanelText.value = seg.text || '';
   cuePanelStart.value = fmtShort(seg.start);
   cuePanelDuration.value = timelineIsFrameMode()
@@ -7008,6 +7087,97 @@ function focusCuePanelText(idx = currentCuePanelIdx, kind = currentCuePanelKind)
   cuePanelText.setSelectionRange(end, end);
   return true;
 }
+
+let waveformCueEditAnchor = null;
+
+function positionWaveformCueEditDialog() {
+  if (!waveformCueEditModal || waveformCueEditModal.hidden || !waveformCueEditAnchor?.isConnected) return;
+  const anchor = waveformCueEditAnchor.getBoundingClientRect();
+  const margin = 8;
+  const gap = 6;
+  const width = Math.min(360, Math.max(240, window.innerWidth - margin * 2));
+  waveformCueEditModal.style.width = `${width}px`;
+  const height = waveformCueEditModal.offsetHeight;
+  const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
+  const below = anchor.bottom + gap;
+  const above = anchor.top - height - gap;
+  const top = below + height <= window.innerHeight - margin
+    ? below
+    : Math.max(margin, above);
+  waveformCueEditModal.style.left = `${Math.round(left)}px`;
+  waveformCueEditModal.style.top = `${Math.round(top)}px`;
+}
+
+function closeWaveformCueEditDialog() {
+  if (!waveformCueEditModal) return;
+  waveformCueEditModal.classList.remove('show');
+  waveformCueEditModal.hidden = true;
+  waveformCueEditAnchor = null;
+}
+
+function openWaveformCueEditDialog(kind, index, track = null, anchor = null) {
+  if (!waveformCueEditModal || !waveformCueEditText) return;
+  waveformCueEditAnchor = anchor;
+  if (kind === 'extension') setCurrentCuePanelExtensionIndex(index, track || getActiveExtensionTrack());
+  else if (kind === 'overlay') setCurrentCuePanelOverlayIndex(index);
+  else setCurrentCuePanelIndex(index);
+  const target = getCurrentCuePanelTarget();
+  if (!target) return;
+  const label = target.kind === 'extension' ? '副字幕' : target.kind === 'overlay' ? '叠加字幕' : '主字幕';
+  waveformCueEditText.value = target.segment.text || '';
+  if (waveformCueEditMeta) {
+    waveformCueEditMeta.textContent = `${label} · ${fmtShort(target.segment.start)} → ${fmtShort(target.segment.end)}`;
+  }
+  waveformCueEditModal.hidden = false;
+  waveformCueEditModal.classList.add('show');
+  requestAnimationFrame(() => {
+    positionWaveformCueEditDialog();
+    waveformCueEditText.focus();
+    waveformCueEditText.setSelectionRange(0, waveformCueEditText.value.length);
+  });
+}
+
+function saveWaveformCueEditDialog() {
+  const target = getCurrentCuePanelTarget();
+  if (!target || !waveformCueEditText || !cuePanelText) {
+    closeWaveformCueEditDialog();
+    return;
+  }
+  const nextText = waveformCueEditText.value.replace(/\r\n?/g, '\n');
+  let changed = false;
+  if (nextText !== target.segment.text) {
+    cuePanelText.value = nextText;
+    cuePanelText.dispatchEvent(new Event('input', { bubbles: true }));
+    commitCuePanelEdit();
+    changed = true;
+  }
+  closeWaveformCueEditDialog();
+  if (changed) {
+    // 输入处理已更新工程与波形文字；轻量重绘列表以立即显示 manual 徽章。
+    renderAll({ waveform: 'none' });
+    flashHint('字幕已修改', 'success');
+  }
+}
+
+waveformCueEditCancel?.addEventListener('click', closeWaveformCueEditDialog);
+waveformCueEditSave?.addEventListener('click', saveWaveformCueEditDialog);
+document.addEventListener('pointerdown', (event) => {
+  if (!waveformCueEditModal?.classList.contains('show')) return;
+  if (!waveformCueEditModal.contains(event.target)) closeWaveformCueEditDialog();
+}, true);
+window.addEventListener('resize', positionWaveformCueEditDialog);
+document.addEventListener('scroll', positionWaveformCueEditDialog, true);
+waveformCueEditText?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeWaveformCueEditDialog();
+  } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    event.stopPropagation();
+    saveWaveformCueEditDialog();
+  }
+});
 
 function dirtyFlagSnapshot(value) {
   return value && Object.prototype.hasOwnProperty.call(value, '_dirty') ? value._dirty : null;
@@ -7204,8 +7374,12 @@ cuePanelText?.addEventListener('input', () => {
   const cueListAnchor = captureCueListRenderAnchor();
   ensureCuePanelUndo(target.kind === 'extension' ? '编辑副字幕' : '编辑当前字幕');
   const seg = target.segment;
+  const previousText = seg.text;
   seg.text = cuePanelText.value.replace(/\r\n?/g, '\n');
   seg._dirty = true;
+  if (window.MaweProofread && seg.text !== previousText) {
+    window.MaweProofread.markManual(seg);
+  }
   if (target.kind === 'extension') markMultiSubtitleDirty();
   scheduleAutoSaveFlush();
   const splitMode = target.kind === 'extension'
@@ -7367,6 +7541,14 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   }
   if (seg._dirty) el.classList.add('dirty');
   if (seg.disabled) el.classList.add('disabled');
+  if (window.MaweProofread) {
+    window.MaweProofread.applyCueClass(el, seg);
+    const prBadge = window.MaweProofread.createBadge(seg);
+    if (prBadge) {
+      prBadge.classList.add('cue-proofread-badge');
+      el.appendChild(prBadge);
+    }
+  }
 
   // 颜色条（最左）
   const colorBar = document.createElement('span');
@@ -8073,6 +8255,10 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
       }
+      if (matched && window.MaweProofread && proofreadFilterId && proofreadFilterId !== 'all') {
+        const prSeg = mainSeg || extensionSeg || overlaySeg;
+        matched = window.MaweProofread.filterPass(prSeg || {}, proofreadFilterId);
+      }
       const keepTemporaryVisible = filterOver
         && EDITOR_SETTINGS.cueListKeepSplitVisible
         && cueElementHasTemporarySplitVisibility(el);
@@ -8381,6 +8567,7 @@ function finishEdit(save) {
       pushUndo('编辑文本');
       DATA.segments[idx].text = newText;
       DATA.segments[idx]._dirty = true;
+      if (window.MaweProofread) window.MaweProofread.markManual(DATA.segments[idx]);
       el.classList.add('dirty');
       scheduleAutoSaveFlush();
     }
@@ -12502,35 +12689,6 @@ document.addEventListener('keydown', (e) => {
   clearSelection();
 });
 
-// T：给选中字幕分配表情包。单选直接分配本条，多选统一分配（与右键菜单一致）。
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 't' && e.key !== 'T') return;
-  if (editingState || e.repeat) return;
-  const a = document.activeElement;
-  if (a && (
-    a.tagName === 'INPUT'
-    || a.tagName === 'TEXTAREA'
-    || a.tagName === 'SELECT'
-    || a.isContentEditable
-  )) return;
-  if (replaceModal.classList.contains('show')) return;
-  if (stickerModal.classList.contains('show')) return;
-  if (stickerPreviewModal.classList.contains('show')) return;
-  if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
-  if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  if (selectedIdxs.size === 0 && selectedOverlayIdxs.size === 0) return;
-  e.preventDefault();
-  if (selectedOverlayIdxs.size > 0) {
-    const overlayIdxs = [...selectedOverlayIdxs].sort((x, y) => x - y);
-    openStickerPicker(overlayIdxs, overlayIdxs.length > 1, { overlay: true });
-    return;
-  }
-  const idxs = [...selectedIdxs].sort((x, y) => x - y);
-  openStickerPicker(idxs, idxs.length > 1);
-});
-
 // 数字键 1~5：给选中字幕标记对应颜色（红黄蓝绿紫）；0：清除颜色。
 document.addEventListener('keydown', (e) => {
   if (!/^[0-5]$/.test(e.key)) return;
@@ -15269,7 +15427,7 @@ const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
   'media_metadata', 'media_time_reference', 'spectral', 'waveform_reapeaks', 'loudness',
-  'gap_remove', 'script_alignment', 'workspace', 'preview',
+  'gap_remove', 'script_alignment', 'workspace', 'preview', 'proofread_run',
 ]);
 let projectExtensionFields = Object.fromEntries(
   Object.entries(DATA).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)),
@@ -15301,6 +15459,8 @@ function buildJson() {
         color: s.color || null,
         color_ref: s.color_ref || null,
       };
+      if (s.speaker) o.speaker = s.speaker;
+      if (s.proofread) o.proofread = s.proofread;
       // 持久化"已改动"标记，便于二次打开时仍能识别脏行 / 离开提醒等
       if (s._dirty) o._dirty = true;
       // 持久化"禁用"标记（未禁用的不写字段，加载时默认 undefined=falsy 兼容旧工程）
@@ -15313,6 +15473,7 @@ function buildJson() {
   if (typeof DATA.timestamp_granularity === 'string') {
     out.timestamp_granularity = DATA.timestamp_granularity;
   }
+  if (DATA.proofread_run) out.proofread_run = DATA.proofread_run;
   const multi = getMultiSubtitleState();
   out.multi_subtitle = {
     schema: multi.schema || MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SCHEMA,
@@ -18235,7 +18396,6 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
 }
 bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
 bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
-bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
 bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
 bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
 bindToolbarExportDropdown('workspace-transfer-dropdown', 'workspace-transfer-btn', 'workspace-transfer-menu');
@@ -21814,15 +21974,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       });
     }
     addSep();
-    // 组 2：外观（表情包与颜色）
-    addItem('分配表情包…', 'T', () => openStickerPicker([idx], false));
-    if (DATA.segments[idx].sticker || DATA.segments[idx].sticker_ref) {
-      addItem('删除表情包', '', () => {
-        removeStickerCascade(idx);
-        renderAll();
-        flashHint('已删除', 'success');
-      }, { danger: true });
-    }
+    // 组 2：外观颜色
     addColorSubmenu(targetIdxs);
     addSep();
     // 组 3：状态与删除
@@ -21848,13 +22000,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
     addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
     addSep();
-    // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
-    const hasStickerInRange = targetIdxs.some(i =>
-      DATA.segments[i].sticker || DATA.segments[i].sticker_ref);
-    if (hasStickerInRange) {
-      addItem('拓展表情包时长', '', () => expandStickerTime(targetIdxs));
-    }
-    addItem('统一分配表情包…', 'T', () => openStickerPicker(targetIdxs, true));
+    // 组 2：外观颜色
     addColorSubmenu(targetIdxs);
     addSep();
     // 组 3：状态与删除
@@ -21921,11 +22067,7 @@ function showOverlayContextMenu(x, y, index) {
   addItem('拆分此叠加字幕', () => openOverlaySplitModal(index, null));
   addItem('转为主字幕', () => convertOverlayCueToMain(index), { disabled: mainOccupied });
   addSep();
-  // 组 2：外观（表情包与颜色），交互与主字幕菜单对齐（1~5 快捷键同源）。
-  addItem('分配表情包…', () => openStickerPicker([index], false, { overlay: true }));
-  if (segment.sticker || segment.sticker_ref) {
-    addItem('删除表情包', () => clearOverlaySticker(index));
-  }
+  // 组 2：外观颜色，交互与主字幕菜单对齐（1~5 快捷键同源）。
   const colorRow = document.createElement('div');
   colorRow.className = 'item';
   colorRow.style.cssText = 'cursor:default;display:block;';
@@ -22284,16 +22426,14 @@ function initWaveformEditor() {
     // 波形上已经选中的块不会再次调用 selectCue；单独提供激活回调，
     // 避免联动选中主副字幕后点击另一条字幕时编辑区不切换。
     activateCue: (idx) => setCurrentCuePanelIndex(idx),
-    enterCueEditor: (idx) => {
-      setCurrentCuePanelIndex(idx);
-      focusCuePanelText(idx, 'main');
+    enterCueEditor: (idx, anchor) => {
+      openWaveformCueEditDialog('main', idx, null, anchor);
     },
     activateExtensionCue: (idx) => {
       setCurrentCuePanelExtensionIndex(idx, getActiveExtensionTrack());
     },
-    enterExtensionCueEditor: (idx) => {
-      setCurrentCuePanelExtensionIndex(idx, getActiveExtensionTrack());
-      focusCuePanelText(idx, 'extension');
+    enterExtensionCueEditor: (idx, anchor) => {
+      openWaveformCueEditDialog('extension', idx, getActiveExtensionTrack(), anchor);
     },
     selectOverlayCue: (idx) => {
       selectOverlayCueRow(idx);
@@ -22310,8 +22450,9 @@ function initWaveformEditor() {
       // 清空主轨/副轨选区并保持本轨单选语义。
       selectOverlayCueRow(idx);
     },
-    enterOverlayCueEditor: (idx) => {
-      selectOverlayCueRow(idx, { focusEditor: true });
+    enterOverlayCueEditor: (idx, anchor) => {
+      selectOverlayCueRow(idx);
+      openWaveformCueEditDialog('overlay', idx, null, anchor);
     },
     // Shift+拖动逃逸：主轨邻居挡路时把被拖字幕迁入叠加轨，返回新下标。
     convertCueToOverlay: (idx) => convertMainCueToOverlayForDrag(idx),
@@ -22463,6 +22604,9 @@ function initWaveformEditor() {
   waveformEditor.setSpectralPayload(DATA.spectral || null, { render: false });
   waveformEditor.setReapeaksWaveform(DATA.waveform_reapeaks || null, { render: false });
   waveformLoadedFromProject = waveformEditor.setPayload(DATA.waveform || null, { render: false });
+  if (!waveformLoadedFromProject && typeof flashHint === 'function') {
+    flashHint('波形未就绪（不影响字幕编辑）。有关联媒体时可稍后自动生成或手动打开媒体。', 'warning');
+  }
   // 振幅拟合要在 setLayoutData 之后：得先知道本工程是否已有手调决定。
   waveformEditor.setLoudnessStats(DATA.loudness || null, { render: false });
 }
@@ -22866,4 +23010,38 @@ hideDisabledToggle?.addEventListener('change', () => {
 // 离开提示
 window.addEventListener('beforeunload', (e) => {
   if (hasUnsavedProjectChanges()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+
+// === FCPXML export (focused MAW-bd) ===
+document.getElementById('download-fcpxml')?.addEventListener('click', () => {
+  const modal = document.getElementById('fcpxml-export-modal');
+  const nameInput = document.getElementById('fcpxml-export-project-name');
+  if (nameInput) nameInput.value = PROJECT_NAME || FILENAME_BASE || 'MAW Subtitles';
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.hidden = false;
+    modal.classList.add('open');
+  }
+});
+document.getElementById('fcpxml-export-cancel')?.addEventListener('click', () => {
+  const modal = document.getElementById('fcpxml-export-modal');
+  if (modal) { modal.classList.remove('open'); modal.hidden = true; }
+});
+document.getElementById('fcpxml-export-confirm')?.addEventListener('click', async () => {
+  try {
+    const fps = document.getElementById('fcpxml-export-fps')?.value || '25';
+    const resolution = document.getElementById('fcpxml-export-resolution')?.value || '1920x1080';
+    const projectName = document.getElementById('fcpxml-export-project-name')?.value || PROJECT_NAME || 'MAW Subtitles';
+    const xml = window.AsrEditorUtils.buildFcpxmlFromSegments(DATA.segments, { fps, resolution, projectName });
+    const saved = await downloadFile(xml, `${FILENAME_BASE}.fcpxml`, 'application/xml', {
+      desc: 'Final Cut FCPXML', types: { 'application/xml': ['.fcpxml'] },
+    });
+    if (!saved) return;
+    const modal = document.getElementById('fcpxml-export-modal');
+    if (modal) { modal.classList.remove('open'); modal.hidden = true; }
+    flashHint(`已导出 FCPXML（${fps} · ${resolution}）`, 'success');
+  } catch (e) {
+    flashHint(String(e && e.message ? e.message : e), 'error');
+  }
 });

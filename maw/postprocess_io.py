@@ -56,7 +56,7 @@ def read_srt(path: Path, *, strict: bool = False) -> JsonDict:
     if not source.is_file() or source.suffix.lower() != ".srt":
         raise PostprocessFileError(source, "subtitle must be an existing .srt file")
     try:
-        text = source.read_text(encoding="utf-8-sig")
+        text = source.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise PostprocessFileError(source, f"cannot read SRT: {error}") from error
     segments: list[JsonValue] = []
@@ -135,7 +135,8 @@ def write_artifacts(
     if project_path is not None:
         _atomic_write(project_path, json.dumps(normalized, ensure_ascii=False, indent=2) + "\n")
     if srt_path is not None:
-        _atomic_write(srt_path, render_srt(normalized))
+        _atomic_write(srt_path, render_srt(normalized), with_bom=True)
+
     return SubtitleArtifact(
         source_project_path=source_project_path,
         source_srt_path=source_srt_path,
@@ -247,12 +248,16 @@ def _known_operation_token(operation: str, *, lang: str | None = None) -> str:
     return re.sub(r"[^\w-]+", "-", display, flags=re.UNICODE).strip("-") or "processed"
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def _atomic_write(path: Path, text: str, *, with_bom: bool | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if with_bom is None:
+        with_bom = path.suffix.lower() == ".srt"
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
-        encoding = "utf-8-sig" if path.suffix.lower() == ".srt" else "utf-8"
-        with os.fdopen(descriptor, "w", encoding=encoding, newline="\n") as handle:
+        # utf-8 only; SRT gets an explicit BOM character (avoid utf-8-sig codec)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            if with_bom:
+                _ = handle.write("\ufeff")
             _ = handle.write(text)
         os.replace(temporary_name, path)
     except (OSError, UnicodeError):
