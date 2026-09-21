@@ -41,3 +41,42 @@ test('one media selection produces one log entry', async ({ page }) => {
   await expect(page.locator('#log-scroll .log-line')).toHaveCount(1);
   await expect(page.locator('#log-scroll .log-line')).toHaveText(/已选择媒体/);
 });
+
+test('direct media editor picks media first and forwards its explicit path', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__directEditCalls = [];
+    const state = {
+      status: { step: 'idle', message: '', error: '', stepProgress: {} },
+      result: {},
+      config: {},
+    };
+    window.pywebview = {
+      api: {
+        get_state: async () => state,
+        browse_media: async () => {
+          window.__directEditCalls.push(['browse_media', {}]);
+          return { ok: true, path: '/tmp/direct-edit.mp4' };
+        },
+        open_media_editor: async (payload) => {
+          window.__directEditCalls.push(['open_media_editor', payload]);
+          return {
+            ok: true,
+            importedSrt: true,
+            srtPath: '/tmp/direct-edit.srt',
+            projectPath: '/tmp/direct-edit.maw-edit.mosp',
+          };
+        },
+      },
+    };
+  });
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(() => window.dispatchEvent(new Event('pywebviewready')));
+  await page.locator('#btn-media-editor').click();
+
+  await expect(page.locator('#media-path')).toHaveText('/tmp/direct-edit.mp4');
+  await expect(page.locator('#msg')).toContainText('已生成波形并载入同名 SRT');
+  await expect.poll(() => page.evaluate(() => window.__directEditCalls)).toEqual([
+    ['browse_media', {}],
+    ['open_media_editor', { mediaPath: '/tmp/direct-edit.mp4' }],
+  ]);
+});

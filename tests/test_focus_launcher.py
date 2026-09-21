@@ -111,6 +111,17 @@ class FocusedGuiContractTests(unittest.TestCase):
         self.assertNotIn("setMsg('已选择媒体')", choose_media)
         self.assertIn("{ log: false }", js)
 
+    def test_direct_media_editor_forwards_an_explicit_selected_path(self) -> None:
+        js = Path("web/launcher/launcher.js").read_text(encoding="utf-8")
+        start = js.index("async function openMediaEditor()")
+        end = js.index("async function openEditor()", start)
+        direct_editor = js[start:end]
+
+        self.assertIn("await a.browse_media({})", direct_editor)
+        self.assertIn("await a.open_media_editor({ mediaPath })", direct_editor)
+        self.assertIn("正在创建字幕编辑工程并准备波形", direct_editor)
+        self.assertIn("catch (error)", direct_editor)
+
     def test_launcher_has_local_asr_and_manuscript(self) -> None:
         html = Path("web/launcher/index.html").read_text(encoding="utf-8")
         for needle in (

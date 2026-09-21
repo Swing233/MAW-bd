@@ -358,19 +358,45 @@
       setMsg('当前环境不支持直接编辑媒体', true);
       return;
     }
-    const res = await a.open_media_editor({});
-    if (res && res.cancelled) {
-      setMsg('已取消选择媒体');
-      return;
+    const button = $('btn-media-editor');
+    let mediaPath = mediaFromInput();
+    if (!mediaPath || mediaPath === '（未选择）') {
+      if (!a.browse_media) {
+        setMsg('当前环境不支持选择媒体', true);
+        return;
+      }
+      setMsg('请选择要直接编辑的视频或音频…');
+      try {
+        const picked = await a.browse_media({});
+        if (!picked || !picked.path) {
+          setMsg((picked && picked.error) || '已取消选择媒体', !!picked?.error);
+          return;
+        }
+        mediaPath = picked.path;
+        $('media-path').textContent = mediaPath;
+      } catch (error) {
+        setMsg('选择媒体失败：' + String(error), true);
+        return;
+      }
     }
-    if (!res || !res.ok) {
-      setMsg((res && res.error) || '无法打开媒体编辑工程', true);
-      return;
+
+    if (button) button.disabled = true;
+    setMsg('正在创建字幕编辑工程并准备波形…');
+    try {
+      const res = await a.open_media_editor({ mediaPath });
+      if (!res || !res.ok) {
+        setMsg((res && res.error) || '无法打开媒体编辑工程', true);
+        return;
+      }
+      setMsg(res.importedSrt
+        ? `已生成波形并载入同名 SRT：${res.srtPath || ''}`
+        : '已生成波形并打开编辑器，可在编辑器中加载 SRT');
+      await refresh();
+    } catch (error) {
+      setMsg('无法打开媒体编辑工程：' + String(error), true);
+    } finally {
+      if (button) button.disabled = false;
     }
-    setMsg(res.importedSrt
-      ? `已生成波形并载入同名 SRT：${res.srtPath || ''}`
-      : '已生成波形并打开编辑器，可在编辑器中加载 SRT');
-    await refresh();
   }
 
   async function openEditor() {
