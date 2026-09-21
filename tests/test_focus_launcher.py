@@ -134,6 +134,8 @@ class FocusedGuiContractTests(unittest.TestCase):
             "打开字幕编辑器",
             "MP4 + SRT 直接编辑",
             "btn-media-editor",
+            "btn-update",
+            "btn-update-download",
         ):
             self.assertIn(needle, html)
 
@@ -151,6 +153,31 @@ class FocusedGuiContractTests(unittest.TestCase):
         self.assertTrue(hasattr(api, "build_gpt_srt_prompt"))
         self.assertTrue(hasattr(api, "open_editor"))
         self.assertIn("localRuntimeReady", state["config"])
+        self.assertRegex(state["appVersion"], r"^\d+\.\d+\.\d+$")
+
+    def test_update_check_and_open_use_trusted_backend_result(self) -> None:
+        api = FocusedLauncherApi()
+        update = {
+            "ok": True,
+            "currentVersion": "1.0.1",
+            "latestVersion": "1.1.0",
+            "available": True,
+            "releaseUrl": "https://github.com/Swing233/MAW-bd/releases/tag/v1.1.0",
+            "downloadUrl": "https://github.com/Swing233/MAW-bd/releases/download/v1.1.0/MAW-bd-1.1.0-macOS-arm64.zip",
+        }
+        with patch("maw.focus_launcher.check_latest_release", return_value=update):
+            result = api.check_for_updates({})
+        self.assertTrue(result["available"])
+        with patch("webbrowser.open") as browser_open:
+            opened = api.open_update_page({"url": "https://example.invalid/unsafe"})
+        self.assertTrue(opened["ok"])
+        browser_open.assert_called_once_with(update["downloadUrl"])
+
+    def test_launcher_update_ui_checks_silently_after_bridge_ready(self) -> None:
+        js = Path("web/launcher/launcher.js").read_text(encoding="utf-8")
+        self.assertIn("await a.check_for_updates({})", js)
+        self.assertIn("checkForUpdates({ manual: false })", js)
+        self.assertIn("await a.open_update_page({})", js)
 
     def test_local_runtime_python_path(self) -> None:
         p = local_runtime_python()

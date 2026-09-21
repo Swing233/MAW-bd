@@ -9,6 +9,7 @@
   let llmStreamLine = null;
   let llmStreamKind = '';
   let controlsBound = false;
+  let updateChecked = false;
 
   window.MAWLauncher = {
     onBackendEvents(batch) {
@@ -115,6 +116,7 @@
     const status = state.status || {};
     const result = state.result || {};
     const config = state.config || {};
+    if (state.appVersion) $('app-version').textContent = 'v' + state.appVersion;
     $('media-path').textContent = result.mediaPath || '（未选择）';
     const ms = result.manuscriptText || '';
     const msPath = result.manuscriptPath || '';
@@ -411,6 +413,68 @@
     setMsg((res.blank ? '空白编辑器已启动：' : '编辑器已启动：') + url);
   }
 
+  function renderUpdate(result, manual) {
+    const banner = $('update-banner');
+    if (!result || !result.ok) {
+      if (manual) setMsg((result && result.error) || '检查更新失败', true);
+      return;
+    }
+    $('app-version').textContent = 'v' + (result.currentVersion || '—');
+    if (!result.available) {
+      banner.hidden = true;
+      if (manual) setMsg('当前已是最新版本 v' + result.currentVersion);
+      return;
+    }
+    $('update-title').textContent = `发现新版本 v${result.latestVersion}`;
+    $('update-notes').textContent = result.notes || '新版本已经发布，可前往 GitHub 下载。';
+    $('btn-update-download').textContent = result.downloadUrl ? `下载 v${result.latestVersion}` : '查看更新';
+    banner.hidden = false;
+    $('btn-update').textContent = `有新版本 v${result.latestVersion}`;
+    $('btn-update').classList.add('update-available');
+    if (manual) setMsg(`发现新版本 v${result.latestVersion}`);
+  }
+
+  async function checkForUpdates(options) {
+    const a = api();
+    const manual = !!options?.manual;
+    if (!a || !a.check_for_updates) return;
+    const button = $('btn-update');
+    button.disabled = true;
+    if (manual) button.textContent = '正在检查…';
+    try {
+      const result = await a.check_for_updates({});
+      updateChecked = true;
+      renderUpdate(result, manual);
+    } catch (error) {
+      if (manual) setMsg('检查更新失败：' + String(error), true);
+    } finally {
+      button.disabled = false;
+      if (!button.classList.contains('update-available')) button.textContent = '检查更新';
+    }
+  }
+
+  async function openUpdatePage() {
+    const a = api();
+    if (!a || !a.open_update_page) {
+      setMsg('当前环境无法打开更新页面', true);
+      return;
+    }
+    const button = $('btn-update-download');
+    button.disabled = true;
+    try {
+      const result = await a.open_update_page({});
+      if (!result || !result.ok) {
+        setMsg((result && result.error) || '无法打开更新页面', true);
+        return;
+      }
+      setMsg(result.directDownload ? '已在浏览器开始下载更新' : '已打开更新页面');
+    } catch (error) {
+      setMsg('无法打开更新页面：' + String(error), true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function bind() {
     if (controlsBound) return;
     controlsBound = true;
@@ -423,6 +487,9 @@
     $('btn-editor').addEventListener('click', openEditor);
     $('btn-open-project')?.addEventListener('click', openExistingProject);
     $('btn-media-editor')?.addEventListener('click', openMediaEditor);
+    $('btn-update')?.addEventListener('click', () => checkForUpdates({ manual: true }));
+    $('btn-update-download')?.addEventListener('click', openUpdatePage);
+    $('btn-update-dismiss')?.addEventListener('click', () => { $('update-banner').hidden = true; });
     $('btn-manuscript').addEventListener('click', openManuscriptDialog);
     $('btn-clear-manuscript').addEventListener('click', clearManuscript);
     $('btn-manuscript-cancel').addEventListener('click', closeManuscriptDialog);
@@ -493,6 +560,7 @@
   window.addEventListener('pywebviewready', () => {
     bind();
     refresh();
+    if (!updateChecked) checkForUpdates({ manual: false });
   });
 
   document.addEventListener('DOMContentLoaded', () => {

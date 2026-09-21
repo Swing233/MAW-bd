@@ -80,3 +80,41 @@ test('direct media editor picks media first and forwards its explicit path', asy
     ['open_media_editor', { mediaPath: '/tmp/direct-edit.mp4' }],
   ]);
 });
+
+test('available update appears after the bridge is ready and opens its trusted download', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__updateCalls = [];
+    window.pywebview = {
+      api: {
+        get_state: async () => ({
+          appVersion: '1.1.0',
+          status: { step: 'idle', message: '', error: '', stepProgress: {} },
+          result: {},
+          config: {},
+        }),
+        check_for_updates: async () => ({
+          ok: true,
+          currentVersion: '1.1.0',
+          latestVersion: '1.2.0',
+          available: true,
+          notes: '更新说明',
+          downloadUrl: 'https://github.com/Swing233/MAW-bd/releases/download/v1.2.0/MAW-bd-1.2.0-macOS-arm64.zip',
+        }),
+        open_update_page: async (payload) => {
+          window.__updateCalls.push(payload);
+          return { ok: true, directDownload: true };
+        },
+      },
+    };
+  });
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(() => window.dispatchEvent(new Event('pywebviewready')));
+
+  await expect(page.locator('#app-version')).toHaveText('v1.1.0');
+  await expect(page.locator('#update-banner')).toBeVisible();
+  await expect(page.locator('#update-title')).toHaveText('发现新版本 v1.2.0');
+  await expect(page.locator('#update-notes')).toHaveText('更新说明');
+  await page.locator('#btn-update-download').click();
+  await expect(page.locator('#msg')).toHaveText('已在浏览器开始下载更新');
+  await expect.poll(() => page.evaluate(() => window.__updateCalls)).toEqual([{}]);
+});

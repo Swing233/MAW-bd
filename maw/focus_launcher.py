@@ -9,11 +9,13 @@ import threading
 from pathlib import Path
 from typing import Any, Mapping
 
+from maw.app_update import LATEST_RELEASE_PAGE, UpdateCheckError, check_latest_release
 from maw.bdversion.revise import revise_project
 from maw.gui_config import DEFAULT_MODEL_ID, QWEN3_ASR_MODEL_ID, QWEN_AUDIO_MODEL_ID, load_env
 from maw.gui_web import (
     EventPump,
     LocalLogSink,
+    _app_version,
     default_paths,
 )
 from maw.gui_workflow import (
@@ -77,6 +79,7 @@ class FocusedLauncherApi:
             "revise": 0,
             "editor": 0,
         }
+        self._last_update: dict[str, object] = {}
 
     def _set_status(self, **kwargs: Any) -> None:
         self._status.update(kwargs)
@@ -215,6 +218,7 @@ class FocusedLauncherApi:
         return {
             "ok": True,
             "title": "MAW-bd",
+            "appVersion": _app_version(self.paths),
             "status": {**self._status, "stepProgress": dict(self._step_progress)},
             "result": dict(self._result),
             "config": {
@@ -244,6 +248,31 @@ class FocusedLauncherApi:
                 "deepseekModel": env.get("MAW_POSTPROCESS_DEEPSEEK_MODEL") or "deepseek-flash",
             },
         }
+
+    def check_for_updates(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Check the fixed MAW-bd GitHub repository for a newer stable release."""
+
+        current_version = _app_version(self.paths)
+        try:
+            result = check_latest_release(current_version)
+        except UpdateCheckError as error:
+            return {"ok": False, "currentVersion": current_version, "error": str(error)}
+        self._last_update = dict(result)
+        return result
+
+    def open_update_page(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Open the trusted release asset or latest-release page in the default browser."""
+
+        import webbrowser
+
+        download_url = str(self._last_update.get("downloadUrl") or "")
+        release_url = str(self._last_update.get("releaseUrl") or "")
+        target = download_url or release_url or LATEST_RELEASE_PAGE
+        try:
+            webbrowser.open(target)
+        except Exception as error:  # noqa: BLE001
+            return {"ok": False, "error": f"无法打开更新页面：{error}"}
+        return {"ok": True, "url": target, "directDownload": bool(download_url)}
 
     def set_manuscript_text(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         payload = payload or {}

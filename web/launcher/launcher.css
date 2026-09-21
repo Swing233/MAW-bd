@@ -42,7 +42,33 @@ body {
   max-width: 860px;
 }
 
-header h1 { margin: 0 0 4px; font-size: 24px; font-weight: 700; }
+header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+.title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.version-pill {
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.update-check { margin-left: auto; padding: 6px 10px; }
+.update-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+.update-banner[hidden] { display: none; }
+.update-banner strong { font-size: 13px; color: #1d4ed8; }
+.update-banner p { margin: 5px 0 0; color: var(--ink); font-size: 12px; white-space: pre-wrap; max-height: 112px; overflow: auto; }
+.update-actions { flex: 0 0 auto; margin-top: 0; }
 .sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
 
 .card {
