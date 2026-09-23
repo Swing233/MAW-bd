@@ -86,6 +86,8 @@ class EditorProofreadUiTests(unittest.TestCase):
         self.assertIn("positionWaveformCueEditDialog", js)
         self.assertIn("#waveform-cue-edit-modal.show", css)
         self.assertIn("position: fixed", css)
+        self.assertIn("字幕文字（回车保存）", html)
+        self.assertIn("event.key === 'Enter' && !event.isComposing", js)
 
     def test_focused_editor_removes_sticker_and_extra_export_entries(self) -> None:
         html = (WEB / "editor-template.html").read_text(encoding="utf-8")

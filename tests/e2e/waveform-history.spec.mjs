@@ -1132,17 +1132,37 @@ test('B does not split when the playhead is in a gap or while editing text', asy
   await expect(page.locator('.cue')).toHaveCount(6);
 });
 
-test('B splits at the pointer audio position while hovering the waveform', async ({ page }) => {
+test('B on the waveform splits at the playhead, not the pointer or text caret', async ({ page }) => {
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
+  await page.evaluate(() => {
+    const player = document.getElementById('player');
+    player.currentTime = 5;
+    player.dispatchEvent(new Event('timeupdate'));
+  });
   const row = page.locator('.waveform-row').first();
   const box = await row.boundingBox();
-  // 第一行覆盖 0–5s；40% 处约 2s，落在第一条字幕（0–8s）内部
+  // 指针约 2s，播放头 5s。切点必须采用播放头的绝对时间。
   await page.mouse.move(box.x + box.width * 0.4, box.y + box.height / 2);
   await page.keyboard.press('b');
+  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
+  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(5000);
+  await page.locator('#multi-subtitle-split-confirm').click();
   await expect(page.locator('.cue')).toHaveCount(7);
-  await expect(page.locator('.cue .text').nth(0)).toHaveText('Alpha');
-  await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
+  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(5000);
+});
+
+test('Enter saves the waveform cue popover as a single-line subtitle', async ({ page }) => {
+  await page.goto(server.url);
+  const first = page.locator('.waveform-cue-block[data-idx="0"]').first();
+  await first.dblclick();
+  const popover = page.locator('#waveform-cue-edit-modal');
+  await expect(popover).toHaveClass(/show/);
+  const text = page.locator('#waveform-cue-edit-text');
+  await text.fill('修改后的\n字幕');
+  await text.press('Enter');
+  await expect(popover).not.toHaveClass(/show/);
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('修改后的 字幕');
 });
 
 test('Home and End seek the player and reveal the media boundaries', async ({ page }) => {

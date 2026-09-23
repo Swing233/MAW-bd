@@ -72,6 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     configure_utf8_stdio()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    # Internal frozen-app commands own their flags. Parse before the GUI parser,
+    # whose --port option would otherwise consume the editor server's port.
+    if raw_argv and raw_argv[0] in _INTERNAL_FLAGS:
+        command, *internal_argv = raw_argv
+        if command == "--smoke-import":
+            return 0
+        if command == "--transcribe":
+            return _run_internal_transcribe(internal_argv)
+        return _run_internal_serve(internal_argv)
     if raw_argv and not _is_gui_debug_invocation(raw_argv) and raw_argv[0] not in _INTERNAL_FLAGS:
         from maw.cli import main as cli_main
 

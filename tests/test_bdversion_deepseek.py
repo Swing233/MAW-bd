@@ -102,6 +102,7 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("不允许润色", SYSTEM_PROMPT)
         self.assertIn("不确定时保持 ASR", SYSTEM_PROMPT)
         self.assertIn("不要输出或修改任何时间", SYSTEM_PROMPT)
+        self.assertIn("数字默认使用阿拉伯数字", SYSTEM_PROMPT)
 
 
 class ConservativeApplyTests(unittest.TestCase):

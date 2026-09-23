@@ -7143,7 +7143,7 @@ function saveWaveformCueEditDialog() {
     closeWaveformCueEditDialog();
     return;
   }
-  const nextText = waveformCueEditText.value.replace(/\r\n?/g, '\n');
+  const nextText = waveformCueEditText.value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
   let changed = false;
   if (nextText !== target.segment.text) {
     cuePanelText.value = nextText;
@@ -7172,7 +7172,7 @@ waveformCueEditText?.addEventListener('keydown', (event) => {
     event.preventDefault();
     event.stopPropagation();
     closeWaveformCueEditDialog();
-  } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+  } else if (event.key === 'Enter' && !event.isComposing && event.keyCode !== 229) {
     event.preventDefault();
     event.stopPropagation();
     saveWaveformCueEditDialog();
@@ -8947,7 +8947,7 @@ function buildSplitPair(
   const useMainWordTimestamps = shouldUseMainSplitTimestamps(main);
   // 关闭自动时间码拆分后，波形入口传入的时间仍是绝对切点；没有波形指针时，
   // 有可用时间码就把初始断点定位到最近的字词边界，但之后仍允许用户自由调整。
-  const fixedCutMs = !useMainWordTimestamps && Number.isFinite(initial.timeMs)
+  const fixedCutMs = (!useMainWordTimestamps || initial.exactTime) && Number.isFinite(initial.timeMs)
     ? Math.round(initial.timeMs) : null;
   // 字幕列表传入的是用户实际指向的文字位置；即使工程有字词时间码，
   // 也不能再用时间反推一次文字位置，否则「就是｜这颗」可能漂移成「就是这｜颗」。
@@ -10351,7 +10351,7 @@ function flashSplitFeedback({ index, track = 'main', splitMs, feedbackPoint = nu
   }
 }
 
-function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
+function splitFromContextMenu(idx, x, y, waveformTimeMs = null, { exactTime = false } = {}) {
   const el = container.querySelector(`.cue[data-idx="${idx}"]`);
   if (!el) return false;
   if (Number.isFinite(waveformTimeMs)) {
@@ -10370,7 +10370,7 @@ function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
   if (multiSubtitleVisible() && bindingForMainIndex(idx)) {
     notifyMainSplitTimestampFallback(DATA.segments[idx]);
     const initial = Number.isFinite(waveformTimeMs)
-      ? { timeMs: waveformTimeMs }
+      ? { timeMs: waveformTimeMs, exactTime }
       : Number.isFinite(listCaretInfo?.offset)
         ? {
           mainOffset: listCaretInfo.offset,
@@ -10386,6 +10386,10 @@ function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
     return false;
   }
   if (Number.isFinite(waveformTimeMs)) {
+    if (exactTime) {
+      openMainWaveformSplitModal(idx, waveformTimeMs);
+      return false;
+    }
     if (!shouldUseMainSplitTimestamps(DATA.segments[idx])) {
       notifyMainSplitTimestampFallback(DATA.segments[idx]);
       openMainWaveformSplitModal(idx, waveformTimeMs);
@@ -13061,9 +13065,9 @@ document.addEventListener('keydown', (e) => {
   alignSelectedExtensionSubtitleRanges();
 });
 
-// B：按当前键盘时间基准与指针所在区域分发——
+// B：波形时间线以播放头为绝对切点；字幕列表仍按文字位置拆分。
 // 1) 鼠标悬停在已单选的字幕列表行上：按指针对应的文字位置拆分；
-// 2) 鼠标位于波形上：按指针的音频位置拆分（与波形右键「按音频位置拆分」一致）；
+// 2) 鼠标位于波形上：按播放头的绝对时间拆分；
 // 3) 其它位置：按当前键盘时间基准拆分。
 // 文本编辑、弹窗和修饰键状态下不抢占输入。
 document.addEventListener('keydown', (e) => {
@@ -13121,13 +13125,23 @@ document.addEventListener('keydown', (e) => {
   // 绑定关系会让点击主字幕时同时选中副字幕；不能仅凭 selectedExtensionIdxs
   // 判断当前轨道，否则主字幕 active 时会被误判成副字幕单独拆分。
   const activeCuePanel = getCurrentCuePanelTarget();
-  const operationReference = keyboardOperationReference();
+  const pointerElement = lastPointerPos
+    ? document.elementFromPoint(lastPointerPos.x, lastPointerPos.y) : null;
+  const waveformShortcut = Boolean(pointerElement?.closest('#waveform-pane'))
+    || (lastEditRegion === 'waveform' && !pointerElement?.closest('.cue'));
+  const operationReference = waveformShortcut
+    ? {
+      ...keyboardOperationReference(),
+      timeMs: timelineFrameAlignedMilliseconds(Math.round(player.currentTime * 1000)),
+      source: 'playhead',
+    }
+    : keyboardOperationReference();
   const pointerMainIndex = operationReference
     ? findWaveformCueAtTime(operationReference.timeMs, DATA.segments) : -1;
   const activeExtensionTrack = getActiveExtensionTrack();
   const pointerExtensionIndex = operationReference?.track === 'extension'
     ? findWaveformCueAtTime(operationReference.timeMs, getExtensionTrack(operationReference.trackId)?.segments) : -1;
-  if (selectedExtensionIdxs.size === 1) {
+  if (!waveformShortcut && selectedExtensionIdxs.size === 1) {
     const context = hoveredSelectedCueContext();
     if (context?.kind === 'extension' && context.track?.segments?.[context.idx]) {
       e.preventDefault();
@@ -13162,10 +13176,7 @@ document.addEventListener('keydown', (e) => {
     const extension = track?.segments?.[extensionIndex];
     if (!extension) return;
     let timeMs = null;
-    const pointerElement = lastPointerPos
-      ? document.elementFromPoint(lastPointerPos.x, lastPointerPos.y)
-      : null;
-    if (EDITOR_SETTINGS.keyboardOperationReference === 'pointer'
+    if (!waveformShortcut && EDITOR_SETTINGS.keyboardOperationReference === 'pointer'
         && lastPointerPos && (pointerElement?.closest('#waveform-pane') || lastEditRegion === 'waveform')) {
       const pointerTimeMs = waveformEditor?.timeMsAtPoint?.(lastPointerPos.x, lastPointerPos.y);
       if (Number.isFinite(pointerTimeMs) && pointerTimeMs > extension.start && pointerTimeMs < extension.end) {
@@ -13177,22 +13188,22 @@ document.addEventListener('keydown', (e) => {
     e.stopImmediatePropagation();
     openExtensionSplitModal(
       extensionIndex,
-      EDITOR_SETTINGS.keyboardOperationReference === 'playhead'
+      waveformShortcut || EDITOR_SETTINGS.keyboardOperationReference === 'playhead'
         ? operationReference?.timeMs ?? null : timeMs,
       track,
     );
     return;
   }
   // 1) 字幕列表：需要单选 + 悬停提供文字位置
-  if (selectedIdxs.size === 1) {
+  if (!waveformShortcut && selectedIdxs.size === 1) {
     const context = hoveredSelectedCueContext();
     if (context && DATA.segments[context.idx]) {
       splitAt(context.idx, context.x, context.y, null);
       return;
     }
   }
-  // 2) 波形：指针音频位置
-  if (operationReference?.source === 'pointer' || operationReference?.track === 'extension') {
+  // 2) 非波形区域沿用用户设置的指针时间基准
+  if (!waveformShortcut && (operationReference?.source === 'pointer' || operationReference?.track === 'extension')) {
     const idx = findWaveformCueAtTime(operationReference.timeMs, DATA.segments);
     if (idx >= 0) {
       splitAt(idx, 0, 0, operationReference.timeMs);
@@ -13214,7 +13225,11 @@ document.addEventListener('keydown', (e) => {
   const timeMs = operationReference?.timeMs ?? Math.round(player.currentTime * 1000);
   const idx = DATA.segments.findIndex((segment) => timeMs > segment.start && timeMs < segment.end);
   if (idx >= 0) {
-    splitAt(idx, 0, 0, timeMs);
+    if (waveformShortcut) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      splitFromContextMenu(idx, 0, 0, timeMs, { exactTime: true });
+    } else splitAt(idx, 0, 0, timeMs);
     return;
   }
   const extensionTrack = getActiveExtensionTrack();

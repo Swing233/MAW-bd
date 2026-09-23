@@ -40,6 +40,10 @@ uv run --no-sync python server-editor/serve.py --blank   # 编辑器
 
 `.env` 至少配置 `DASHSCOPE_API_KEY`。DeepSeek 校对可选配置 `MAW_POSTPROCESS_DEEPSEEK_API_KEY` 等。
 
+## 应用内更新（1.2.0 起）
+
+Launcher 检测到新版后可点「一键安装」。应用在后台从本仓库的 GitHub Release 下载 arm64 安装包，校验大小、SHA-256、应用标识、版本和代码签名，再自动退出、替换并重启。旧版会保留为同目录下的隐藏备份，以便安装失败时恢复。运行中的 `.app` 不能无重启热替换；此流程不需要手动下载或拖拽应用。
+
 ## 测试
 
 ```bash

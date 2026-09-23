@@ -11,7 +11,15 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Mapping
 
-from maw.app_update import LATEST_RELEASE_PAGE, UpdateCheckError, check_latest_release
+from maw.app_update import (
+    LATEST_RELEASE_PAGE,
+    UpdateCheckError,
+    UpdateInstallError,
+    check_latest_release,
+    launch_install_helper,
+    read_update_result,
+    stage_update,
+)
 from maw.bdversion.revise import revise_project
 from maw.gui_config import DEFAULT_MODEL_ID, QWEN3_ASR_MODEL_ID, QWEN_AUDIO_MODEL_ID, load_env
 from maw.gui_web import (
@@ -85,6 +93,8 @@ class FocusedLauncherApi:
             "editor": 0,
         }
         self._last_update: dict[str, object] = {}
+        self._update_worker: threading.Thread | None = None
+        self._update_result = read_update_result()
 
     def _set_status(self, **kwargs: Any) -> None:
         self._status.update(kwargs)
@@ -175,10 +185,11 @@ class FocusedLauncherApi:
             "2. 文稿（若有）只用于修正：同音/近音错字、错别字、人名、地名、专有名词、技术词。",
             "3. 不允许润色句式，不允许扩写或删减实质内容。",
             "4. 不确定时保持原文。",
-            f"5. 请直接生成并提供一个名为「{output_name}」的 UTF-8 .srt 文件供下载，不要只回复说明。",
-            "6. 保持序号、条数、分段边界与时间码完全不变，只改每条字幕内部的文字。",
-            "7. 不得合并、拆分、删除或重排任何字幕条目。",
-            "8. 如果当前界面无法创建文件附件，再输出完整 SRT 原文；不要解释，不要使用 Markdown 代码块。",
+            "5. 明确的数量、日期等数字默认使用阿拉伯数字；只改数字写法，不改变语义。成语、人名、地名和专有名词中的汉字数字保持原样。",
+            f"6. 请直接生成并提供一个名为「{output_name}」的 UTF-8 .srt 文件供下载，不要只回复说明。",
+            "7. 保持序号、条数、分段边界与时间码完全不变，只改每条字幕内部的文字。",
+            "8. 不得合并、拆分、删除或重排任何字幕条目。",
+            "9. 如果当前界面无法创建文件附件，再输出完整 SRT 原文；不要解释，不要使用 Markdown 代码块。",
             "",
         ]
         if custom:
@@ -224,6 +235,7 @@ class FocusedLauncherApi:
             "ok": True,
             "title": "MAW-bd",
             "appVersion": _app_version(self.paths),
+            "updateResult": self._update_result,
             "status": {**self._status, "stepProgress": dict(self._step_progress)},
             "result": dict(self._result),
             "config": {
@@ -278,6 +290,44 @@ class FocusedLauncherApi:
         except Exception as error:  # noqa: BLE001
             return {"ok": False, "error": f"无法打开更新页面：{error}"}
         return {"ok": True, "url": target, "directDownload": bool(download_url)}
+
+    def install_update(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Download and verify a release off the UI thread, then restart to swap apps."""
+
+        if self._update_worker and self._update_worker.is_alive():
+            return {"ok": False, "error": "更新正在进行中"}
+        if not self._last_update.get("available"):
+            return {"ok": False, "error": "请先检查更新"}
+
+        def emit(percent: int, message: str, *, error: bool = False) -> None:
+            self.pump.enqueue({"type": "focusUpdate", "percent": percent, "message": message, "error": error})
+
+        def run() -> None:
+            try:
+                current_version = _app_version(self.paths)
+                release = check_latest_release(current_version)
+                if not release.get("available"):
+                    raise UpdateInstallError("当前已是最新版本")
+                staged = stage_update(release, progress=lambda percent, message: emit(percent, message))
+                window = self._window()
+                if window is None:
+                    raise UpdateInstallError("无法关闭当前窗口完成更新")
+                launch_install_helper(staged)
+                emit(100, "新版已验证，应用即将重启安装")
+
+                def close_for_install() -> None:
+                    try:
+                        window.destroy()
+                    except Exception as error:  # noqa: BLE001 - pywebview boundary
+                        emit(0, f"无法关闭当前窗口完成更新：{error}", error=True)
+
+                threading.Timer(1.0, close_for_install).start()
+            except (UpdateCheckError, UpdateInstallError, OSError, subprocess.SubprocessError) as error:
+                emit(0, str(error), error=True)
+
+        self._update_worker = threading.Thread(target=run, name="maw-update", daemon=True)
+        self._update_worker.start()
+        return {"ok": True, "started": True}
 
     def set_manuscript_text(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         payload = payload or {}
@@ -384,6 +434,8 @@ class FocusedLauncherApi:
         cache_root = local_model_cache_root()
         runtime_root = script.parent
         env = os.environ.copy()
+        # Python 子进程读取 app 内的 local-runtime；禁止写 __pycache__ 破坏 .app 签名。
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         env["MAW_MODEL_CACHE_ROOT"] = str(cache_root)
         env["HF_HOME"] = str(cache_root / "huggingface")
         env["MODELSCOPE_CACHE"] = str(cache_root / "modelscope")

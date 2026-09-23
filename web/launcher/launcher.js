@@ -10,6 +10,8 @@
   let llmStreamKind = '';
   let controlsBound = false;
   let updateChecked = false;
+  let updateResultShown = false;
+  let updateInstalling = false;
 
   window.MAWLauncher = {
     onBackendEvents(batch) {
@@ -117,6 +119,11 @@
     const result = state.result || {};
     const config = state.config || {};
     if (state.appVersion) $('app-version').textContent = 'v' + state.appVersion;
+    if (state.updateResult && !updateResultShown) {
+      updateResultShown = true;
+      const [kind, message] = String(state.updateResult).split('|', 2);
+      setMsg(message || '更新状态未知', kind !== 'ok');
+    }
     $('media-path').textContent = result.mediaPath || '（未选择）';
     const ms = result.manuscriptText || '';
     const msPath = result.manuscriptPath || '';
@@ -426,8 +433,9 @@
       return;
     }
     $('update-title').textContent = `发现新版本 v${result.latestVersion}`;
-    $('update-notes').textContent = result.notes || '新版本已经发布，可前往 GitHub 下载。';
-    $('btn-update-download').textContent = result.downloadUrl ? `下载 v${result.latestVersion}` : '查看更新';
+    $('update-notes').textContent = result.notes || '新版本已经发布。';
+    $('btn-update-download').textContent = result.downloadUrl && result.assetDigest
+      ? `一键安装 v${result.latestVersion}` : '查看更新';
     banner.hidden = false;
     $('btn-update').textContent = `有新版本 v${result.latestVersion}`;
     $('btn-update').classList.add('update-available');
@@ -455,13 +463,26 @@
 
   async function openUpdatePage() {
     const a = api();
-    if (!a || !a.open_update_page) {
-      setMsg('当前环境无法打开更新页面', true);
+    if (!a) {
+      setMsg('当前环境无法更新', true);
       return;
     }
     const button = $('btn-update-download');
+    if (updateInstalling) return;
     button.disabled = true;
     try {
+      if (button.textContent.startsWith('一键安装') && a.install_update) {
+        const result = await a.install_update({});
+        if (!result?.ok) {
+          setMsg(result?.error || '无法开始更新', true);
+          return;
+        }
+        updateInstalling = true;
+        button.textContent = '正在下载…';
+        setMsg('正在下载并验证新版，完成后会自动重启安装');
+        return;
+      }
+      if (!a.open_update_page) throw new Error('当前环境无法打开更新页面');
       const result = await a.open_update_page({});
       if (!result || !result.ok) {
         setMsg((result && result.error) || '无法打开更新页面', true);
@@ -471,7 +492,7 @@
     } catch (error) {
       setMsg('无法打开更新页面：' + String(error), true);
     } finally {
-      button.disabled = false;
+      if (!updateInstalling) button.disabled = false;
     }
   }
 
@@ -556,6 +577,21 @@
     }
   });
   window.addEventListener('focusLlmDelta', (event) => appendLlmDelta(event.detail || {}));
+  window.addEventListener('focusUpdate', (event) => {
+    const detail = event.detail || {};
+    const button = $('btn-update-download');
+    if (detail.error) {
+      updateInstalling = false;
+      button.disabled = false;
+      button.textContent = '重试更新';
+      setMsg(detail.message || '更新失败', true);
+      return;
+    }
+    button.textContent = `${detail.message || '正在更新'} ${detail.percent || 0}%`;
+    if (detail.percent === 100 || detail.percent === 0 || detail.percent % 20 === 0) {
+      setMsg(detail.message || '正在更新');
+    }
+  });
 
   window.addEventListener('pywebviewready', () => {
     bind();

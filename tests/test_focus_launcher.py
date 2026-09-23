@@ -220,6 +220,21 @@ class FocusedGuiContractTests(unittest.TestCase):
         p = local_runtime_python()
         self.assertTrue(str(p).endswith("local-runtime/bin/python"))
 
+    def test_local_asr_does_not_write_bytecode_into_signed_app(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            runtime = Path(temp) / "python"
+            runtime.write_bytes(b"")
+            api = FocusedLauncherApi()
+            with (
+                patch("maw.focus_launcher.local_runtime_python", return_value=runtime),
+                patch("maw.focus_launcher.subprocess.Popen") as popen,
+            ):
+                popen.return_value.stdout = io.StringIO("")
+                popen.return_value.wait.return_value = 1
+                with self.assertRaises(RuntimeError):
+                    api._run_local_asr(Path(temp) / "input.wav", Path(temp) / "output.srt", "qwen-asr")
+            self.assertEqual(popen.call_args.kwargs["env"]["PYTHONDONTWRITEBYTECODE"], "1")
+
     def test_revise_deepseek_with_manuscript_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "clip.mosp"
@@ -286,6 +301,25 @@ class FocusedGuiContractTests(unittest.TestCase):
             self.assertIn("采访.校对.srt", result["prompt"])
             self.assertIn("UTF-8 .srt 文件供下载", result["prompt"])
             self.assertIn("保持序号、条数、分段边界与时间码完全不变", result["prompt"])
+            self.assertIn("数字默认使用阿拉伯数字", result["prompt"])
+
+    def test_one_click_update_stages_then_restarts_without_blocking_api(self) -> None:
+        api = FocusedLauncherApi()
+        api._last_update = {"available": True}
+        with (
+            patch("maw.focus_launcher.check_latest_release", return_value={"available": True}) as check,
+            patch("maw.focus_launcher.stage_update", return_value={"helper": "helper"}) as stage,
+            patch("maw.focus_launcher.launch_install_helper") as launch,
+            patch.object(api, "_window"),
+            patch("maw.focus_launcher.threading.Timer") as timer,
+        ):
+            result = api.install_update({})
+            self.assertTrue(result["started"])
+            api._update_worker.join(timeout=3)
+        check.assert_called_once()
+        stage.assert_called_once()
+        launch.assert_called_once_with({"helper": "helper"})
+        timer.return_value.start.assert_called_once()
 
     def test_revise_custom_still_works(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -75,6 +75,7 @@ datas = [
     (str(ROOT / "assets" / "maw.ico"), "assets"),
     (str(ROOT / "assets" / "maw.icns"), "assets"),
     (str(ROOT / "assets" / "show.webp"), "assets"),
+    (str(ROOT / "maw" / "update_install.sh"), "updater"),
     (str(ROOT / "generate_subtitle_qwen_api.py"), "local-runtime"),
     (str(ROOT / "generate_subtitle_local.py"), "local-runtime"),
     (str(ROOT / "edit.py"), "local-runtime"),
@@ -230,8 +231,8 @@ if sys.platform == 'darwin':
         info_plist={
             "CFBundleDisplayName": "MAW-bd",
             "CFBundleName": "MAW-bd",
-            "CFBundleShortVersionString": "1.1.1",
-            "CFBundleVersion": "1.1.1",
+            "CFBundleShortVersionString": "1.2.0",
+            "CFBundleVersion": "1.2.0",
             "NSHighResolutionCapable": True,
         },
     )

@@ -65,6 +65,9 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `.env` | App 同级优先，否则 `~/Library/Application Support/MAW/.env` |
 | Server 设置 | `~/Library/Application Support/MAW/server-editor-settings.json` |
 | 日志 | `~/Library/Application Support/MAW/logs` |
+| 更新临时文件与安装结果 | `~/Library/Application Support/MAW/updates` |
+
+应用内一键更新仅接受本仓库 GitHub Release 的 `MAW-bd-<版本>-macOS-arm64.zip`。先校验 Release 的 SHA-256 摘要、归档路径、Bundle ID、版本号和 `codesign`，再把新版暂存到当前 `.app` 所在目录；外部 `/bin/sh` 安装器等待旧进程退出后完成替换与重启，失败时恢复旧版。应用目录须对当前用户可写，否则显示错误且保留浏览器下载入口。不能在进程运行时直接热替换二进制。
 
 见 `maw/app_paths.py`。
 
@@ -93,7 +96,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `Resources/ocr-runtime` / `moss-runtime` / `server-align` | 有 | **无**（产品收窄，预期） |
 | `Resources/web/srt2fcpxml-page/` | 无 | **有**（本地 SRT→FCPXML 页） |
 | `Info.plist` BundleId / Executable / Icon | `com.moy.maw.bdversion` / `MAW` / `maw.icns` | Bundle 名/Id 已区分官方 MAW.app |
-| `CFBundleShortVersionString` | `0.0.0` | `1.1.1`（跟 `pyproject.toml`） |
+| `CFBundleShortVersionString` | `0.0.0` | `1.2.0`（跟 `pyproject.toml`） |
 | Python 运行时 | `Frameworks/Python.framework` | `Frameworks/libpython3.11.dylib`（PyInstaller 6） |
 
 结论：封装格式与官方 **同为 PyInstaller macOS BUNDLE**；差异主要来自精简范围与 PyInstaller 版本，而非另一套打包体系。
