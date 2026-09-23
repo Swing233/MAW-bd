@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import sys
 import threading
+from collections import deque
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -24,6 +26,7 @@ from maw.gui_workflow import (
     default_srt_path,
     run_transcription,
 )
+from maw.local_log import redact_sensitive_text
 from maw.postprocess_io import read_srt
 from maw.project_io import write_mosp
 
@@ -58,6 +61,8 @@ class FocusedLauncherApi:
         self.server_process: subprocess.Popen[str] | None = None
         self._server_project = ""
         self._server_url = ""
+        self._server_output: deque[str] = deque(maxlen=24)
+        self._server_output_thread: threading.Thread | None = None
         self._status: dict[str, Any] = {
             "step": "idle",
             "message": "",
@@ -721,6 +726,7 @@ class FocusedLauncherApi:
         env = os.environ.copy()
         root = str(self.paths.root)
         env["PYTHONPATH"] = root + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONUNBUFFERED"] = "1"
         # Keep waveform generation enabled even for a blank editor.  A blank
         # server has no media to process at startup, but it can later take over
         # a .mosp opened from the editor.  That takeover must generate/reuse the
@@ -739,21 +745,41 @@ class FocusedLauncherApi:
             cmd.extend(["-m", media])
 
         try:
+            self._server_output = deque(maxlen=24)
             self.server_process = subprocess.Popen(
                 cmd,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
             )
+            if self.server_process.stdout is not None:
+                self._server_output_thread = threading.Thread(
+                    target=self._read_server_output,
+                    args=(self.server_process.stdout, self._server_output),
+                    daemon=True,
+                )
+                self._server_output_thread.start()
         except Exception as error:  # noqa: BLE001
             return {"ok": False, "error": f"启动编辑器进程失败：{error}"}
 
         url = f"http://127.0.0.1:{port}/"
-        ready = self._wait_http_ready(url, timeout=20.0)
+        ready = self._wait_http_ready(url, timeout=20.0, process=self.server_process)
         if not ready:
             if self.server_process and self.server_process.poll() is not None:
                 code = self.server_process.returncode
-                return {"ok": False, "error": f"编辑器进程已退出（退出码 {code}）"}
+                if self._server_output_thread is not None:
+                    self._server_output_thread.join(timeout=0.5)
+                detail = " | ".join(self._server_output).strip()
+                message = f"编辑器进程已退出（退出码 {code}）"
+                if detail:
+                    message += f"：{detail[-1200:]}"
+                if self._log_sink is not None:
+                    self._log_sink.write_text(message, label="editor")
+                return {"ok": False, "error": message}
             return {"ok": False, "error": f"编辑器未在 {url} 就绪，请检查工程/端口后重试"}
 
         self._server_project = project
@@ -779,24 +805,39 @@ class FocusedLauncherApi:
 
     @staticmethod
     def _port_free(port: int) -> bool:
-        import socket
-
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(0.3)
             try:
-                sock.connect(("127.0.0.1", port))
+                # A connect probe misses ports that are bound but not listening.
+                # Use the same local bind operation as the editor server.
+                sock.bind(("127.0.0.1", port))
             except OSError:
-                return True
-            return False
+                return False
+            return True
+
+    def _read_server_output(self, stream: Any, output: deque[str]) -> None:
+        try:
+            for line in stream:
+                safe_line = redact_sensitive_text(str(line).strip())
+                if safe_line:
+                    output.append(safe_line[:500])
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                stream.close()
+            except (OSError, ValueError):
+                pass
 
     @staticmethod
-    def _wait_http_ready(url: str, timeout: float = 20.0) -> bool:
+    def _wait_http_ready(url: str, timeout: float = 20.0, process: subprocess.Popen[str] | None = None) -> bool:
         import time
         import urllib.request
 
         deadline = time.time() + timeout
         probe = url.rstrip("/") + "/api/startup-status"
         while time.time() < deadline:
+            if process is not None and process.poll() is not None:
+                return False
             try:
                 with urllib.request.urlopen(probe, timeout=1.0) as resp:
                     if 200 <= int(getattr(resp, "status", 200) or 200) < 300:

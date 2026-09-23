@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +37,41 @@ class FocusedGuiContractTests(unittest.TestCase):
         self.assertEqual(browser_open.call_count, 2)
         self.assertEqual(api._step_progress["asr"], 0)
         self.assertEqual(api._step_progress["revise"], 0)
+
+    def test_editor_port_probe_rejects_bound_non_listening_socket(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            port = occupied.getsockname()[1]
+            self.assertFalse(FocusedLauncherApi._port_free(port))
+        self.assertTrue(FocusedLauncherApi._port_free(port))
+
+    def test_editor_exit_shows_child_error(self) -> None:
+        api = FocusedLauncherApi()
+        with (
+            patch.object(api, "_port_free", return_value=True),
+            patch.object(api, "_wait_http_ready", return_value=False),
+            patch("maw.focus_launcher.subprocess.Popen") as popen,
+        ):
+            popen.return_value.poll.return_value = 1
+            popen.return_value.returncode = 1
+            popen.return_value.stdout = io.StringIO("指定的端口 8250 无法监听\n")
+            result = api.open_editor({})
+        self.assertFalse(result["ok"])
+        self.assertIn("指定的端口 8250 无法监听", result["error"])
+
+    def test_editor_exit_redacts_key_from_child_error(self) -> None:
+        api = FocusedLauncherApi()
+        with (
+            patch.object(api, "_port_free", return_value=True),
+            patch.object(api, "_wait_http_ready", return_value=False),
+            patch("maw.focus_launcher.subprocess.Popen") as popen,
+        ):
+            popen.return_value.poll.return_value = 1
+            popen.return_value.returncode = 1
+            popen.return_value.stdout = io.StringIO("API_KEY=sk-test-secret-12345\n")
+            result = api.open_editor({})
+        self.assertNotIn("sk-test-secret-12345", result["error"])
+        self.assertIn("[REDACTED]", result["error"])
 
     def test_imported_project_uses_its_media_for_waveform(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

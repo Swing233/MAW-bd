@@ -93,7 +93,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `Resources/ocr-runtime` / `moss-runtime` / `server-align` | 有 | **无**（产品收窄，预期） |
 | `Resources/web/srt2fcpxml-page/` | 无 | **有**（本地 SRT→FCPXML 页） |
 | `Info.plist` BundleId / Executable / Icon | `com.moy.maw.bdversion` / `MAW` / `maw.icns` | Bundle 名/Id 已区分官方 MAW.app |
-| `CFBundleShortVersionString` | `0.0.0` | `1.1.0`（跟 `pyproject.toml`） |
+| `CFBundleShortVersionString` | `0.0.0` | `1.1.1`（跟 `pyproject.toml`） |
 | Python 运行时 | `Frameworks/Python.framework` | `Frameworks/libpython3.11.dylib`（PyInstaller 6） |
 
 结论：封装格式与官方 **同为 PyInstaller macOS BUNDLE**；差异主要来自精简范围与 PyInstaller 版本，而非另一套打包体系。
