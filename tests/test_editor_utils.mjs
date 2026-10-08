@@ -5636,3 +5636,39 @@ test('builds bindings with offsets and aligns bound/unbound dual display rows', 
     { mainIndex: null, extensionIndex: 1 },
   ]);
 });
+
+
+test('editing shortcuts normalize conflicts and ignore composition/modifiers', () => {
+  const bindings = helpers.normalizeEditingShortcuts({ split: 'F2' });
+  assert.equal(bindings.split, 'F2');
+  assert.equal(helpers.matchesEditingShortcut({ key: 'F2' }, 'split', bindings), true);
+  assert.equal(helpers.matchesEditingShortcut({ key: 'b' }, 'split', bindings), false);
+  assert.equal(helpers.matchesEditingShortcut({ key: 'F2', isComposing: true }, 'split', bindings), false);
+  assert.equal(helpers.matchesEditingShortcut({ key: 'F2', metaKey: true }, 'split', bindings), false);
+  assert.equal(helpers.normalizeEditingShortcuts({ split: 'c' }).split, 'b');
+  assert.equal(helpers.normalizeEditorSettings({ editingShortcuts: { split: 'F2' } }).editingShortcuts.split, 'F2');
+});
+
+test('timeline text split rejects stale items and protects words and units', () => {
+  const text = '就是像这样被小米辣向四周驱散了';
+  const segment = { text, start: 0, end: 10000, items: [
+    { text: '就', start: 0, end: 500 },
+    { text: '已经校对前的内容', start: 500, end: 10000 },
+  ] };
+  const offset = helpers.suggestedTimelineSplitOffset(segment, 6500, 'continuous');
+  assert.ok(offset > 5 && offset < text.length - 1);
+  for (const text of ['使用 Qwen3.0 模型进行识别', '今天购买25公斤苹果送给大家']) {
+    const offset = helpers.suggestedTimelineSplitOffset({ text, start: 0, end: 10000 }, 4000, 'continuous');
+    assert.ok(!['使用 Qw', '使用 Qwe', '使用 Qwen3.', '今天购买25'].includes(text.slice(0, offset)));
+  }
+  assert.equal(helpers.suggestedTimelineSplitOffset({ text: 'Hello world', start: 0, end: 2000,
+    items: [{ text: 'Hello', start: 0, end: 700 }, { text: 'world', start: 1100, end: 2000 }] }, 900, 'word'), 6);
+  assert.equal(helpers.suggestedTimelineSplitOffset({ text: '猫', start: 0, end: 1000 }, 500, 'continuous'), null);
+});
+
+
+test('timeline blade never cuts inside standalone tokens', () => {
+  for (const text of ['Hello', 'GPT-4o', 'v3.2.1', '25公斤', 'https://example.com/v2']) {
+    assert.equal(helpers.suggestedTimelineSplitOffset({ text, start: 0, end: 1000 }, 500, 'continuous'), null);
+  }
+});

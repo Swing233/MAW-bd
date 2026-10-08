@@ -100,6 +100,44 @@
     };
   }
 
+  // Unicode-aware LCS; bound work for unexpectedly large imported metadata.
+  function diffText(before, after) {
+    const a = Array.from(String(before || '')), b = Array.from(String(after || ''));
+    const left = [], right = [];
+    function add(list, text, changed) {
+      if (!text) return;
+      const last = list[list.length - 1];
+      if (last && last.changed === changed) last.text += text;
+      else list.push({ text, changed });
+    }
+    if (a.length * b.length > 250000) {
+      let head = 0, tail = 0;
+      while (head < Math.min(a.length, b.length) && a[head] === b[head]) head++;
+      while (tail < Math.min(a.length, b.length) - head && a[a.length - tail - 1] === b[b.length - tail - 1]) tail++;
+      for (const [chars, list] of [[a, left], [b, right]]) {
+        add(list, chars.slice(0, head).join(''), false);
+        add(list, chars.slice(head, chars.length - tail).join(''), true);
+        add(list, chars.slice(chars.length - tail).join(''), false);
+      }
+      return { left, right };
+    }
+    const dp = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    let i = 0, j = 0;
+    while (i < a.length || j < b.length) {
+      if (i < a.length && j < b.length && a[i] === b[j]) {
+        add(left, a[i++], false); add(right, b[j++], false);
+      } else if (i < a.length && (j === b.length || dp[i + 1][j] >= dp[i][j + 1])) {
+        add(left, a[i++], true);
+      } else add(right, b[j++], true);
+    }
+    return { left, right };
+  }
+
   function applyCueClass(el, segment) {
     if (!el || !el.classList) return;
     const status = getStatus(segment);
@@ -115,7 +153,8 @@
     const span = document.createElement('span');
     span.className = 'proofread-badge proofread-badge-' + status;
     span.textContent = meta.short;
-    span.title = meta.label;
+    span.tabIndex = 0;
+    span.setAttribute('aria-label', meta.label + '，查看校验详情');
     return span;
   }
 
@@ -131,5 +170,6 @@
     renderDetail,
     applyCueClass,
     createBadge,
+    diffText,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

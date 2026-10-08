@@ -1132,24 +1132,64 @@ test('B does not split when the playhead is in a gap or while editing text', asy
   await expect(page.locator('.cue')).toHaveCount(6);
 });
 
-test('B on the waveform splits at the playhead, not the pointer or text caret', async ({ page }) => {
+test('hover blade and B split at the same pointer time without a dialog, with undo', async ({ page }) => {
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
-  await page.evaluate(() => {
-    const player = document.getElementById('player');
-    player.currentTime = 5;
-    player.dispatchEvent(new Event('timeupdate'));
-  });
-  const row = page.locator('.waveform-row').first();
-  const box = await row.boundingBox();
-  // 指针约 2s，播放头 5s。切点必须采用播放头的绝对时间。
-  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height / 2);
+  await page.evaluate(() => { document.getElementById('player').currentTime = 5; });
+  const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first();
+  await block.hover();
+  const blade = page.locator('#waveform-split-blade');
+  await expect(blade).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('hover-blade.png') });
+  const cut = Number(await blade.getAttribute('data-time-ms'));
+  expect(cut).not.toBe(5000);
   await page.keyboard.press('b');
-  await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
-  expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(5000);
-  await page.locator('#multi-subtitle-split-confirm').click();
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await expect(page.locator('.cue')).toHaveCount(7);
-  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(5000);
+  expect(await page.evaluate(() => [DATA.segments[0].end, DATA.segments[1].start])).toEqual([cut, cut]);
+  await page.getByRole('button', { name: /撤销/ }).click();
+  await expect(page.locator('.cue')).toHaveCount(6);
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Alpha Bravo');
+});
+
+test('custom split shortcut persists, swaps conflicts and resets', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#editor-settings-tab-general').click();
+  await page.locator('[data-editing-shortcut="split"]').selectOption('F2');
+  await page.locator('#editor-settings-close').click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')).editingShortcuts.split)).toBe('F2');
+  const reopened = await page.context().newPage();
+  await reopened.goto(server.url);
+  expect(await reopened.evaluate(() => EDITOR_SETTINGS.editingShortcuts.split)).toBe('F2');
+  await reopened.close();
+  await makeFirstCueWordSplittable(page);
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().hover();
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.keyboard.press('F2');
+  await expect(page.locator('.cue')).toHaveCount(7);
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('[data-editing-shortcut="split"]').selectOption('c');
+  await expect(page.locator('[data-editing-shortcut="merge"]')).toHaveValue('F2');
+  await page.locator('#editing-shortcuts-reset').click();
+  await expect(page.locator('[data-editing-shortcut="split"]')).toHaveValue('b');
+  await expect(page.locator('[data-editing-shortcut="merge"]')).toHaveValue('c');
+});
+
+test('explicit split time in a real word gap is not snapped to word edges', async ({ page }) => {
+  await page.goto(server.url);
+  const result = await page.evaluate(() => buildSplitPair({ id: 'gap', start: 0, end: 2000,
+    text: 'Hello world', items: [{ text: 'Hello', start: 0, end: 700 }, { text: 'world', start: 1100, end: 2000 }],
+    speaker: 'A', proofread: { status: 'verified' }, color: { name: 'green' },
+  }, 6, 900, 'gap', true, 'word', { preserveCutMs: true }));
+  expect(result.left.end).toBe(900);
+  expect(result.right.start).toBe(900);
+  expect(result.left.items[0].end).toBe(700);
+  expect(result.right.items[0].start).toBe(1100);
+  expect(result.right.proofread.status).toBe('verified');
+  expect(result.right.speaker).toBe('A');
 });
 
 test('Enter saves the waveform cue popover as a single-line subtitle', async ({ page }) => {
@@ -2498,4 +2538,112 @@ test('OTIO exports every source audio stream as its own audio track', async ({ p
   ]);
   expect(result.timelineStreams).toEqual([1, 4]);
   expect(result.resolveTimeline).toEqual({ 'Resolve OTIO Meta Version': '1.0' });
+});
+
+
+test('hover split rejects indivisible text and near-edge cuts without a chooser', async ({ page }) => {
+  await page.goto(server.url);
+  const block = page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first();
+  await block.hover();
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  await makeFirstCueWordSplittable(page);
+  await block.hover({ position: { x: 1, y: 10 } });
+  await expect(page.locator('#waveform-split-blade')).toHaveClass(/invalid/);
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+});
+
+test('main list marker follows remapped key and splits its displayed text boundary', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#editor-settings-tab-general').click();
+  await page.locator('[data-editing-shortcut="split"]').selectOption('F2');
+  await page.locator('#editor-settings-close').click();
+  await page.evaluate(() => { document.getElementById('player').currentTime = 1; });
+  const text = page.locator('.cue[data-idx="0"] .text').first();
+  await text.hover();
+  const marker = page.locator('.cue-split-preview');
+  await expect(marker).toBeVisible();
+  await expect(marker).toHaveAttribute('data-key', 'F2');
+  expect(await marker.evaluate(el => getComputedStyle(el, '::after').content)).toContain('F2');
+  const offset = Number(await marker.getAttribute('data-offset'));
+  const cut = await page.evaluate(offset => Math.round(timelineFrameAlignedMilliseconds(splitTimeForTextOffset(DATA.segments[0], offset))), offset);
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.keyboard.press('F2');
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => [DATA.segments[0].text, DATA.segments[1].text])).toEqual(['Alpha', 'Bravo']);
+  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(cut);
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+});
+
+test('split outside subtitle blocks uses the playhead even with pointer timing preference', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.evaluate(() => { document.getElementById('player').currentTime = 5; });
+  await page.mouse.move(10, 10);
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => [DATA.segments[0].end, DATA.segments[1].start])).toEqual([5000, 5000]);
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  await page.evaluate(() => { document.getElementById('player').currentTime = 20; });
+  await page.keyboard.press('b');
+  await expect(page.locator('.cue')).toHaveCount(7);
+});
+
+test('proofread details open only on badge hover, highlight changes, and allow inspection', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    DATA.segments[0].proofread = { status: 'verified', asr_original: '小小的辣椒曲水', corrected: '小小的辣椒驱水',
+      script_text: '<img src=x onerror=alert(1)> 文稿参考', reason: '同音字纠正' };
+    renderAll();
+  });
+  await page.locator('.cue[data-idx="0"] .text').first().click();
+  const panel = page.locator('#cue-panel-proofread');
+  await expect(panel).toBeHidden();
+  const badge = page.locator('.cue[data-idx="0"] .proofread-badge');
+  await badge.hover();
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.proofread-diff-removed')).toHaveText('曲');
+  await expect(panel.locator('.proofread-diff-added')).toHaveText('驱');
+  await expect(panel.locator('img')).toHaveCount(0);
+  await expect(page.locator('#cue-panel-proofread-script')).toContainText('<img');
+  await panel.hover();
+  await page.waitForTimeout(250);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await badge.focus();
+  await expect(panel).toBeVisible();
+  await page.mouse.move(10, 10);
+  await page.locator('#search').focus();
+  await expect(panel).toBeHidden();
+});
+
+test('main editor playhead divider follows seeking and agrees with the actual split', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    DATA.segments[0].text = '这是第一部分然后第二部分';
+    DATA.segments[0].items = null;
+    renderAll();
+    player.currentTime = 2;
+    player.dispatchEvent(new Event('seeking'));
+  });
+  const preview = page.locator('#cue-panel-split-preview');
+  await expect(preview).toBeVisible();
+  const first = Number(await preview.getAttribute('data-offset'));
+  await page.evaluate(() => { player.currentTime = 6; player.dispatchEvent(new Event('seeking')); });
+  const offset = Number(await preview.getAttribute('data-offset'));
+  expect(offset).toBeGreaterThan(first);
+  await expect(preview.locator('.cue-panel-playhead-divider')).toBeVisible();
+  await page.mouse.move(10, 10);
+  const original = await page.evaluate(() => DATA.segments[0].text);
+  await page.keyboard.press('b');
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe(original.slice(0, offset));
+  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(6000);
+  expect(await page.evaluate(() => DATA.segments.some(s => s.text.includes('│')))).toBe(false);
 });

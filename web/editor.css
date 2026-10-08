@@ -2510,7 +2510,7 @@
     transform: translateX(-1px);
   }
   .cue-split-preview::after {
-    content: "B";
+    content: attr(data-key);
     position: absolute;
     top: 4px;
     left: 4px;
@@ -3807,7 +3807,8 @@
   line-height: 14px;
   color: #111;
   vertical-align: middle;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: help;
 }
 .proofread-badge-verified { background: #66bb6a; }
 .proofread-badge-improvised { background: #c4a019; }
@@ -3925,3 +3926,34 @@
   outline: none;
 }
 .waveform-cue-edit-popover .modal-actions { margin-top: 8px; }
+
+/* A non-interactive blade marks the exact frame used by the split shortcut. */
+#waveform-split-blade {
+  position: fixed; z-index: 500; width: 0; border-left: 2px dashed var(--accent);
+  pointer-events: none;
+}
+#waveform-split-blade::before {
+  content: '✂ ' attr(data-key); position: absolute; bottom: 100%; left: -12px;
+  white-space: nowrap; font-size: 11px; padding: 2px 4px; border-radius: 3px;
+  background: var(--bg-overlay); color: var(--text-primary);
+}
+#waveform-split-blade.invalid { border-color: var(--red-hover); }
+#waveform-split-blade[hidden] { display: none; }
+
+.proofread-hover-panel {
+  position: fixed; z-index: 650; box-sizing: border-box;
+  width: min(480px, calc(100vw - 16px)); max-height: min(380px, calc(100dvh - 16px));
+  overflow: auto; margin: 0; padding: 12px; gap: 8px;
+  background: var(--bg-overlay); color: var(--text-primary);
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow-3);
+  user-select: text;
+}
+.proofread-hover-panel mark { color: inherit; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+.proofread-hover-panel .proofread-diff-removed { background: #ef535044; text-decoration: underline wavy #ef5350; }
+.proofread-hover-panel .proofread-diff-added { background: #66bb6a55; text-decoration: underline #66bb6a; }
+.proofread-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cue-panel-split-preview { margin-top: 6px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; line-height: 1.7; overflow-wrap: anywhere; max-height: 110px; overflow: auto; }
+.cue-panel-split-preview[hidden] { display: none; }
+.cue-panel-split-heading { font-size: 11px; color: var(--text-muted); }
+.cue-panel-playhead-divider { display: inline-block; color: var(--accent); background: var(--bg-input); font-weight: bold; margin: 0 2px; }

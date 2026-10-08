@@ -2542,7 +2542,7 @@
     transform: translateX(-1px);
   }
   .cue-split-preview::after {
-    content: "B";
+    content: attr(data-key);
     position: absolute;
     top: 4px;
     left: 4px;
@@ -3839,7 +3839,8 @@
   line-height: 14px;
   color: #111;
   vertical-align: middle;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: help;
 }
 .proofread-badge-verified { background: #66bb6a; }
 .proofread-badge-improvised { background: #c4a019; }
@@ -3957,6 +3958,37 @@
   outline: none;
 }
 .waveform-cue-edit-popover .modal-actions { margin-top: 8px; }
+
+/* A non-interactive blade marks the exact frame used by the split shortcut. */
+#waveform-split-blade {
+  position: fixed; z-index: 500; width: 0; border-left: 2px dashed var(--accent);
+  pointer-events: none;
+}
+#waveform-split-blade::before {
+  content: '✂ ' attr(data-key); position: absolute; bottom: 100%; left: -12px;
+  white-space: nowrap; font-size: 11px; padding: 2px 4px; border-radius: 3px;
+  background: var(--bg-overlay); color: var(--text-primary);
+}
+#waveform-split-blade.invalid { border-color: var(--red-hover); }
+#waveform-split-blade[hidden] { display: none; }
+
+.proofread-hover-panel {
+  position: fixed; z-index: 650; box-sizing: border-box;
+  width: min(480px, calc(100vw - 16px)); max-height: min(380px, calc(100dvh - 16px));
+  overflow: auto; margin: 0; padding: 12px; gap: 8px;
+  background: var(--bg-overlay); color: var(--text-primary);
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow-3);
+  user-select: text;
+}
+.proofread-hover-panel mark { color: inherit; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+.proofread-hover-panel .proofread-diff-removed { background: #ef535044; text-decoration: underline wavy #ef5350; }
+.proofread-hover-panel .proofread-diff-added { background: #66bb6a55; text-decoration: underline #66bb6a; }
+.proofread-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cue-panel-split-preview { margin-top: 6px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; line-height: 1.7; overflow-wrap: anywhere; max-height: 110px; overflow: auto; }
+.cue-panel-split-preview[hidden] { display: none; }
+.cue-panel-split-heading { font-size: 11px; color: var(--text-muted); }
+.cue-panel-playhead-divider { display: inline-block; color: var(--accent); background: var(--bg-input); font-weight: bold; margin: 0 2px; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -5532,8 +5564,8 @@
       <section class="help-subgroup">
         <h5 class="help-subtitle">编辑操作</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>B</kbd> 拆分字幕（取决于鼠标位置）</span>
-          <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="split">B</kbd> 拆分字幕（取决于鼠标位置）</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="merge">C</kbd> 合并所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -5568,7 +5600,7 @@
           <span><kbd>双击波形</kbd> 播放/暂停</span>
           <span><kbd>右键波形背景</kbd> 显示菜单</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>N</kbd> 在鼠标位置创建字幕（仅波形）</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="create">N</kbd> 在鼠标位置创建字幕（仅波形）</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -5584,7 +5616,7 @@
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
-          <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
+          <span class="help-important"><kbd id="help-waveform-split-key" data-editing-shortcut-label="split">B</kbd> 按鼠标切割线直接分割字幕</span>
         </div>
       </section>
       <h4 class="help-title">双语字幕</h4>
@@ -5619,7 +5651,7 @@
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Shift+←/→</kbd> 将字幕起点/终点贴到前一条结尾/后一条开头</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>Z</kbd>/<kbd>X</kbd> 将字幕起点/终点定位到鼠标位置</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="start">Z</kbd>/<kbd data-editing-shortcut-label="end">X</kbd> 将字幕起点/终点定位到鼠标位置</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+←/→</kbd> 微调字幕左边界（起点）</span>
           <span><kbd data-mod-key>Ctrl+Shift+←/→</kbd> 微调字幕右边界（终点）</span>
@@ -5876,9 +5908,19 @@
         <option value="playhead">播放头</option>
       </select>
     </label>
-    <small class="editor-settings-hint" id="keyboard-operation-reference-hint">B/Z/X/N 使用鼠标所在波形位置；波形外不执行时间操作。</small>
+    <small class="editor-settings-hint" id="keyboard-operation-reference-hint">分割键使用字幕块上的鼠标切割线；起点、终点、新建使用鼠标位置。</small>
     </div>
     </div>
+  </div>
+  <span class="editor-settings-group-heading">编辑快捷键</span>
+  <div class="editor-settings-group" id="editing-shortcuts-settings">
+    <small class="editor-settings-hint">选择按键即可保存；占用的按键会互换。其它快捷键保持原设置。Mac 功能键可能需要同时按 Fn。</small>
+    <label class="editor-settings-item">分割字幕<select data-editing-shortcut="split" aria-label="分割字幕快捷键"></select></label>
+    <label class="editor-settings-item">合并字幕<select data-editing-shortcut="merge" aria-label="合并字幕快捷键"></select></label>
+    <label class="editor-settings-item">新建字幕<select data-editing-shortcut="create" aria-label="新建字幕快捷键"></select></label>
+    <label class="editor-settings-item">设置起点<select data-editing-shortcut="start" aria-label="设置起点快捷键"></select></label>
+    <label class="editor-settings-item">设置终点<select data-editing-shortcut="end" aria-label="设置终点快捷键"></select></label>
+    <button type="button" id="editing-shortcuts-reset">恢复默认快捷键</button>
   </div>
   <span class="editor-settings-group-heading" id="keyboard-adjust-settings-title">按键调整字幕</span>
   <div class="editor-settings-group" role="group" aria-labelledby="keyboard-adjust-settings-title">
@@ -6685,6 +6727,7 @@
           </div>
         </div>
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <div id="cue-panel-split-preview" class="cue-panel-split-preview" aria-label="播放头文字切点" hidden></div>
         <div class="cue-panel-metrics">
           <span>总长度 <b id="cue-panel-total-length">0</b></span>
           <span>字/秒 <b id="cue-panel-chars-per-second">0.00</b></span>
@@ -11735,6 +11778,79 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
   }
 
+  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x' });
+  const EDITING_SHORTCUT_KEYS = Object.freeze(['b', 'c', 'n', 'z', 'x', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']);
+  function normalizeEditingShortcuts(saved = {}) {
+    const result = {};
+    for (const [action, fallback] of Object.entries(EDITING_SHORTCUT_DEFAULTS)) {
+      result[action] = EDITING_SHORTCUT_KEYS.includes(saved?.[action]) ? saved[action] : fallback;
+    }
+    return new Set(Object.values(result)).size === Object.keys(result).length
+      ? result : { ...EDITING_SHORTCUT_DEFAULTS };
+  }
+  function matchesEditingShortcut(event, action, bindings) {
+    return !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      && String(event.key).toLowerCase() === String(bindings[action]).toLowerCase();
+  }
+
+  // Choose text only. Estimated character positions never become word timestamps.
+  function suggestedTimelineSplitOffset(segment, timeMs, mode) {
+    const text = String(segment?.text || '');
+    const protectedRanges = Array.from(text.matchAll(/https?:\/\/[^\s，。；！？]+|[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*|\d+(?:\.\d+)*(?:公斤|千米|毫秒|公里|个|位|年|月|日|天|次|米|元|秒|%)?/gu),
+      match => [match.index, match.index + match[0].length]);
+    const offsets = subtitleSplitOffsets(text, mode).filter(offset =>
+      !protectedRanges.some(([start, end]) => offset > start && offset < end));
+    if (!offsets.length) return null;
+    const duration = Number(segment.end) - Number(segment.start);
+    const ratio = duration > 0 ? Math.max(0, Math.min(1, (timeMs - segment.start) / duration)) : 0.5;
+    let target = text.length * ratio;
+    const items = Array.isArray(segment.items) ? segment.items : [];
+    let cursor = 0;
+    let previousEnd = Number(segment.start);
+    let reliable = items.length > 0 && !segment.timing_estimated;
+    const aligned = [];
+    for (const item of items) {
+      const value = String(item.text || '');
+      const offset = value ? text.indexOf(value, cursor) : -1;
+      if (offset < 0 || /[\p{L}\p{N}]/u.test(text.slice(cursor, offset))
+          || item.timing_estimated || !Number.isFinite(item.start) || !Number.isFinite(item.end)
+          || item.start < previousEnd || item.end <= item.start || item.end > segment.end) {
+        reliable = false; break;
+      }
+      aligned.push({ ...item, offset, length: value.length });
+      cursor = offset + value.length;
+      previousEnd = item.end;
+    }
+    if (/[\p{L}\p{N}]/u.test(text.slice(cursor))) reliable = false;
+    if (reliable) {
+      const inside = aligned.find(item => timeMs >= item.start && timeMs <= item.end);
+      if (inside) target = inside.offset + inside.length * (timeMs - inside.start) / (inside.end - inside.start);
+      else {
+        const next = aligned.find(item => item.start > timeMs);
+        target = next ? next.offset : text.length;
+      }
+    }
+    const wordEnds = new Set();
+    if (typeof Intl.Segmenter === 'function') {
+      for (const part of new Intl.Segmenter('zh', { granularity: 'word' }).segment(text)) {
+        wordEnds.add(part.index); wordEnds.add(part.index + part.segment.length);
+      }
+    }
+    const score = offset => {
+      const left = text.slice(0, offset), right = text.slice(offset);
+      let cost = Math.abs(offset - target) * 3;
+      if (/[A-Za-z0-9]$/.test(left) && /^[A-Za-z0-9]/.test(right)) cost += 100;
+      if (/\d$/.test(left) && /^(?:[.\d]|个|位|年|月|日|天|次|米|元|秒|公斤|%)/.test(right)) cost += 60;
+      if (/[A-Za-z0-9][._:/-]$/.test(left) && /^[A-Za-z0-9]/.test(right)) cost += 100;
+      if (/[A-Za-z0-9]$/.test(left) && /^[._:/-][A-Za-z0-9]/.test(right)) cost += 100;
+      if (wordEnds.size && !wordEnds.has(offset)) cost += 8;
+      if (/[，、：,;；。！？!?]\s*$/.test(left)) cost -= 3;
+      if (text.length >= 8 && Math.min(Array.from(left.trim()).length, Array.from(right.trim()).length) < 2) cost += 8;
+      return cost;
+    };
+    return offsets.reduce((best, offset) => score(offset) < score(best) ? offset : best, offsets[0]);
+  }
+
   function normalizeEditorSettings(saved = {}) {
     const savedSettings = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
     const legacySeekStepSeconds = Number(savedSettings.mediaSeekStepSeconds);
@@ -11743,6 +11859,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       : Number.isFinite(legacySeekStepSeconds) ? legacySeekStepSeconds * 1000 : undefined;
     return {
       ...DEFAULT_EDITOR_SETTINGS,
+      editingShortcuts: normalizeEditingShortcuts(savedSettings.editingShortcuts),
       splitKey: savedSettings.splitKey === 'ctrl-enter' ? 'ctrl-enter' : 'enter',
       splitUseWordTimestamps: savedSettings.splitUseWordTimestamps !== false,
       splitAutoSubmit: savedSettings.splitAutoSubmit !== false,
@@ -15473,6 +15590,8 @@ export default MawDynamicCaptions;
     normalizeEditorAccentColor,
     normalizeEditorAccentCustomColor,
     normalizeEditorSettings,
+    EDITING_SHORTCUT_DEFAULTS, EDITING_SHORTCUT_KEYS, normalizeEditingShortcuts, matchesEditingShortcut,
+    suggestedTimelineSplitOffset,
     TIMELINE_TIMEBASE_UNITS,
     DEFAULT_TIMELINE_FPS,
     DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
@@ -17043,6 +17162,44 @@ export default MawDynamicCaptions;
     };
   }
 
+  // Unicode-aware LCS; bound work for unexpectedly large imported metadata.
+  function diffText(before, after) {
+    const a = Array.from(String(before || '')), b = Array.from(String(after || ''));
+    const left = [], right = [];
+    function add(list, text, changed) {
+      if (!text) return;
+      const last = list[list.length - 1];
+      if (last && last.changed === changed) last.text += text;
+      else list.push({ text, changed });
+    }
+    if (a.length * b.length > 250000) {
+      let head = 0, tail = 0;
+      while (head < Math.min(a.length, b.length) && a[head] === b[head]) head++;
+      while (tail < Math.min(a.length, b.length) - head && a[a.length - tail - 1] === b[b.length - tail - 1]) tail++;
+      for (const [chars, list] of [[a, left], [b, right]]) {
+        add(list, chars.slice(0, head).join(''), false);
+        add(list, chars.slice(head, chars.length - tail).join(''), true);
+        add(list, chars.slice(chars.length - tail).join(''), false);
+      }
+      return { left, right };
+    }
+    const dp = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    let i = 0, j = 0;
+    while (i < a.length || j < b.length) {
+      if (i < a.length && j < b.length && a[i] === b[j]) {
+        add(left, a[i++], false); add(right, b[j++], false);
+      } else if (i < a.length && (j === b.length || dp[i + 1][j] >= dp[i][j + 1])) {
+        add(left, a[i++], true);
+      } else add(right, b[j++], true);
+    }
+    return { left, right };
+  }
+
   function applyCueClass(el, segment) {
     if (!el || !el.classList) return;
     const status = getStatus(segment);
@@ -17058,7 +17215,8 @@ export default MawDynamicCaptions;
     const span = document.createElement('span');
     span.className = 'proofread-badge proofread-badge-' + status;
     span.textContent = meta.short;
-    span.title = meta.label;
+    span.tabIndex = 0;
+    span.setAttribute('aria-label', meta.label + '，查看校验详情');
     return span;
   }
 
@@ -17074,6 +17232,7 @@ export default MawDynamicCaptions;
     renderDetail,
     applyCueClass,
     createBadge,
+    diffText,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -25503,9 +25662,46 @@ const proofreadFilterDropdown = document.getElementById('proofread-filter-dropdo
 const proofreadFilterButton = document.getElementById('proofread-filter-btn');
 const proofreadFilterMenu = document.getElementById('proofread-filter-menu');
 
-function renderProofreadPanel(segment) {
+let proofreadHoverAnchor = null;
+let proofreadHideTimer = null;
+function hideProofreadHover() {
+  clearTimeout(proofreadHideTimer);
+  proofreadHoverAnchor?.removeAttribute('aria-describedby');
+  proofreadHoverAnchor = null;
+  const panel = document.getElementById('cue-panel-proofread');
+  if (panel) panel.hidden = true;
+}
+function scheduleProofreadHide() {
+  clearTimeout(proofreadHideTimer);
+  proofreadHideTimer = setTimeout(hideProofreadHover, 180);
+}
+const proofreadHoverPanel = document.getElementById('cue-panel-proofread');
+proofreadHoverPanel?.addEventListener('pointerenter', () => clearTimeout(proofreadHideTimer));
+proofreadHoverPanel?.addEventListener('pointerleave', scheduleProofreadHide);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideProofreadHover(); });
+document.addEventListener('scroll', event => {
+  if (!proofreadHoverPanel?.contains(event.target)) hideProofreadHover();
+}, true);
+document.addEventListener('pointerdown', event => {
+  if (!proofreadHoverPanel?.contains(event.target) && !event.target.closest?.('.proofread-badge')) hideProofreadHover();
+}, true);
+window.addEventListener('resize', hideProofreadHover);
+window.addEventListener('blur', hideProofreadHover);
+new MutationObserver(() => {
+  if (proofreadHoverAnchor && !proofreadHoverAnchor.isConnected) hideProofreadHover();
+}).observe(container, { childList: true, subtree: true });
+
+function renderProofreadPanel(segment, anchor = null) {
   const panel = document.getElementById('cue-panel-proofread');
   if (!panel || !window.MaweProofread) return;
+  if (!anchor) { if (!proofreadHoverAnchor) panel.hidden = true; return; }
+  clearTimeout(proofreadHideTimer);
+  proofreadHoverAnchor?.removeAttribute('aria-describedby');
+  proofreadHoverAnchor = anchor;
+  anchor.setAttribute('aria-describedby', panel.id);
+  document.body.appendChild(panel);
+  panel.classList.add('proofread-hover-panel');
+  panel.setAttribute('role', 'tooltip');
   const detail = window.MaweProofread.renderDetail(segment);
   const has = Boolean(segment && (detail.status || detail.scriptText || detail.asrOriginal
     || detail.secondaryAsr || detail.corrected || detail.reason));
@@ -25532,6 +25728,30 @@ function renderProofreadPanel(segment) {
     const el = document.getElementById(id);
     if (el) el.textContent = map[id] || '—';
   });
+  if (detail.asrOriginal && detail.corrected) {
+    const diff = window.MaweProofread.diffText(detail.asrOriginal, detail.corrected);
+    for (const [id, parts, kind] of [
+      ['cue-panel-proofread-asr', diff.left, 'removed'],
+      ['cue-panel-proofread-corrected', diff.right, 'added'],
+    ]) {
+      const el = document.getElementById(id);
+      el.replaceChildren();
+      for (const part of parts) {
+        const node = document.createElement(part.changed ? 'mark' : 'span');
+        node.textContent = part.text;
+        if (part.changed) {
+          node.className = `proofread-diff-${kind}`;
+          node.title = kind === 'removed' ? '原识别中的差异' : '校对后的差异';
+        }
+        el.appendChild(node);
+      }
+    }
+  }
+  const rect = anchor.getBoundingClientRect();
+  const size = panel.getBoundingClientRect();
+  panel.style.left = `${Math.max(8, Math.min(innerWidth - size.width - 8, rect.left))}px`;
+  panel.style.top = `${rect.bottom + 6 + size.height <= innerHeight - 8
+    ? rect.bottom + 6 : Math.max(8, rect.top - size.height - 6)}px`;
 }
 
 function buildProofreadFilterMenu() {
@@ -26048,6 +26268,40 @@ function updateEditorSettings(patch) {
   Object.assign(EDITOR_SETTINGS, patch);
   saveEditorSettings(EDITOR_SETTINGS);
 }
+
+function editingShortcutMatches(event, action) {
+  return EDITOR_SETTINGS_UTILS.matchesEditingShortcut(event, action, EDITOR_SETTINGS.editingShortcuts);
+}
+function refreshEditingShortcuts() {
+  document.querySelectorAll('.cue-split-preview, #waveform-split-blade').forEach(el => {
+    el.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+  });
+  document.querySelectorAll('[data-editing-shortcut]').forEach(select => {
+    select.value = EDITOR_SETTINGS.editingShortcuts[select.dataset.editingShortcut];
+  });
+  document.querySelectorAll('[data-editing-shortcut-label]').forEach(el => {
+    el.textContent = EDITOR_SETTINGS.editingShortcuts[el.dataset.editingShortcutLabel].toUpperCase();
+  });
+  const confirm = document.getElementById('multi-subtitle-split-confirm');
+  if (confirm) confirm.textContent = `拆分（Enter / ${EDITOR_SETTINGS.editingShortcuts.split.toUpperCase()}）`;
+}
+document.querySelectorAll('[data-editing-shortcut]').forEach(select => {
+  EDITOR_SETTINGS_UTILS.EDITING_SHORTCUT_KEYS.forEach(key => select.add(new Option(key.toUpperCase(), key)));
+  select.addEventListener('change', () => {
+    const bindings = { ...EDITOR_SETTINGS.editingShortcuts };
+    const action = select.dataset.editingShortcut;
+    const other = Object.keys(bindings).find(key => key !== action && bindings[key] === select.value);
+    if (other) bindings[other] = bindings[action];
+    bindings[action] = select.value;
+    updateEditorSettings({ editingShortcuts: bindings });
+    refreshEditingShortcuts();
+  });
+});
+document.getElementById('editing-shortcuts-reset')?.addEventListener('click', () => {
+  updateEditorSettings({ editingShortcuts: EDITOR_SETTINGS_UTILS.normalizeEditingShortcuts() });
+  refreshEditingShortcuts();
+});
+refreshEditingShortcuts();
 
 const NINJA_SFX_VARIANTS = Object.freeze([
   'sfx_katana_slash_01.opus',
@@ -28607,12 +28861,12 @@ document.addEventListener('mawe:languagechange', refreshClickBehaviorHint);
 
 const KEYBOARD_OPERATION_REFERENCE_HINTS = {
   zh: {
-    pointer: 'B/Z/X/N 使用鼠标所在波形位置；波形外不执行时间操作。',
-    playhead: 'B/Z/X/N 使用当前播放头位置；无当前字幕目标时使用主轨。',
+    pointer: '分割键优先使用字幕块上的切割线，未悬停字幕时使用播放头；其它时间操作使用鼠标。',
+    playhead: '分割键优先使用字幕块上的切割线，未悬停字幕时使用播放头；其它时间操作使用播放头。',
   },
   en: {
-    pointer: 'B/Z/X/N use the mouse position in the waveform; outside it, timing actions do nothing.',
-    playhead: 'B/Z/X/N use the current playhead; when no cue target is active, they use the main track.',
+    pointer: 'Split uses the hovered cue blade; start, end and create use the pointer.',
+    playhead: 'Split uses the hovered cue blade; start, end and create use the playhead.',
   },
 };
 function refreshKeyboardOperationReferenceHint() {
@@ -30394,7 +30648,45 @@ function commitCuePanelEdit() {
   return true;
 }
 
+function renderPlayheadSplitPreview() {
+  const preview = document.getElementById('cue-panel-split-preview');
+  if (!preview) return;
+  const timeMs = Math.round(timelineFrameAlignedMilliseconds(player.currentTime * 1000));
+  const index = DATA.segments.findIndex(segment => timeMs > segment.start && timeMs < segment.end);
+  const segment = DATA.segments[index];
+  const offset = segment ? splitOffsetNearTime(segment, timeMs, getMainSubtitleSplitMode(segment)) : null;
+  if (!segment || !Number.isInteger(offset) || document.activeElement === cuePanelText) {
+    preview.hidden = true;
+    return;
+  }
+  preview.hidden = false;
+  preview.dataset.offset = String(offset);
+  preview.dataset.timeMs = String(timeMs);
+  preview.dataset.index = String(index);
+  preview.replaceChildren();
+  const heading = document.createElement('div');
+  heading.className = 'cue-panel-split-heading';
+  heading.textContent = `播放头切点 · 主字幕 ${index + 1} · ${fmtShort(timeMs)} · `;
+  const key = document.createElement('kbd');
+  key.dataset.editingShortcutLabel = 'split';
+  key.textContent = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+  heading.append(key, document.createTextNode(' 分割'));
+  const left = document.createElement('span');
+  left.textContent = segment.text.slice(0, offset);
+  const divider = document.createElement('span');
+  divider.className = 'cue-panel-playhead-divider';
+  divider.textContent = '│';
+  divider.setAttribute('aria-label', '切分点');
+  const right = document.createElement('span');
+  right.textContent = segment.text.slice(offset);
+  preview.append(heading, left, divider, right);
+}
+['timeupdate', 'seeking', 'seeked', 'loadedmetadata'].forEach(type => player.addEventListener(type, renderPlayheadSplitPreview));
+cuePanelText?.addEventListener('focus', renderPlayheadSplitPreview);
+cuePanelText?.addEventListener('blur', () => requestAnimationFrame(renderPlayheadSplitPreview));
+
 function renderCurrentCuePanel() {
+  renderPlayheadSplitPreview();
   if (!cuePanel) return;
   const target = getCurrentCuePanelTarget();
   const idx = target?.index ?? -1;
@@ -30937,6 +31229,12 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
     const prBadge = window.MaweProofread.createBadge(seg);
     if (prBadge) {
       prBadge.classList.add('cue-proofread-badge');
+      prBadge.addEventListener('pointerenter', () => renderProofreadPanel(seg, prBadge));
+      prBadge.addEventListener('pointerleave', scheduleProofreadHide);
+      prBadge.addEventListener('focus', () => renderProofreadPanel(seg, prBadge));
+      prBadge.addEventListener('blur', scheduleProofreadHide);
+      prBadge.addEventListener('pointerdown', event => event.stopPropagation());
+      prBadge.addEventListener('click', event => event.stopPropagation());
       el.appendChild(prBadge);
     }
   }
@@ -32001,17 +32299,7 @@ function notifyMainSplitTimestampFallback(segment) {
 function splitOffsetNearTime(segment, timeMs, splitMode) {
   const legalOffsets = MULTI_SUBTITLE_UTILS.subtitleSplitOffsets(segment?.text || '', splitMode);
   if (!legalOffsets.length) return null;
-  const timestampOffset = MULTI_SUBTITLE_UTILS.hasUsableSplitTimestamps(segment)
-    ? window.AsrEditorUtils.splitCharOffsetAtTime(segment, timeMs)
-    : null;
-  if (Number.isInteger(timestampOffset)) {
-    return legalOffsets.reduce((best, candidate) => (
-      Math.abs(candidate - timestampOffset) < Math.abs(best - timestampOffset) ? candidate : best
-    ), legalOffsets[0]);
-  }
-  return MULTI_SUBTITLE_UTILS.nearestSubtitleSplitOffset(
-    segment.text, timeMs, segment.start, segment.end, splitMode,
-  );
+  return EDITOR_SETTINGS_UTILS.suggestedTimelineSplitOffset(segment, timeMs, splitMode);
 }
 
 function splitOffsetNearTextPosition(text, offset, splitMode) {
@@ -32151,8 +32439,7 @@ function splitItemsAtChar(
     const range = timeRangeFor(inside.item);
     const fraction = (safeOffset - inside.textStart) / Math.max(1, inside.textEnd - inside.textStart);
     const interpolated = Math.round(range.start + (range.end - range.start) * fraction);
-    if (!preserveCutMs || !Number.isFinite(splitMs)
-        || (!forceCut && (splitMs < range.start || splitMs > range.end))) {
+    if (!preserveCutMs || !Number.isFinite(splitMs)) {
       splitMs = interpolated;
     }
   } else {
@@ -32185,7 +32472,7 @@ function splitItemsAtChar(
   let rightStartMs = splitMs;
   const prevEdgeMs = previousRange?.end ?? null;
   const nextEdgeMs = nextRange?.start ?? null;
-  if (Number.isFinite(prevEdgeMs) && Number.isFinite(nextEdgeMs)
+  if (!preserveCutMs && Number.isFinite(prevEdgeMs) && Number.isFinite(nextEdgeMs)
       && nextEdgeMs - prevEdgeMs > 0) {
     leftEndMs = prevEdgeMs;
     rightStartMs = nextEdgeMs;
@@ -32430,9 +32717,7 @@ function extensionOnlySplitState(extensionIndex, track, initial = {}) {
   const fixedCutMs = Number.isFinite(initial.timeMs) ? Math.round(initial.timeMs) : null;
   const initialOffset = hasInitialTextPosition
     ? splitOffsetNearTextPosition(extension.text, initial.extensionOffset, extensionMode)
-    : MULTI_SUBTITLE_UTILS.nearestSubtitleSplitOffset(
-      extension.text, initialTime, extension.start, extension.end, extensionMode,
-    );
+    : EDITOR_SETTINGS_UTILS.suggestedTimelineSplitOffset(extension, initialTime, extensionMode);
   if (!Number.isInteger(initialOffset)) return null;
   return {
     kind: 'extension',
@@ -34766,8 +35051,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
     const request = cueSplitPreviewRequest;
     cueSplitPreviewRequest = null;
     const isExtension = request?.kind === 'extension';
-    const selected = isExtension ? selectedExtensionIdxs : selectedIdxs;
-    if (!request || selected.size !== 1 || !selected.has(request.idx)) {
+    if (!request) {
       hideCueSplitPreview();
       return;
     }
@@ -34786,9 +35070,26 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       return;
     }
     const info = caretInfoFromPoint(textEl, request.clientX, request.clientY);
-    if (!info || info.offset <= 0 || info.offset >= text.length) {
+    if (!info) {
       hideCueSplitPreview();
       return;
+    }
+    const mode = isExtension ? getExtensionSubtitleSplitMode(track, segment) : getMainSubtitleSplitMode(segment);
+    const offset = splitOffsetNearTextPosition(text, info.offset, mode);
+    if (!Number.isInteger(offset)) { hideCueSplitPreview(); return; }
+    // Use the same legal text boundary for the marker and the actual split.
+    const walker = document.createTreeWalker(textEl, NodeFilter.SHOW_TEXT);
+    let remaining = offset;
+    let node;
+    while ((node = walker.nextNode())) {
+      if (remaining <= node.textContent.length) {
+        const range = document.createRange();
+        range.setStart(node, remaining); range.collapse(true);
+        const rect = range.getBoundingClientRect();
+        if (rect.height) info.rect = rect;
+        break;
+      }
+      remaining -= node.textContent.length;
     }
     const cueRect = cue.getBoundingClientRect();
     // 光条挂在 .cue 上，而 caret 的坐标是 viewport 坐标；扣除 .cue 的左边框，
@@ -34802,7 +35103,94 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       cue.appendChild(cueSplitPreviewEl);
     }
     cueSplitPreviewEl.style.left = `${left}px`;
+    cueSplitPreviewEl.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+    cueSplitPreviewEl.dataset.offset = String(offset);
+    cueSplitPreviewEl.dataset.index = String(request.idx);
+    cueSplitPreviewEl.dataset.track = isExtension ? 'extension' : 'main';
+    cueSplitPreviewEl.dataset.text = text;
   });
+}
+
+// Hover blade and B share the same frame-aligned pointer time and track target.
+let waveformBlade = null;
+function hideWaveformBlade() { if (waveformBlade) waveformBlade.hidden = true; }
+function hoveredWaveformSplitTarget() {
+  if (!lastPointerPos) return null;
+  const block = document.elementFromPoint(lastPointerPos.x, lastPointerPos.y)?.closest('.waveform-cue-block');
+  if (!block) return null;
+  const rawTime = waveformEditor?.timeMsAtPoint?.(lastPointerPos.x, lastPointerPos.y);
+  if (!Number.isFinite(rawTime)) return null;
+  const timeMs = Math.round(timelineFrameAlignedMilliseconds(rawTime));
+  const track = block.dataset.track || 'main';
+  const index = Number(track === 'extension' ? block.dataset.extIdx
+    : track === 'overlay' ? block.dataset.overlayIdx : block.dataset.idx);
+  const segment = track === 'extension' ? getActiveExtensionTrack()?.segments?.[index]
+    : track === 'overlay' ? getOverlayTrack()?.segments?.[index] : DATA.segments[index];
+  if (!segment) return null;
+  return { block, track, index, segment, timeMs };
+}
+document.addEventListener('pointermove', event => {
+  hideWaveformBlade();
+  if (event.buttons || editingState || extensionEditingState || isTextEditingTarget(event)
+      || document.querySelector('.modal-mask.show')) return;
+  lastPointerPos = { x: event.clientX, y: event.clientY };
+  const target = hoveredWaveformSplitTarget();
+  if (!target) return;
+  if (!waveformBlade) {
+    waveformBlade = document.createElement('span');
+    waveformBlade.id = 'waveform-split-blade';
+    waveformBlade.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(waveformBlade);
+  }
+  const point = waveformEditor.getSplitPointAtTime(target.timeMs, target.track);
+  const rect = target.block.getBoundingClientRect();
+  waveformBlade.style.left = `${point?.clientX ?? event.clientX}px`;
+  waveformBlade.style.top = `${rect.top}px`;
+  waveformBlade.style.height = `${rect.height}px`;
+  waveformBlade.dataset.timeMs = String(target.timeMs);
+  waveformBlade.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+  waveformBlade.classList.toggle('invalid', target.timeMs - target.segment.start < SUBTITLE_MIN_DURATION_MS
+    || target.segment.end - target.timeMs < SUBTITLE_MIN_DURATION_MS);
+  waveformBlade.hidden = false;
+});
+document.addEventListener('pointerdown', hideWaveformBlade, true);
+document.addEventListener('scroll', hideWaveformBlade, true);
+document.documentElement.addEventListener('pointerleave', hideWaveformBlade);
+window.addEventListener('blur', hideWaveformBlade);
+window.addEventListener('resize', hideWaveformBlade);
+function splitHoveredWaveform(target) {
+  hideWaveformBlade();
+  const { timeMs, segment, index, track, offset } = target;
+  if (timeMs - segment.start < SUBTITLE_MIN_DURATION_MS || segment.end - timeMs < SUBTITLE_MIN_DURATION_MS) {
+    flashHint('切点离字幕边界太近，请向内移动，左右至少保留 100ms', 'warning');
+    return;
+  }
+  let state;
+  if (track === 'main') {
+    state = multiSubtitleVisible() && bindingForMainIndex(index)
+      ? linkedSplitState(index, { timeMs, exactTime: true })
+      : mainWaveformSplitState(index, { timeMs });
+  } else {
+    state = extensionOnlySplitState(index, track === 'overlay' ? getOverlayTrack() : getActiveExtensionTrack(), { timeMs });
+    if (state && track === 'overlay') state.kind = 'overlay';
+  }
+  if (!state) { flashHint('这条字幕没有可拆分的文字边界', 'warning'); return; }
+  if (Number.isInteger(offset)) {
+    if (track === 'main') state.mainOffset = offset;
+    else state.offset = offset;
+  }
+  state.feedbackPoint = waveformEditor.getSplitPointAtTime(timeMs, track);
+  pendingLinkedSplit = state;
+  // Reuse validation and atomic undo/metadata handling, without showing a chooser.
+  const valid = updateLinkedSplitPreview(track === 'main' ? state.mainOffset : state.offset,
+    track === 'main' ? 'main' : 'extension');
+  if (!valid) {
+    closeLinkedSplitModal();
+    flashHint('当前切点无法安全拆分字幕，请换一个位置', 'warning');
+    return;
+  }
+  confirmLinkedSplit();
+  closeLinkedSplitModal();
 }
 
 function waveformPointerContext() {
@@ -34888,8 +35276,7 @@ function getPointerBoundaryEditTarget(context) {
 // Z：起点定位；X：终点定位。无选中时使用波形指针命中的字幕；有选中时
 // 只允许一个逻辑字幕，避免把多选误当成批量边界调整。
 function handlePointerBoundaryShortcut(event, edge) {
-  if (event.key !== (edge === 'start' ? 'z' : 'x')
-      && event.key !== (edge === 'start' ? 'Z' : 'X')) return;
+  if (!editingShortcutMatches(event, edge)) return;
   if (event.repeat || editingState || extensionEditingState || isTextEditingTarget(event)) return;
   const active = document.activeElement;
   if (active && (
@@ -36157,7 +36544,7 @@ document.addEventListener('keydown', (e) => {
 
 // C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'c' && e.key !== 'C') return;
+  if (!editingShortcutMatches(e, 'merge')) return;
   if (editingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
@@ -36332,7 +36719,7 @@ document.addEventListener('keydown', (e) => {
 // N：仅在鼠标位于波形行时，从指针音频位置创建字幕；创建后单选新字幕，
 // 切换当前字幕面板并聚焦面板文本框。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'n' && e.key !== 'N') return;
+  if (!editingShortcutMatches(e, 'create')) return;
   if (editingState || e.repeat || isTextEditingTarget(e)) return;
   const a = document.activeElement;
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
@@ -36456,13 +36843,13 @@ document.addEventListener('keydown', (e) => {
   alignSelectedExtensionSubtitleRanges();
 });
 
-// B：波形时间线以播放头为绝对切点；字幕列表仍按文字位置拆分。
-// 1) 鼠标悬停在已单选的字幕列表行上：按指针对应的文字位置拆分；
-// 2) 鼠标位于波形上：按播放头的绝对时间拆分；
-// 3) 其它位置：按当前键盘时间基准拆分。
+// 分割键：字幕悬停断点优先，否则使用音频播放头。
+// 1) 鼠标悬停字幕列表：按预览的合法文字断点拆分；
+// 2) 鼠标位于波形字幕块上：按预览切割线直接拆分；
+// 3) 其它位置：按当前音频播放头拆分主字幕。
 // 文本编辑、弹窗和修饰键状态下不抢占输入。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'b' && e.key !== 'B') return;
+  if (!editingShortcutMatches(e, 'split')) return;
   if (e.repeat) return;
   const forceMainEdit = editingState?.forceSplitArmed === true;
   if (extensionEditingState && !forceMainEdit) {
@@ -36505,134 +36892,33 @@ document.addEventListener('keydown', (e) => {
     splitAtCursor();
     return;
   }
-  const splitAt = (idx, x, y, timeMs) => {
-    e.preventDefault();
-    // B 打开弹窗后，事件仍会继续传播到后面注册的弹窗快捷键监听器；
-    // 立即停止同一事件，避免“按 B 打开”被误当成“按 B 确认”。
-    e.stopImmediatePropagation();
-    splitFromContextMenu(idx, x, y, timeMs);
-  };
-  // 多重字幕下，只有副字幕是当前编辑焦点时，B 才直接打开副字幕拆分流程。
-  // 绑定关系会让点击主字幕时同时选中副字幕；不能仅凭 selectedExtensionIdxs
-  // 判断当前轨道，否则主字幕 active 时会被误判成副字幕单独拆分。
-  const activeCuePanel = getCurrentCuePanelTarget();
-  const pointerElement = lastPointerPos
-    ? document.elementFromPoint(lastPointerPos.x, lastPointerPos.y) : null;
-  const waveformShortcut = Boolean(pointerElement?.closest('#waveform-pane'))
-    || (lastEditRegion === 'waveform' && !pointerElement?.closest('.cue'));
-  const operationReference = waveformShortcut
-    ? {
-      ...keyboardOperationReference(),
-      timeMs: timelineFrameAlignedMilliseconds(Math.round(player.currentTime * 1000)),
-      source: 'playhead',
-    }
-    : keyboardOperationReference();
-  const pointerMainIndex = operationReference
-    ? findWaveformCueAtTime(operationReference.timeMs, DATA.segments) : -1;
-  const activeExtensionTrack = getActiveExtensionTrack();
-  const pointerExtensionIndex = operationReference?.track === 'extension'
-    ? findWaveformCueAtTime(operationReference.timeMs, getExtensionTrack(operationReference.trackId)?.segments) : -1;
-  if (!waveformShortcut && selectedExtensionIdxs.size === 1) {
-    const context = hoveredSelectedCueContext();
-    if (context?.kind === 'extension' && context.track?.segments?.[context.idx]) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      const initial = Number.isFinite(context.offset)
-        ? {
-          extensionOffset: context.offset,
-          feedbackPoint: context.caretRect ? ninjaSplitPointFromRect(context.caretRect) : null,
-          ninjaFromList: true,
-        } : {};
-      openExtensionSplitModal(context.idx, null, context.track, initial);
-      return;
-    }
-  }
-  // 波形区点击副字幕后，绑定关系可能同时选中主字幕；但只要当前面板和
-  // 波形指针都明确落在这条单选副字幕上，B 就应拆分副字幕，而不是被重叠
-  // 的主字幕时间范围抢走目标。主字幕面板仍不会进入这个例外分支。
-  const waveformExtensionIsActive = multiSubtitleVisible()
-    && activeCuePanel?.kind === 'extension'
-    && selectedExtensionIdxs.size === 1
-    && selectedExtensionIdxs.has(activeCuePanel.index)
-    && operationReference?.track === 'extension'
-    && pointerExtensionIndex === activeCuePanel.index;
-  const extensionIsActive = multiSubtitleVisible()
-    && activeCuePanel?.kind === 'extension'
-    && selectedExtensionIdxs.size === 1
-    && selectedExtensionIdxs.has(activeCuePanel.index)
-    && (!operationReference || pointerMainIndex < 0 || waveformExtensionIsActive);
-  if (extensionIsActive) {
-    const extensionIndex = [...selectedExtensionIdxs][0];
-    const track = activeExtensionTrack;
-    const extension = track?.segments?.[extensionIndex];
-    if (!extension) return;
-    let timeMs = null;
-    if (!waveformShortcut && EDITOR_SETTINGS.keyboardOperationReference === 'pointer'
-        && lastPointerPos && (pointerElement?.closest('#waveform-pane') || lastEditRegion === 'waveform')) {
-      const pointerTimeMs = waveformEditor?.timeMsAtPoint?.(lastPointerPos.x, lastPointerPos.y);
-      if (Number.isFinite(pointerTimeMs) && pointerTimeMs > extension.start && pointerTimeMs < extension.end) {
-        timeMs = pointerTimeMs;
-      }
-    }
-    e.preventDefault();
-    // 同上：首次 B 只负责打开副字幕拆分弹窗。
-    e.stopImmediatePropagation();
-    openExtensionSplitModal(
-      extensionIndex,
-      waveformShortcut || EDITOR_SETTINGS.keyboardOperationReference === 'playhead'
-        ? operationReference?.timeMs ?? null : timeMs,
-      track,
-    );
-    return;
-  }
-  // 1) 字幕列表：需要单选 + 悬停提供文字位置
-  if (!waveformShortcut && selectedIdxs.size === 1) {
-    const context = hoveredSelectedCueContext();
-    if (context && DATA.segments[context.idx]) {
-      splitAt(context.idx, context.x, context.y, null);
-      return;
-    }
-  }
-  // 2) 非波形区域沿用用户设置的指针时间基准
-  if (!waveformShortcut && (operationReference?.source === 'pointer' || operationReference?.track === 'extension')) {
-    const idx = findWaveformCueAtTime(operationReference.timeMs, DATA.segments);
-    if (idx >= 0) {
-      splitAt(idx, 0, 0, operationReference.timeMs);
-      return;
-    }
-    const extensionTrack = getActiveExtensionTrack();
-    const extensionIndex = multiSubtitleVisible() && operationReference.track === 'extension'
-      ? findWaveformCueAtTime(operationReference.timeMs, getExtensionTrack(operationReference.trackId)?.segments) : -1;
-    if (extensionIndex >= 0) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      openExtensionSplitModal(extensionIndex, operationReference.timeMs, getExtensionTrack(operationReference.trackId));
-      return;
-    }
-    flashHint('指针位置没有可拆分字幕', 'invalid');
-    return;
-  }
-  // 3) 播放头位置
-  const timeMs = operationReference?.timeMs ?? Math.round(player.currentTime * 1000);
-  const idx = DATA.segments.findIndex((segment) => timeMs > segment.start && timeMs < segment.end);
-  if (idx >= 0) {
-    if (waveformShortcut) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      splitFromContextMenu(idx, 0, 0, timeMs, { exactTime: true });
-    } else splitAt(idx, 0, 0, timeMs);
-    return;
-  }
-  const extensionTrack = getActiveExtensionTrack();
-  const extensionIndex = multiSubtitleVisible()
-    ? findWaveformCueAtTime(timeMs, extensionTrack?.segments) : -1;
-  if (extensionIndex >= 0) {
+  if (document.querySelector('.modal-mask.show')) return;
+  const hovered = hoveredWaveformSplitTarget();
+  if (hovered) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    openExtensionSplitModal(extensionIndex, timeMs, extensionTrack);
+    splitHoveredWaveform(hovered);
     return;
   }
-  flashHint('播放头位置没有可拆分字幕', 'invalid');
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const marker = cueSplitPreviewEl;
+  if (marker?.isConnected && marker.parentElement?.matches(':hover')) {
+    const track = marker.dataset.track;
+    const index = Number(marker.dataset.index);
+    const segment = track === 'extension' ? getActiveExtensionTrack()?.segments?.[index] : DATA.segments[index];
+    if (segment && marker.dataset.text === segment.text) {
+      const offset = Number(marker.dataset.offset);
+      const timeMs = Math.round(timelineFrameAlignedMilliseconds(splitTimeForTextOffset(segment, offset)));
+      splitHoveredWaveform({ track, index, segment, timeMs, offset });
+      hideCueSplitPreview();
+      return;
+    }
+  }
+  const timeMs = Math.round(timelineFrameAlignedMilliseconds(player.currentTime * 1000));
+  const index = DATA.segments.findIndex(segment => timeMs > segment.start && timeMs < segment.end);
+  if (index < 0) { flashHint('播放头位置没有可拆分的主字幕', 'warning'); return; }
+  splitHoveredWaveform({ track: 'main', index, segment: DATA.segments[index], timeMs });
 });
 
 // 点击输入框外 -> 完成内联编辑。使用 pointerdown 捕获阶段，确保字幕行、
@@ -42707,7 +42993,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (!event.repeat
-      && (event.key === 'Enter' || event.key === 'b' || event.key === 'B')
+      && (event.key === 'Enter' || editingShortcutMatches(event, 'split'))
       && !(event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)) {
     event.preventDefault();
     event.stopPropagation();

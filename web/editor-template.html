@@ -539,8 +539,8 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">编辑操作</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>B</kbd> 拆分字幕（取决于鼠标位置）</span>
-          <span class="help-important"><kbd>C</kbd> 合并所选字幕</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="split">B</kbd> 拆分字幕（取决于鼠标位置）</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="merge">C</kbd> 合并所选字幕</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Alt+点击</kbd> 启用/禁用字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -575,7 +575,7 @@ __WAVEFORM_CSS__
           <span><kbd>双击波形</kbd> 播放/暂停</span>
           <span><kbd>右键波形背景</kbd> 显示菜单</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>N</kbd> 在鼠标位置创建字幕（仅波形）</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="create">N</kbd> 在鼠标位置创建字幕（仅波形）</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>
           <span class="help-break" aria-hidden="true"></span>
@@ -591,7 +591,7 @@ __WAVEFORM_CSS__
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
           <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
-          <span class="help-important"><kbd id="help-waveform-split-key">B</kbd> 按当前时间基准拆分字幕</span>
+          <span class="help-important"><kbd id="help-waveform-split-key" data-editing-shortcut-label="split">B</kbd> 按鼠标切割线直接分割字幕</span>
         </div>
       </section>
       <h4 class="help-title">双语字幕</h4>
@@ -626,7 +626,7 @@ __WAVEFORM_CSS__
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Shift+←/→</kbd> 将字幕起点/终点贴到前一条结尾/后一条开头</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>Z</kbd>/<kbd>X</kbd> 将字幕起点/终点定位到鼠标位置</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="start">Z</kbd>/<kbd data-editing-shortcut-label="end">X</kbd> 将字幕起点/终点定位到鼠标位置</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd data-mod-key>Ctrl+←/→</kbd> 微调字幕左边界（起点）</span>
           <span><kbd data-mod-key>Ctrl+Shift+←/→</kbd> 微调字幕右边界（终点）</span>
@@ -883,9 +883,19 @@ __WAVEFORM_CSS__
         <option value="playhead">播放头</option>
       </select>
     </label>
-    <small class="editor-settings-hint" id="keyboard-operation-reference-hint">B/Z/X/N 使用鼠标所在波形位置；波形外不执行时间操作。</small>
+    <small class="editor-settings-hint" id="keyboard-operation-reference-hint">分割键使用字幕块上的鼠标切割线；起点、终点、新建使用鼠标位置。</small>
     </div>
     </div>
+  </div>
+  <span class="editor-settings-group-heading">编辑快捷键</span>
+  <div class="editor-settings-group" id="editing-shortcuts-settings">
+    <small class="editor-settings-hint">选择按键即可保存；占用的按键会互换。其它快捷键保持原设置。Mac 功能键可能需要同时按 Fn。</small>
+    <label class="editor-settings-item">分割字幕<select data-editing-shortcut="split" aria-label="分割字幕快捷键"></select></label>
+    <label class="editor-settings-item">合并字幕<select data-editing-shortcut="merge" aria-label="合并字幕快捷键"></select></label>
+    <label class="editor-settings-item">新建字幕<select data-editing-shortcut="create" aria-label="新建字幕快捷键"></select></label>
+    <label class="editor-settings-item">设置起点<select data-editing-shortcut="start" aria-label="设置起点快捷键"></select></label>
+    <label class="editor-settings-item">设置终点<select data-editing-shortcut="end" aria-label="设置终点快捷键"></select></label>
+    <button type="button" id="editing-shortcuts-reset">恢复默认快捷键</button>
   </div>
   <span class="editor-settings-group-heading" id="keyboard-adjust-settings-title">按键调整字幕</span>
   <div class="editor-settings-group" role="group" aria-labelledby="keyboard-adjust-settings-title">
@@ -1692,6 +1702,7 @@ __WAVEFORM_CSS__
           </div>
         </div>
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
+        <div id="cue-panel-split-preview" class="cue-panel-split-preview" aria-label="播放头文字切点" hidden></div>
         <div class="cue-panel-metrics">
           <span>总长度 <b id="cue-panel-total-length">0</b></span>
           <span>字/秒 <b id="cue-panel-chars-per-second">0.00</b></span>

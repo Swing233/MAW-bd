@@ -527,8 +527,9 @@ class EditorAssetTests(unittest.TestCase):
             + page.count('class="editor-settings-group subtitle-preview-style-group"')
             + page.count('class="editor-settings-group subtitle-color-settings-group"')
             + page.count('class="editor-settings-group subtitle-speaker-settings-group"'),
-            19,
+            20,
         )
+        self.assertIn('id="editing-shortcuts-settings"', page)
         self.assertEqual(page.count('class="editor-settings-group split-language-type-group"'), 1)
         self.assertEqual(page.count('class="editor-settings-group subtitle-color-settings-group"'), 1)
         self.assertEqual(page.count('class="editor-settings-group subtitle-speaker-settings-group"'), 1)
@@ -650,7 +651,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertLess(page.index('id="main-subtitle-preview-settings"'), page.index('id="extension-subtitle-preview-title"'))
         self.assertLess(page.index('id="extension-subtitle-preview-title"'), page.index('id="extension-subtitle-preview-settings"'))
         self.assertNotIn('<span class="editor-settings-title">播放控制</span>', video_preview_page)
-        self.assertEqual(general_page.count('class="editor-settings-group"'), 4)
+        self.assertEqual(general_page.count('class="editor-settings-group"'), 5)
         self.assertIn('id="language-toggle"', interface_page)
         self.assertIn('data-editor-theme="light"', interface_page)
         self.assertIn('data-editor-theme="dark"', interface_page)
@@ -767,7 +768,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('通用快捷键见「快捷操作」；此处只列出波形区特有的操作', page)
         self.assertIn('<span class="help-important"><kbd>拖拽空白处</kbd> 框选字幕（Shift 追加）</span>', page)
         self.assertIn(
-            '<span class="help-important"><kbd>N</kbd> 在鼠标位置创建字幕（仅波形）</span>\n'
+            '<span class="help-important"><kbd data-editing-shortcut-label="create">N</kbd> 在鼠标位置创建字幕（仅波形）</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'
             '          <span><kbd data-mod-key>Ctrl+拖拽空白处</kbd> 拖动创建指定时长字幕</span>\n'
             '          <span class="help-break" aria-hidden="true"></span>\n'

@@ -2953,6 +2953,79 @@
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
   }
 
+  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x' });
+  const EDITING_SHORTCUT_KEYS = Object.freeze(['b', 'c', 'n', 'z', 'x', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']);
+  function normalizeEditingShortcuts(saved = {}) {
+    const result = {};
+    for (const [action, fallback] of Object.entries(EDITING_SHORTCUT_DEFAULTS)) {
+      result[action] = EDITING_SHORTCUT_KEYS.includes(saved?.[action]) ? saved[action] : fallback;
+    }
+    return new Set(Object.values(result)).size === Object.keys(result).length
+      ? result : { ...EDITING_SHORTCUT_DEFAULTS };
+  }
+  function matchesEditingShortcut(event, action, bindings) {
+    return !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      && String(event.key).toLowerCase() === String(bindings[action]).toLowerCase();
+  }
+
+  // Choose text only. Estimated character positions never become word timestamps.
+  function suggestedTimelineSplitOffset(segment, timeMs, mode) {
+    const text = String(segment?.text || '');
+    const protectedRanges = Array.from(text.matchAll(/https?:\/\/[^\s，。；！？]+|[A-Za-z][A-Za-z0-9]*(?:[._:/-][A-Za-z0-9]+)*|\d+(?:\.\d+)*(?:公斤|千米|毫秒|公里|个|位|年|月|日|天|次|米|元|秒|%)?/gu),
+      match => [match.index, match.index + match[0].length]);
+    const offsets = subtitleSplitOffsets(text, mode).filter(offset =>
+      !protectedRanges.some(([start, end]) => offset > start && offset < end));
+    if (!offsets.length) return null;
+    const duration = Number(segment.end) - Number(segment.start);
+    const ratio = duration > 0 ? Math.max(0, Math.min(1, (timeMs - segment.start) / duration)) : 0.5;
+    let target = text.length * ratio;
+    const items = Array.isArray(segment.items) ? segment.items : [];
+    let cursor = 0;
+    let previousEnd = Number(segment.start);
+    let reliable = items.length > 0 && !segment.timing_estimated;
+    const aligned = [];
+    for (const item of items) {
+      const value = String(item.text || '');
+      const offset = value ? text.indexOf(value, cursor) : -1;
+      if (offset < 0 || /[\p{L}\p{N}]/u.test(text.slice(cursor, offset))
+          || item.timing_estimated || !Number.isFinite(item.start) || !Number.isFinite(item.end)
+          || item.start < previousEnd || item.end <= item.start || item.end > segment.end) {
+        reliable = false; break;
+      }
+      aligned.push({ ...item, offset, length: value.length });
+      cursor = offset + value.length;
+      previousEnd = item.end;
+    }
+    if (/[\p{L}\p{N}]/u.test(text.slice(cursor))) reliable = false;
+    if (reliable) {
+      const inside = aligned.find(item => timeMs >= item.start && timeMs <= item.end);
+      if (inside) target = inside.offset + inside.length * (timeMs - inside.start) / (inside.end - inside.start);
+      else {
+        const next = aligned.find(item => item.start > timeMs);
+        target = next ? next.offset : text.length;
+      }
+    }
+    const wordEnds = new Set();
+    if (typeof Intl.Segmenter === 'function') {
+      for (const part of new Intl.Segmenter('zh', { granularity: 'word' }).segment(text)) {
+        wordEnds.add(part.index); wordEnds.add(part.index + part.segment.length);
+      }
+    }
+    const score = offset => {
+      const left = text.slice(0, offset), right = text.slice(offset);
+      let cost = Math.abs(offset - target) * 3;
+      if (/[A-Za-z0-9]$/.test(left) && /^[A-Za-z0-9]/.test(right)) cost += 100;
+      if (/\d$/.test(left) && /^(?:[.\d]|个|位|年|月|日|天|次|米|元|秒|公斤|%)/.test(right)) cost += 60;
+      if (/[A-Za-z0-9][._:/-]$/.test(left) && /^[A-Za-z0-9]/.test(right)) cost += 100;
+      if (/[A-Za-z0-9]$/.test(left) && /^[._:/-][A-Za-z0-9]/.test(right)) cost += 100;
+      if (wordEnds.size && !wordEnds.has(offset)) cost += 8;
+      if (/[，、：,;；。！？!?]\s*$/.test(left)) cost -= 3;
+      if (text.length >= 8 && Math.min(Array.from(left.trim()).length, Array.from(right.trim()).length) < 2) cost += 8;
+      return cost;
+    };
+    return offsets.reduce((best, offset) => score(offset) < score(best) ? offset : best, offsets[0]);
+  }
+
   function normalizeEditorSettings(saved = {}) {
     const savedSettings = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
     const legacySeekStepSeconds = Number(savedSettings.mediaSeekStepSeconds);
@@ -2961,6 +3034,7 @@
       : Number.isFinite(legacySeekStepSeconds) ? legacySeekStepSeconds * 1000 : undefined;
     return {
       ...DEFAULT_EDITOR_SETTINGS,
+      editingShortcuts: normalizeEditingShortcuts(savedSettings.editingShortcuts),
       splitKey: savedSettings.splitKey === 'ctrl-enter' ? 'ctrl-enter' : 'enter',
       splitUseWordTimestamps: savedSettings.splitUseWordTimestamps !== false,
       splitAutoSubmit: savedSettings.splitAutoSubmit !== false,
@@ -6691,6 +6765,8 @@ export default MawDynamicCaptions;
     normalizeEditorAccentColor,
     normalizeEditorAccentCustomColor,
     normalizeEditorSettings,
+    EDITING_SHORTCUT_DEFAULTS, EDITING_SHORTCUT_KEYS, normalizeEditingShortcuts, matchesEditingShortcut,
+    suggestedTimelineSplitOffset,
     TIMELINE_TIMEBASE_UNITS,
     DEFAULT_TIMELINE_FPS,
     DEFAULT_TIMELINE_TIMECODE_SEPARATOR,
