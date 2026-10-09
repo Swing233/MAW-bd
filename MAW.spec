@@ -231,8 +231,8 @@ if sys.platform == 'darwin':
         info_plist={
             "CFBundleDisplayName": "MAW-bd",
             "CFBundleName": "MAW-bd",
-            "CFBundleShortVersionString": "1.5.0",
-            "CFBundleVersion": "1.5.0",
+            "CFBundleShortVersionString": "1.5.1",
+            "CFBundleVersion": "1.5.1",
             "NSHighResolutionCapable": True,
         },
     )
