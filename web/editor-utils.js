@@ -2748,6 +2748,20 @@
     };
   }
 
+  function sourceVideoFormat(metadata, mediaElement = null) {
+    const normalized = normalizeMediaMetadata(metadata) || {};
+    const width = Number(mediaElement?.videoWidth) || normalized.video_width;
+    const height = Number(mediaElement?.videoHeight) || normalized.video_height;
+    const resolution = Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
+      ? `${width} × ${height}` : '未读取到分辨率';
+    const fps = normalized.video_fps;
+    let frameRate = Number.isFinite(fps) ? `${Number(fps.toFixed(3))} fps` : '未读取到帧率';
+    if (Number.isFinite(fps) && /^\d+\/[1-9]\d*$/.test(normalized.video_fps_ratio || '')) {
+      frameRate += `（${normalized.video_fps_ratio}）`;
+    }
+    return { resolution, frameRate };
+  }
+
   function normalizeMediaMetadata(value) {
     if (value == null) return null;
     if (typeof value !== 'object' || Array.isArray(value)) return null;
@@ -2954,18 +2968,48 @@
   }
 
   const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x' });
-  const EDITING_SHORTCUT_KEYS = Object.freeze(['b', 'c', 'n', 'z', 'x', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']);
+  function normalizeEditingShortcut(value) {
+    const raw = typeof value === 'string' ? { key: value } : value;
+    if (!raw || typeof raw.key !== 'string' || !raw.key || raw.key.length > 64
+        || ['Control', 'Meta', 'Alt', 'Shift', 'AltGraph', 'Dead', 'Unidentified'].includes(raw.key)) return null;
+    const key = raw.key.length === 1 ? raw.key.toLowerCase() : raw.key;
+    const modifiers = ['ctrlKey', 'altKey', 'shiftKey', 'metaKey'];
+    if (!modifiers.some(name => raw[name])) return key;
+    return { key, code: typeof raw.code === 'string' ? raw.code : '',
+      ctrlKey: !!raw.ctrlKey, altKey: !!raw.altKey, shiftKey: !!raw.shiftKey, metaKey: !!raw.metaKey };
+  }
+  function editingShortcutIdentity(value) {
+    const binding = normalizeEditingShortcut(value);
+    const spec = typeof binding === 'string' ? { key: binding } : binding;
+    if (!spec) return '';
+    return JSON.stringify([spec.code || spec.key, !!spec.ctrlKey, !!spec.altKey, !!spec.shiftKey, !!spec.metaKey]);
+  }
+  function editingShortcutLabel(value) {
+    const binding = normalizeEditingShortcut(value);
+    const spec = typeof binding === 'string' ? { key: binding } : binding;
+    if (!spec) return '';
+    const key = spec.code?.startsWith('Key') ? spec.code.slice(3) : spec.key === ' ' ? 'Space' : spec.key.toUpperCase();
+    return [spec.ctrlKey && 'Ctrl', spec.altKey && 'Alt', spec.shiftKey && 'Shift', spec.metaKey && '⌘', key].filter(Boolean).join(' + ');
+  }
+  function captureEditingShortcut(event) {
+    if (event.isComposing || event.keyCode === 229 || event.repeat) return null;
+    return normalizeEditingShortcut({ key: event.key, code: event.code,
+      ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey });
+  }
   function normalizeEditingShortcuts(saved = {}) {
     const result = {};
     for (const [action, fallback] of Object.entries(EDITING_SHORTCUT_DEFAULTS)) {
-      result[action] = EDITING_SHORTCUT_KEYS.includes(saved?.[action]) ? saved[action] : fallback;
+      result[action] = normalizeEditingShortcut(saved?.[action]) || fallback;
     }
-    return new Set(Object.values(result)).size === Object.keys(result).length
+    return new Set(Object.values(result).map(editingShortcutIdentity)).size === Object.keys(result).length
       ? result : { ...EDITING_SHORTCUT_DEFAULTS };
   }
   function matchesEditingShortcut(event, action, bindings) {
-    return !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
-      && String(event.key).toLowerCase() === String(bindings[action]).toLowerCase();
+    const binding = normalizeEditingShortcut(bindings[action]);
+    const spec = typeof binding === 'string' ? { key: binding } : binding;
+    return !!spec && !event.isComposing && event.keyCode !== 229
+      && ['ctrlKey', 'altKey', 'shiftKey', 'metaKey'].every(name => !!event[name] === !!spec[name])
+      && (spec.code ? event.code === spec.code : String(event.key).toLowerCase() === spec.key.toLowerCase());
   }
 
   // Choose text only. Estimated character positions never become word timestamps.
@@ -6765,7 +6809,8 @@ export default MawDynamicCaptions;
     normalizeEditorAccentColor,
     normalizeEditorAccentCustomColor,
     normalizeEditorSettings,
-    EDITING_SHORTCUT_DEFAULTS, EDITING_SHORTCUT_KEYS, normalizeEditingShortcuts, matchesEditingShortcut,
+    EDITING_SHORTCUT_DEFAULTS, captureEditingShortcut, editingShortcutIdentity, editingShortcutLabel,
+    normalizeEditingShortcuts, matchesEditingShortcut,
     suggestedTimelineSplitOffset,
     TIMELINE_TIMEBASE_UNITS,
     DEFAULT_TIMELINE_FPS,
@@ -6776,6 +6821,7 @@ export default MawDynamicCaptions;
     normalizeTimelineTimecodeSeparator,
     normalizeTimelineTimebase,
     normalizeMediaMetadata,
+    sourceVideoFormat,
     frameNumberFromMilliseconds,
     millisecondsFromFrameNumber,
     formatFrameTimecode,

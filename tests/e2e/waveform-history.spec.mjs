@@ -924,7 +924,9 @@ test('retries an inline split with B or Enter and clamps both halves to 100ms', 
   await cue.click();
   const text = cue.locator('.text');
   await text.dblclick();
-  await text.evaluate((element) => {
+  await text.evaluate(async (element) => {
+    // Let the native double-click caret restoration finish before placing the test cursor.
+    await new Promise(resolve => setTimeout(resolve, 0));
     const node = element.firstChild;
     const range = document.createRange();
     range.setStart(node, 5);
@@ -1123,7 +1125,7 @@ test('B does not split when the playhead is in a gap or while editing text', asy
   await page.locator('#media-controls').hover();
   await page.keyboard.press('b');
   await expect(page.locator('.cue')).toHaveCount(6);
-  await expect(page.locator('.hint-card', { hasText: '播放头位置没有可拆分字幕' })).toHaveCount(1);
+  await expect(page.locator('.hint-card', { hasText: '播放头位置没有可拆分的主字幕' })).toHaveCount(1);
 
   const panelText = page.locator('#cue-panel-text');
   await panelText.focus();
@@ -1156,7 +1158,8 @@ test('custom split shortcut persists, swaps conflicts and resets', async ({ page
   await page.goto(server.url);
   await page.locator('#editor-settings-toggle').click();
   await page.locator('#editor-settings-tab-general').click();
-  await page.locator('[data-editing-shortcut="split"]').selectOption('F2');
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('F2');
   await page.locator('#editor-settings-close').click();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')).editingShortcuts.split)).toBe('F2');
   const reopened = await page.context().newPage();
@@ -1171,11 +1174,12 @@ test('custom split shortcut persists, swaps conflicts and resets', async ({ page
   await expect(page.locator('.cue')).toHaveCount(7);
   await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
   await page.locator('#editor-settings-toggle').click();
-  await page.locator('[data-editing-shortcut="split"]').selectOption('c');
-  await expect(page.locator('[data-editing-shortcut="merge"]')).toHaveValue('F2');
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('c');
+  await expect(page.locator('#editing-shortcuts-settings [data-editing-shortcut-label="merge"]')).toHaveText('F2');
   await page.locator('#editing-shortcuts-reset').click();
-  await expect(page.locator('[data-editing-shortcut="split"]')).toHaveValue('b');
-  await expect(page.locator('[data-editing-shortcut="merge"]')).toHaveValue('c');
+  await expect(page.locator('#editing-shortcuts-settings [data-editing-shortcut-label="split"]')).toHaveText('B');
+  await expect(page.locator('#editing-shortcuts-settings [data-editing-shortcut-label="merge"]')).toHaveText('C');
 });
 
 test('explicit split time in a real word gap is not snapped to word edges', async ({ page }) => {
@@ -1372,14 +1376,15 @@ test('Home and End help explains cue-list and media routing in Chinese and Engli
 
 test('hovering a selected subtitle shows the B split hint', async ({ page }) => {
   await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
   const cue = page.locator('.cue[data-idx="0"]');
   await cue.click();
   const text = cue.locator('.text');
   const splitPoint = await text.evaluate((element) => {
     const node = element.firstChild;
     const range = document.createRange();
-    range.setStart(node, 2);
-    range.setEnd(node, 2);
+    range.setStart(node, 6);
+    range.setEnd(node, 6);
     const rect = range.getBoundingClientRect();
     return { x: rect.x, y: rect.y + rect.height / 2 };
   });
@@ -1429,17 +1434,8 @@ test('requires a second B in the split dialog before forcing a short-side cut', 
     renderAll({ waveform: 'full' });
   });
 
-  const row = page.locator('.waveform-row').first();
-  const box = await row.boundingBox();
-  const rowStart = Number(await row.getAttribute('data-start-ms'));
-  const rowEnd = Number(await row.getAttribute('data-end-ms'));
-  if (!box || !Number.isFinite(rowStart) || !Number.isFinite(rowEnd)) {
-    throw new Error('波形行没有有效时间范围');
-  }
-  const pointerTime = 50;
-  const pointerX = box.x + ((pointerTime - rowStart) / (rowEnd - rowStart)) * box.width;
-  await page.mouse.move(pointerX, box.y + box.height / 2);
-  await page.keyboard.press('b');
+  // Legacy manual chooser is tested explicitly; hover+B now splits directly.
+  await page.evaluate(() => openMainWaveformSplitModal(0, 50));
   await expect(page.locator('#multi-subtitle-split-modal')).toHaveClass(/show/);
 
   // The first confirmation only arms the retry and keeps the dialog open.
@@ -1731,7 +1727,7 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   ));
   await expect(helpSplitKey).toHaveText('Enter');
   await expect(page.locator('#help-waveform-split-key')).toHaveText('B');
-  await expect(page.locator('#help-tab-panel-waveform')).toContainText('按当前时间基准拆分字幕');
+  await expect(page.locator('#help-tab-panel-waveform')).toContainText('按鼠标切割线直接分割字幕');
   await expect(page.locator('#help-tab-panel-waveform')).not.toContainText('红色播放指针');
   await expect(helpPanel).toContainText('绑定到主副字幕（自动匹配）');
   await expect(helpPanel).toContainText('解绑当前副字幕');
@@ -1750,7 +1746,7 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   await splitKey.selectOption('enter');
   await expect(helpSplitKey).toHaveText('Enter');
   await expect(editorSplitKey).toHaveText('Enter');
-  await expect(editorConfirmKey).toHaveText('Ctrl+Enter');
+  await expect(editorConfirmKey).toHaveText(`${modKey}+Enter`);
 
   await splitKey.selectOption('ctrl-enter');
   await expect(helpSplitKey).toHaveText(`${modKey}+Enter`);
@@ -2561,7 +2557,8 @@ test('main list marker follows remapped key and splits its displayed text bounda
   await makeFirstCueWordSplittable(page);
   await page.locator('#editor-settings-toggle').click();
   await page.locator('#editor-settings-tab-general').click();
-  await page.locator('[data-editing-shortcut="split"]').selectOption('F2');
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('F2');
   await page.locator('#editor-settings-close').click();
   await page.evaluate(() => { document.getElementById('player').currentTime = 1; });
   const text = page.locator('.cue[data-idx="0"] .text').first();
@@ -2624,26 +2621,128 @@ test('proofread details open only on badge hover, highlight changes, and allow i
   await expect(panel).toBeHidden();
 });
 
-test('main editor playhead divider follows seeking and agrees with the actual split', async ({ page }) => {
+test('popover cuts at text cursor, preserves word timestamps and undoes edited cut atomically', async ({ page }) => {
   await page.goto(server.url);
-  await page.evaluate(() => {
-    DATA.segments[0].text = '这是第一部分然后第二部分';
-    DATA.segments[0].items = null;
-    renderAll();
-    player.currentTime = 2;
-    player.dispatchEvent(new Event('seeking'));
-  });
-  const preview = page.locator('#cue-panel-split-preview');
-  await expect(preview).toBeVisible();
-  const first = Number(await preview.getAttribute('data-offset'));
-  await page.evaluate(() => { player.currentTime = 6; player.dispatchEvent(new Event('seeking')); });
-  const offset = Number(await preview.getAttribute('data-offset'));
-  expect(offset).toBeGreaterThan(first);
-  await expect(preview.locator('.cue-panel-playhead-divider')).toBeVisible();
-  await page.mouse.move(10, 10);
-  const original = await page.evaluate(() => DATA.segments[0].text);
+  await makeFirstCueWordSplittable(page);
+  const before = await page.evaluate(() => JSON.parse(JSON.stringify(DATA.segments[0])));
+  await page.evaluate(() => { player.currentTime = 1; });
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().dblclick();
+  await page.locator('#waveform-cue-edit-text').evaluate(el => el.setSelectionRange(6, 6));
+  await page.locator('#waveform-cue-edit-split').click();
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => DATA.segments.slice(0, 2).map(s => [s.text, s.start, s.end]))).toEqual([
+    ['Alpha', 0, 4000], ['Bravo', 4000, 8000],
+  ]);
+  await expect(page.locator('#waveform-cue-edit-modal')).toBeHidden();
+  await expect(page.locator('#multi-subtitle-split-modal')).not.toHaveClass(/show/);
+  await expect(page.locator('#cue-panel-split-preview')).toHaveCount(0);
+  await page.getByRole('button', { name: /撤销/ }).click();
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().dblclick();
+  await page.locator('#waveform-cue-edit-text').fill('更改前半句然后后半句');
+  await page.locator('#waveform-cue-edit-text').evaluate(el => el.setSelectionRange(5, 5));
+
+  await page.locator('#waveform-cue-edit-split').click();
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => DATA.segments.slice(0, 2).map(s => s.text))).toEqual(['更改前半句', '然后后半句']);
+  expect(await page.evaluate(() => DATA.segments[0].proofread.status)).toBe('manual');
+  await page.getByRole('button', { name: /撤销/ }).click();
+  await expect(page.locator('.cue')).toHaveCount(6);
+  expect(await page.evaluate(() => DATA.segments[0])).toEqual(before);
+});
+
+test('invalid cursor leaves the popover draft and project unchanged', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().dblclick();
+  const text = page.locator('#waveform-cue-edit-text');
+  await text.fill('Alpha Changed');
+  for (const offset of [0, 2, 13]) {
+    await text.evaluate((el, offset) => el.setSelectionRange(offset, offset), offset);
+    await page.locator('#waveform-cue-edit-split').click();
+    await expect(page.locator('#waveform-cue-edit-modal')).toBeVisible();
+    await expect(page.locator('.cue')).toHaveCount(6);
+    expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Alpha Bravo');
+  }
+});
+
+test('custom key collection waits for modifiers, cancels, persists combinations and overrides built-ins once', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#editor-settings-tab-general').click();
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.down('Control');
+  await expect(page.locator('[data-editing-shortcut="split"]')).toHaveText('请按键…');
+  await page.keyboard.up('Control');
+  await page.locator('#editing-shortcut-cancel').click();
+  expect(await page.evaluate(() => EDITOR_SETTINGS.editingShortcuts.split)).toBe('b');
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.locator('#editing-shortcuts-settings [data-editing-shortcut-label="split"]')).toHaveText('Ctrl + Shift + Z');
+  await page.locator('#editor-settings-close').click();
+  const bindings = await page.evaluate(() => JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')).editingShortcuts);
+  expect(bindings.split.ctrlKey).toBe(true);
+  expect(bindings.split.shiftKey).toBe(true);
+  const reopened = await page.context().newPage();
+  await reopened.goto(server.url);
+  expect(await reopened.evaluate(() => EDITOR_SETTINGS.editingShortcuts.split)).toEqual(bindings.split);
+  await reopened.close();
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().hover();
+  await expect(page.locator('#waveform-split-blade')).toHaveAttribute('data-key', 'Ctrl + Shift + Z');
   await page.keyboard.press('b');
-  expect(await page.evaluate(() => DATA.segments[0].text)).toBe(original.slice(0, offset));
-  expect(await page.evaluate(() => DATA.segments[0].end)).toBe(6000);
-  expect(await page.evaluate(() => DATA.segments.some(s => s.text.includes('│')))).toBe(false);
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.locator('.cue')).toHaveCount(7);
+  await page.getByRole('button', { name: /撤销/ }).click();
+  await expect(page.locator('.cue')).toHaveCount(6);
+});
+
+
+test('Space can be captured as a split key, and closing settings cancels collection', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#editor-settings-tab-general').click();
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('Space');
+  await expect(page.locator('#editing-shortcuts-settings [data-editing-shortcut-label="split"]')).toHaveText('Space');
+  await page.locator('[data-editing-shortcut="merge"]').click();
+  await page.locator('#editor-settings-close').click();
+  await page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first().hover();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.cue')).toHaveCount(7);
+  expect(await page.evaluate(() => EDITOR_SETTINGS.editingShortcuts.merge)).toBe('c');
+  expect(await page.evaluate(() => player.paused)).toBe(true);
+});
+
+
+test('custom navigation key preserves native select controls and text input', async ({ page }) => {
+  await page.goto(server.url);
+  await makeFirstCueWordSplittable(page);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#editor-settings-tab-general').click();
+  await page.locator('[data-editing-shortcut="split"]').click();
+  await page.keyboard.press('ArrowDown');
+  await page.locator('#editor-settings-close').click();
+  await page.evaluate(() => {
+    const select = document.createElement('select');
+    select.id = 'native-test-select'; select.size = 2;
+    select.add(new Option('First', 'first')); select.add(new Option('Second', 'second'));
+    document.body.append(select); select.focus();
+  });
+  const allowed = await page.locator('#native-test-select').evaluate(el => {
+    el.focus();
+    return el.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true,
+    }));
+  });
+  expect(allowed).toBe(true);
+  await page.locator('#native-test-select').selectOption('second');
+  await expect(page.locator('#native-test-select')).toHaveValue('second');
+  await expect(page.locator('.cue')).toHaveCount(6);
+  await page.locator('#search').fill('字幕');
+  await page.locator('#search').press('ArrowDown');
+  await expect(page.locator('#search')).toHaveValue('字幕');
+  expect(await page.evaluate(() => DATA.segments.length)).toBe(6);
 });

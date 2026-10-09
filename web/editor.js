@@ -2720,34 +2720,79 @@ function updateEditorSettings(patch) {
 }
 
 function editingShortcutMatches(event, action) {
+  if (editorSettingsPanel?.getAttribute('aria-hidden') === 'false') return false;
   return EDITOR_SETTINGS_UTILS.matchesEditingShortcut(event, action, EDITOR_SETTINGS.editingShortcuts);
+}
+let capturingEditingShortcut = null;
+function editingShortcutLabel(action) {
+  return EDITOR_SETTINGS_UTILS.editingShortcutLabel(EDITOR_SETTINGS.editingShortcuts[action]);
 }
 function refreshEditingShortcuts() {
   document.querySelectorAll('.cue-split-preview, #waveform-split-blade').forEach(el => {
-    el.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
-  });
-  document.querySelectorAll('[data-editing-shortcut]').forEach(select => {
-    select.value = EDITOR_SETTINGS.editingShortcuts[select.dataset.editingShortcut];
+    el.dataset.key = editingShortcutLabel('split');
   });
   document.querySelectorAll('[data-editing-shortcut-label]').forEach(el => {
-    el.textContent = EDITOR_SETTINGS.editingShortcuts[el.dataset.editingShortcutLabel].toUpperCase();
+    el.textContent = editingShortcutLabel(el.dataset.editingShortcutLabel);
   });
+  document.querySelectorAll('[data-editing-shortcut]').forEach(button => {
+    button.textContent = capturingEditingShortcut === button.dataset.editingShortcut ? '请按键…' : '自定义';
+    button.setAttribute('aria-pressed', String(capturingEditingShortcut === button.dataset.editingShortcut));
+  });
+  document.getElementById('editing-shortcut-cancel').hidden = !capturingEditingShortcut;
   const confirm = document.getElementById('multi-subtitle-split-confirm');
-  if (confirm) confirm.textContent = `拆分（Enter / ${EDITOR_SETTINGS.editingShortcuts.split.toUpperCase()}）`;
+  if (confirm) confirm.textContent = `拆分（Enter / ${editingShortcutLabel('split')}）`;
 }
-document.querySelectorAll('[data-editing-shortcut]').forEach(select => {
-  EDITOR_SETTINGS_UTILS.EDITING_SHORTCUT_KEYS.forEach(key => select.add(new Option(key.toUpperCase(), key)));
-  select.addEventListener('change', () => {
-    const bindings = { ...EDITOR_SETTINGS.editingShortcuts };
-    const action = select.dataset.editingShortcut;
-    const other = Object.keys(bindings).find(key => key !== action && bindings[key] === select.value);
-    if (other) bindings[other] = bindings[action];
-    bindings[action] = select.value;
-    updateEditorSettings({ editingShortcuts: bindings });
+function cancelEditingShortcutCapture() {
+  capturingEditingShortcut = null;
+  document.getElementById('editing-shortcut-status').textContent = '';
+  refreshEditingShortcuts();
+}
+document.querySelectorAll('[data-editing-shortcut]').forEach(button => {
+  button.addEventListener('click', () => {
+    capturingEditingShortcut = button.dataset.editingShortcut;
+    document.getElementById('editing-shortcut-status').textContent = '正在采集：按下单键或组合键；单独按修饰键不会结束采集。';
     refreshEditingShortcuts();
   });
 });
+document.getElementById('editing-shortcut-cancel')?.addEventListener('click', cancelEditingShortcutCapture);
+document.getElementById('editor-settings-close')?.addEventListener('click', cancelEditingShortcutCapture);
+window.addEventListener('blur', cancelEditingShortcutCapture);
+document.addEventListener('keydown', event => {
+  if (capturingEditingShortcut) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const binding = EDITOR_SETTINGS_UTILS.captureEditingShortcut(event);
+    if (!binding) return;
+    const bindings = { ...EDITOR_SETTINGS.editingShortcuts };
+    const action = capturingEditingShortcut;
+    const identity = EDITOR_SETTINGS_UTILS.editingShortcutIdentity(binding);
+    const other = Object.keys(bindings).find(key => key !== action
+      && EDITOR_SETTINGS_UTILS.editingShortcutIdentity(bindings[key]) === identity);
+    if (other) bindings[other] = bindings[action];
+    bindings[action] = binding;
+    updateEditorSettings({ editingShortcuts: bindings });
+    capturingEditingShortcut = null;
+    document.getElementById('editing-shortcut-status').textContent = `已记录：${EDITOR_SETTINGS_UTILS.editingShortcutLabel(binding)}`;
+    refreshEditingShortcuts();
+    return;
+  }
+  // Capture before built-in shortcuts so a custom combination performs one action.
+  const active = document.activeElement;
+  if (active?.matches('input, textarea, select') || isTextEditingTarget(event) || editingState || extensionEditingState
+      || document.querySelector('.modal-mask.show') || ctxmenu.classList.contains('show')
+      || editorSettingsPanel?.getAttribute('aria-hidden') === 'false') return;
+  const action = Object.keys(EDITOR_SETTINGS.editingShortcuts).find(key => editingShortcutMatches(event, key));
+  if (!action) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (event.repeat) return;
+  if (action === 'start' || action === 'end') handlePointerBoundaryShortcut(event, action);
+  else if (action === 'split') handleEditingSplitShortcut(event);
+  else if (action === 'merge') handleEditingMergeShortcut(event);
+  else if (action === 'create') handleEditingCreateShortcut(event);
+}, true);
 document.getElementById('editing-shortcuts-reset')?.addEventListener('click', () => {
+  cancelEditingShortcutCapture();
   updateEditorSettings({ editingShortcuts: EDITOR_SETTINGS_UTILS.normalizeEditingShortcuts() });
   refreshEditingShortcuts();
 });
@@ -3554,6 +3599,7 @@ assModeToggle?.addEventListener('change', () => {
 
 function setEditorSettingsActiveTab(tab, { focus = false } = {}) {
   if (!tab) return;
+  cancelEditingShortcutCapture();
   for (const item of editorSettingsTabs) {
     const active = item === tab;
     item.classList.toggle('active', active);
@@ -3620,6 +3666,7 @@ if (editorSettingsPanel) {
 function setEditorSettingsPanelOpen(open) {
   if (!editorSettingsPanel || !editorSettingsToggle) return;
   if (!open) {
+    cancelEditingShortcutCapture();
     setMergeJoinSettingsPanelOpen(false);
     setSplitTrimSettingsPanelOpen(false);
     editorSettingsFloatingPanel.close();
@@ -7098,45 +7145,7 @@ function commitCuePanelEdit() {
   return true;
 }
 
-function renderPlayheadSplitPreview() {
-  const preview = document.getElementById('cue-panel-split-preview');
-  if (!preview) return;
-  const timeMs = Math.round(timelineFrameAlignedMilliseconds(player.currentTime * 1000));
-  const index = DATA.segments.findIndex(segment => timeMs > segment.start && timeMs < segment.end);
-  const segment = DATA.segments[index];
-  const offset = segment ? splitOffsetNearTime(segment, timeMs, getMainSubtitleSplitMode(segment)) : null;
-  if (!segment || !Number.isInteger(offset) || document.activeElement === cuePanelText) {
-    preview.hidden = true;
-    return;
-  }
-  preview.hidden = false;
-  preview.dataset.offset = String(offset);
-  preview.dataset.timeMs = String(timeMs);
-  preview.dataset.index = String(index);
-  preview.replaceChildren();
-  const heading = document.createElement('div');
-  heading.className = 'cue-panel-split-heading';
-  heading.textContent = `播放头切点 · 主字幕 ${index + 1} · ${fmtShort(timeMs)} · `;
-  const key = document.createElement('kbd');
-  key.dataset.editingShortcutLabel = 'split';
-  key.textContent = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
-  heading.append(key, document.createTextNode(' 分割'));
-  const left = document.createElement('span');
-  left.textContent = segment.text.slice(0, offset);
-  const divider = document.createElement('span');
-  divider.className = 'cue-panel-playhead-divider';
-  divider.textContent = '│';
-  divider.setAttribute('aria-label', '切分点');
-  const right = document.createElement('span');
-  right.textContent = segment.text.slice(offset);
-  preview.append(heading, left, divider, right);
-}
-['timeupdate', 'seeking', 'seeked', 'loadedmetadata'].forEach(type => player.addEventListener(type, renderPlayheadSplitPreview));
-cuePanelText?.addEventListener('focus', renderPlayheadSplitPreview);
-cuePanelText?.addEventListener('blur', () => requestAnimationFrame(renderPlayheadSplitPreview));
-
 function renderCurrentCuePanel() {
-  renderPlayheadSplitPreview();
   if (!cuePanel) return;
   const target = getCurrentCuePanelTarget();
   const idx = target?.index ?? -1;
@@ -7263,11 +7272,11 @@ function openWaveformCueEditDialog(kind, index, track = null, anchor = null) {
   }
   waveformCueEditModal.hidden = false;
   waveformCueEditModal.classList.add('show');
-  requestAnimationFrame(() => {
-    positionWaveformCueEditDialog();
-    waveformCueEditText.focus();
-    waveformCueEditText.setSelectionRange(0, waveformCueEditText.value.length);
-  });
+  positionWaveformCueEditDialog();
+  waveformCueEditText.focus();
+  waveformCueEditText.setSelectionRange(0, waveformCueEditText.value.length);
+  // Deferred layout must not reset a cursor already placed by the user.
+  requestAnimationFrame(positionWaveformCueEditDialog);
 }
 
 function saveWaveformCueEditDialog() {
@@ -7291,6 +7300,48 @@ function saveWaveformCueEditDialog() {
     flashHint('字幕已修改', 'success');
   }
 }
+
+function splitWaveformCueEditAtCursor() {
+  const target = getCurrentCuePanelTarget();
+  if (!target || !waveformCueEditText) return;
+  const raw = waveformCueEditText.value;
+  const normalize = text => text.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+  const text = normalize(raw);
+  const offset = raw.slice(0, waveformCueEditText.selectionStart)
+    .replace(/\s*[\r\n]+\s*/g, ' ').trimStart().length;
+  const mode = target.kind === 'main' ? getMainSubtitleSplitMode({ ...target.segment, text })
+    : MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
+  const parts = MULTI_SUBTITLE_UTILS.splitSubtitleText(text, offset, mode);
+  if (!parts || offset <= 0 || offset >= text.length || parts.offset !== offset) {
+    flashHint('请把光标放在文字之间；英文字幕请放在单词之间', 'warning');
+    return;
+  }
+  const draft = { ...target.segment, text };
+  // Edited wording cannot reuse stale word alignment as if it were accurate.
+  if (text !== target.segment.text) draft.items = null;
+  const cutMs = Math.round(splitTimeForTextOffset(draft, offset));
+  if (!buildSplitPair(draft, offset, cutMs, 'cursor-check', true, mode)) {
+    flashHint('当前光标位置无法安全切割，左右至少保留 100ms', 'warning');
+    return;
+  }
+  commitCuePanelEdit();
+  pushUndo('修改并切割字幕', { captureView: true });
+  if (text !== target.segment.text) {
+    const original = target.segment.text;
+    target.segment.text = text;
+    target.segment.items = null;
+    if (!target.segment.proofread) target.segment.proofread = { asr_original: original };
+    window.MaweProofread?.markManual(target.segment);
+  }
+  closeWaveformCueEditDialog();
+  const state = { mainIndex: target.index, mainOffset: offset, mainMode: mode, cutMs,
+    trackId: target.trackId, extensionId: target.segment.id, offset,
+    extensionMode: mode, extensionCutMs: cutMs };
+  if (target.kind === 'main') commitMainWaveformSplit(state, { captureUndo: false });
+  else if (target.kind === 'overlay') commitOverlaySplit(state, { captureUndo: false });
+  else commitExtensionSplit(state, { captureUndo: false });
+}
+document.getElementById('waveform-cue-edit-split')?.addEventListener('click', splitWaveformCueEditAtCursor);
 
 waveformCueEditCancel?.addEventListener('click', closeWaveformCueEditDialog);
 waveformCueEditSave?.addEventListener('click', saveWaveformCueEditDialog);
@@ -8796,7 +8847,7 @@ function forceSplitCutForSegments(segments, requestedCutMs) {
 }
 
 function forcedSplitRetryHint() {
-  return '当前切点会产生不足 100ms 的一侧；请再次按 B 或 Enter 强制拆分，切点将调整为两侧各至少 100ms';
+  return `当前切点会产生不足 100ms 的一侧；请再次按 ${editingShortcutLabel('split')} 或 Enter 强制拆分，切点将调整为两侧各至少 100ms`;
 }
 
 function armForcedSplit(state) {
@@ -8879,7 +8930,7 @@ function splitItemsAtChar(
   const inside = records.find((record) => (
     safeOffset > record.textStart && safeOffset < record.textEnd
   ));
-  const requested = Number(requestedCutMs);
+  const requested = requestedCutMs == null ? NaN : Number(requestedCutMs);
   let splitMs = Number.isFinite(requested) ? Math.round(requested) : null;
   // 切点两侧相邻 item 的实际时间区间；else 分支填充，供下方非对称边界使用。
   let previousRange = null;
@@ -9862,10 +9913,10 @@ function openExtensionSplitModal(
   return true;
 }
 
-function commitMainWaveformSplit(state, { force = false, successMessage = '已按选择的断点拆分主字幕' } = {}) {
+function commitMainWaveformSplit(state, { captureUndo = true, force = false, successMessage = '已按选择的断点拆分主字幕' } = {}) {
   // 波形入口可能是在当前字幕面板仍有未提交编辑时触发；先完成面板编辑，
   // 再为“拆分”建立快照，确保一次撤销能回到拆分前的完整字幕状态。
-  commitCuePanelEdit();
+  if (captureUndo) commitCuePanelEdit();
   const mainIndex = state.mainIndex;
   const main = DATA.segments[mainIndex];
   if (!main) return false;
@@ -9890,7 +9941,7 @@ function commitMainWaveformSplit(state, { force = false, successMessage = '已�
   );
   if (!pair) return false;
   const oldMainId = main.id;
-  pushUndo('拆分字幕', { captureView: true });
+  if (captureUndo) pushUndo('拆分字幕', { captureView: true });
   clearSelection({ commitCuePanel: false });
   removeBindingsForSegmentIds([oldMainId], []);
   DATA.segments.splice(mainIndex, 1, pair.left, pair.right);
@@ -9949,7 +10000,7 @@ function commitLinkedSplitMainOnly(state) {
   return true;
 }
 
-function commitExtensionSplit(state, { force = false } = {}) {
+function commitExtensionSplit(state, { captureUndo = true, force = false } = {}) {
   const track = getExtensionTrack(state.trackId);
   const extensionIndex = track?.segments?.findIndex((segment) => segment.id === state.extensionId) ?? -1;
   const extension = track?.segments?.[extensionIndex];
@@ -9977,7 +10028,7 @@ function commitExtensionSplit(state, { force = false } = {}) {
 
   const oldExtensionId = extension.id;
   const wasBound = Boolean(bindingForExtensionIndex(extensionIndex, track));
-  pushUndo('拆分副字幕', { captureView: true });
+  if (captureUndo) pushUndo('拆分副字幕', { captureView: true });
   // 一对一绑定无法让一个主段同时指向拆出的两条副轨段；独立拆分后
   // 保留两条副字幕，但解除旧关系，等待用户按需要重新绑定。
   removeBindingsForSegmentIds([], [oldExtensionId]);
@@ -10035,7 +10086,7 @@ function openOverlaySplitModal(index, timeMs, initial = {}) {
   return true;
 }
 
-function commitOverlaySplit(state, { force = false, successMessage = '已按选择的断点拆分叠加字幕' } = {}) {
+function commitOverlaySplit(state, { captureUndo = true, force = false, successMessage = '已按选择的断点拆分叠加字幕' } = {}) {
   const track = getOverlayTrack();
   const overlayIndex = track?.segments?.findIndex((segment) => segment.id === state.extensionId) ?? -1;
   const segment = track?.segments?.[overlayIndex];
@@ -10060,7 +10111,7 @@ function commitOverlaySplit(state, { force = false, successMessage = '已按选�
     },
   );
   if (!pair) return false;
-  pushUndo('拆分叠加字幕', { captureView: true });
+  if (captureUndo) pushUndo('拆分叠加字幕', { captureView: true });
   clearSelection({ commitCuePanel: false });
   track.segments.splice(overlayIndex, 1, pair.left, pair.right);
   // 组引用维护与主轨拆分一致：替换下标之后的引用右移一格，
@@ -11553,7 +11604,7 @@ function scheduleCueSplitPreview(idx, clientX, clientY, kind = 'main', trackId =
       cue.appendChild(cueSplitPreviewEl);
     }
     cueSplitPreviewEl.style.left = `${left}px`;
-    cueSplitPreviewEl.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+    cueSplitPreviewEl.dataset.key = editingShortcutLabel('split');
     cueSplitPreviewEl.dataset.offset = String(offset);
     cueSplitPreviewEl.dataset.index = String(request.idx);
     cueSplitPreviewEl.dataset.track = isExtension ? 'extension' : 'main';
@@ -11598,7 +11649,7 @@ document.addEventListener('pointermove', event => {
   waveformBlade.style.top = `${rect.top}px`;
   waveformBlade.style.height = `${rect.height}px`;
   waveformBlade.dataset.timeMs = String(target.timeMs);
-  waveformBlade.dataset.key = EDITOR_SETTINGS.editingShortcuts.split.toUpperCase();
+  waveformBlade.dataset.key = editingShortcutLabel('split');
   waveformBlade.classList.toggle('invalid', target.timeMs - target.segment.start < SUBTITLE_MIN_DURATION_MS
     || target.segment.end - target.timeMs < SUBTITLE_MIN_DURATION_MS);
   waveformBlade.hidden = false;
@@ -11739,7 +11790,6 @@ function handlePointerBoundaryShortcut(event, edge) {
       || multiSubtitleImportModal?.classList.contains('show')
       || document.getElementById('sticker-root-modal').classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
-  if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
 
   const reference = keyboardOperationReference();
   const context = reference ? { ...reference } : null;
@@ -12993,7 +13043,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
-document.addEventListener('keydown', (e) => {
+function handleEditingMergeShortcut(e) {
   if (!editingShortcutMatches(e, 'merge')) return;
   if (editingState || e.repeat) return;
   const a = document.activeElement;
@@ -13004,7 +13054,6 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   e.preventDefault();
   e.stopPropagation();
   const currentTarget = getCurrentCuePanelTarget();
@@ -13026,7 +13075,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   mergeSegments([...selectedIdxs]);
-});
+}
+document.addEventListener('keydown', handleEditingMergeShortcut);
 
 
 // Ctrl(Cmd)+Z 撤销；Ctrl(Cmd)+Shift+Z 或 Ctrl(Cmd)+Y 重做
@@ -13168,7 +13218,7 @@ document.addEventListener('keydown', (e) => {
 
 // N：仅在鼠标位于波形行时，从指针音频位置创建字幕；创建后单选新字幕，
 // 切换当前字幕面板并聚焦面板文本框。
-document.addEventListener('keydown', (e) => {
+function handleEditingCreateShortcut(e) {
   if (!editingShortcutMatches(e, 'create')) return;
   if (editingState || e.repeat || isTextEditingTarget(e)) return;
   const a = document.activeElement;
@@ -13179,7 +13229,6 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const reference = keyboardOperationReference();
   if (!reference) {
     flashHint('无有效的快捷键时间基准', 'invalid');
@@ -13193,7 +13242,8 @@ document.addEventListener('keydown', (e) => {
   } else {
     addCueAtWaveformTime(reference.timeMs, lastPointerPos?.x || 0, lastPointerPos?.y || 0);
   }
-});
+}
+document.addEventListener('keydown', handleEditingCreateShortcut);
 
 // G：绑定当前单选的副字幕。若同时选中一条主字幕则直接绑定，否则沿用
 // 右键「绑定到主字幕」的自动匹配/等待选择流程。
@@ -13298,12 +13348,11 @@ document.addEventListener('keydown', (e) => {
 // 2) 鼠标位于波形字幕块上：按预览切割线直接拆分；
 // 3) 其它位置：按当前音频播放头拆分主字幕。
 // 文本编辑、弹窗和修饰键状态下不抢占输入。
-document.addEventListener('keydown', (e) => {
+function handleEditingSplitShortcut(e) {
   if (!editingShortcutMatches(e, 'split')) return;
   if (e.repeat) return;
   const forceMainEdit = editingState?.forceSplitArmed === true;
   if (extensionEditingState && !forceMainEdit) {
-    if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
     const state = extensionEditingState;
     const offset = caretOffsetInText(state.textEl);
     const track = getExtensionTrack(state.trackId);
@@ -13335,7 +13384,6 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (forceMainEdit) {
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -13369,7 +13417,8 @@ document.addEventListener('keydown', (e) => {
   const index = DATA.segments.findIndex(segment => timeMs > segment.start && timeMs < segment.end);
   if (index < 0) { flashHint('播放头位置没有可拆分的主字幕', 'warning'); return; }
   splitHoveredWaveform({ track: 'main', index, segment: DATA.segments[index], timeMs });
-});
+}
+document.addEventListener('keydown', handleEditingSplitShortcut);
 
 // 点击输入框外 -> 完成内联编辑。使用 pointerdown 捕获阶段，确保字幕行、
 // 波形或其它控件的 pointerdown 处理/重绘发生前，当前文字已经写回 DATA。
@@ -19443,8 +19492,8 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (!event.repeat
-      && (event.key === 'Enter' || editingShortcutMatches(event, 'split'))
-      && !(event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)) {
+      && ((event.key === 'Enter' && !(event.ctrlKey || event.metaKey || event.altKey || event.shiftKey))
+        || editingShortcutMatches(event, 'split'))) {
     event.preventDefault();
     event.stopPropagation();
     confirmLinkedSplit();
@@ -23156,9 +23205,17 @@ window.addEventListener('beforeunload', (e) => {
 
 
 // === FCPXML export (focused MAW-bd) ===
+function refreshFcpxmlSourceFormat() {
+  const source = window.AsrEditorUtils.sourceVideoFormat(DATA.media_metadata, player);
+  document.getElementById('fcpxml-source-resolution').textContent = source.resolution;
+  document.getElementById('fcpxml-source-fps').textContent = source.frameRate;
+}
+player.addEventListener('loadedmetadata', refreshFcpxmlSourceFormat);
+
 document.getElementById('download-fcpxml')?.addEventListener('click', () => {
   const modal = document.getElementById('fcpxml-export-modal');
   const nameInput = document.getElementById('fcpxml-export-project-name');
+  refreshFcpxmlSourceFormat();
   if (nameInput) nameInput.value = PROJECT_NAME || FILENAME_BASE || 'MAW Subtitles';
   if (modal) {
     modal.classList.remove('hidden');

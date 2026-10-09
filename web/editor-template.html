@@ -889,12 +889,14 @@ __WAVEFORM_CSS__
   </div>
   <span class="editor-settings-group-heading">编辑快捷键</span>
   <div class="editor-settings-group" id="editing-shortcuts-settings">
-    <small class="editor-settings-hint">选择按键即可保存；占用的按键会互换。其它快捷键保持原设置。Mac 功能键可能需要同时按 Fn。</small>
-    <label class="editor-settings-item">分割字幕<select data-editing-shortcut="split" aria-label="分割字幕快捷键"></select></label>
-    <label class="editor-settings-item">合并字幕<select data-editing-shortcut="merge" aria-label="合并字幕快捷键"></select></label>
-    <label class="editor-settings-item">新建字幕<select data-editing-shortcut="create" aria-label="新建字幕快捷键"></select></label>
-    <label class="editor-settings-item">设置起点<select data-editing-shortcut="start" aria-label="设置起点快捷键"></select></label>
-    <label class="editor-settings-item">设置终点<select data-editing-shortcut="end" aria-label="设置终点快捷键"></select></label>
+    <small class="editor-settings-hint">点击自定义后按下单键或组合键即可记录；编辑动作之间的冲突会互换。在字幕区域，自定义按键优先于原有快捷键。</small>
+    <div class="editor-settings-item">分割字幕<kbd data-editing-shortcut-label="split"></kbd><button type="button" data-editing-shortcut="split" aria-label="自定义分割字幕快捷键">自定义</button></div>
+    <div class="editor-settings-item">合并字幕<kbd data-editing-shortcut-label="merge"></kbd><button type="button" data-editing-shortcut="merge" aria-label="自定义合并字幕快捷键">自定义</button></div>
+    <div class="editor-settings-item">新建字幕<kbd data-editing-shortcut-label="create"></kbd><button type="button" data-editing-shortcut="create" aria-label="自定义新建字幕快捷键">自定义</button></div>
+    <div class="editor-settings-item">设置起点<kbd data-editing-shortcut-label="start"></kbd><button type="button" data-editing-shortcut="start" aria-label="自定义设置起点快捷键">自定义</button></div>
+    <div class="editor-settings-item">设置终点<kbd data-editing-shortcut-label="end"></kbd><button type="button" data-editing-shortcut="end" aria-label="自定义设置终点快捷键">自定义</button></div>
+    <small id="editing-shortcut-status" role="status" aria-live="polite"></small>
+    <button type="button" id="editing-shortcut-cancel" hidden>取消采集</button>
     <button type="button" id="editing-shortcuts-reset">恢复默认快捷键</button>
   </div>
   <span class="editor-settings-group-heading" id="keyboard-adjust-settings-title">按键调整字幕</span>
@@ -1702,7 +1704,6 @@ __WAVEFORM_CSS__
           </div>
         </div>
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
-        <div id="cue-panel-split-preview" class="cue-panel-split-preview" aria-label="播放头文字切点" hidden></div>
         <div class="cue-panel-metrics">
           <span>总长度 <b id="cue-panel-total-length">0</b></span>
           <span>字/秒 <b id="cue-panel-chars-per-second">0.00</b></span>
@@ -2280,6 +2281,7 @@ __WAVEFORM_CSS__
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="fcpxml-export-title">
     <h3 id="fcpxml-export-title">导出 .fcpxml</h3>
     <p class="modal-desc">算法沿用本地 SRT→FCPXML 转换（MIT srt2fcpxml）。仅导出最终字幕文字与时间，不含 proofread 元数据。</p>
+    <p class="modal-desc" id="fcpxml-source-format" role="status">当前视频：<strong id="fcpxml-source-resolution">未读取到分辨率</strong> · <strong id="fcpxml-source-fps">未读取到帧率</strong></p>
     <div class="fcpxml-export-fields">
       <label for="fcpxml-export-fps">帧率</label>
       <select id="fcpxml-export-fps">
@@ -2314,6 +2316,7 @@ __WAVEFORM_CSS__
     <label for="waveform-cue-edit-text">字幕文字（回车保存）</label>
     <textarea id="waveform-cue-edit-text" rows="3" spellcheck="true"></textarea>
     <div class="modal-actions">
+      <button type="button" id="waveform-cue-edit-split">在光标处切割</button>
       <button type="button" id="waveform-cue-edit-cancel">取消</button>
       <button type="button" class="primary" id="waveform-cue-edit-save">保存修改</button>
     </div>

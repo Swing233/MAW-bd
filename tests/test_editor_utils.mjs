@@ -5672,3 +5672,37 @@ test('timeline blade never cuts inside standalone tokens', () => {
     assert.equal(helpers.suggestedTimelineSplitOffset({ text, start: 0, end: 1000 }, 500, 'continuous'), null);
   }
 });
+
+
+test('shortcut capture accepts punctuation, Space and modifier combinations', () => {
+  for (const key of [' ', '+', 'ArrowLeft', 'Escape', '7', '中']) {
+    const binding = helpers.captureEditingShortcut({ key });
+    assert.equal(helpers.matchesEditingShortcut({ key }, 'split', { split: binding }), true);
+  }
+  for (const key of ['Shift', 'Meta', 'Control', 'Alt', 'Dead', 'Unidentified']) {
+    assert.equal(helpers.captureEditingShortcut({ key }), null);
+  }
+  assert.equal(helpers.captureEditingShortcut({ key: 'b', repeat: true }), null);
+  assert.equal(helpers.captureEditingShortcut({ key: 'b', isComposing: true }), null);
+  const binding = helpers.captureEditingShortcut({ key: 'B', code: 'KeyB', ctrlKey: true, shiftKey: true });
+  const saved = helpers.normalizeEditingShortcuts({ split: binding });
+  assert.equal(helpers.matchesEditingShortcut({ key: 'B', code: 'KeyB', ctrlKey: true, shiftKey: true }, 'split', saved), true);
+  assert.equal(helpers.matchesEditingShortcut({ key: 'b', code: 'KeyB', ctrlKey: true }, 'split', saved), false);
+  assert.equal(helpers.editingShortcutLabel(binding), 'Ctrl + Shift + B');
+  // macOS Option changes event.key; use the recorded physical key with modifiers.
+  const option = helpers.captureEditingShortcut({ key: '∫', code: 'KeyB', altKey: true });
+  assert.equal(helpers.matchesEditingShortcut({ key: 'b', code: 'KeyB', altKey: true }, 'split', { split: option }), true);
+  assert.equal(helpers.editingShortcutLabel(option), 'Alt + B');
+  assert.equal(helpers.normalizeEditingShortcuts({ split: binding, merge: binding }).split, 'b');
+});
+
+
+test('source video format displays actual dimensions and rate without export defaults', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.sourceVideoFormat({
+    video_width: 3840, video_height: 2160, video_fps: 30000 / 1001, video_fps_ratio: '30000/1001',
+  }))), { resolution: '3840 × 2160', frameRate: '29.97 fps（30000/1001）' });
+  assert.equal(helpers.sourceVideoFormat({ video_fps: 24000 / 1001 }).frameRate, '23.976 fps');
+  assert.equal(helpers.sourceVideoFormat(null, { videoWidth: 1280, videoHeight: 720 }).resolution, '1280 × 720');
+  assert.equal(helpers.sourceVideoFormat(null).frameRate, '未读取到帧率');
+  assert.equal(helpers.sourceVideoFormat(null).resolution, '未读取到分辨率');
+});

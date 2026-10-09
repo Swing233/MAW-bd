@@ -3953,7 +3953,4 @@
 .proofread-hover-panel .proofread-diff-added { background: #66bb6a55; text-decoration: underline #66bb6a; }
 .proofread-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.cue-panel-split-preview { margin-top: 6px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; line-height: 1.7; overflow-wrap: anywhere; max-height: 110px; overflow: auto; }
-.cue-panel-split-preview[hidden] { display: none; }
-.cue-panel-split-heading { font-size: 11px; color: var(--text-muted); }
-.cue-panel-playhead-divider { display: inline-block; color: var(--accent); background: var(--bg-input); font-weight: bold; margin: 0 2px; }
+#fcpxml-source-format { color: var(--text); padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
