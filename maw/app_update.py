@@ -279,6 +279,32 @@ def _download_archive(url, expected_size, expected_hash, archive_path, notify, t
         raise UpdateInstallError("安装包 SHA-256 或大小校验失败")
 
 
+def _download_release(url, size, digest, path, notify, transfer, method, source):
+    mirrors = {"ghfast": ("GHFast", "https://ghfast.top/"),
+               "ghproxy": ("GH-Proxy", "https://gh-proxy.org/")}
+    if source not in {"auto", "github", *mirrors}:
+        raise UpdateInstallError("更新下载线路无效")
+    if not url.startswith(ASSET_URL_PREFIX):
+        raise UpdateInstallError("更新地址不是官方发布资产")
+    order = ["ghfast", "ghproxy", "github"] if source == "auto" else [source]
+    if source in mirrors:
+        order += [key for key in mirrors if key != source] + ["github"]
+    errors = []
+    for key in order:
+        label, prefix = ("GitHub 直连", "") if key == "github" else mirrors[key]
+        notify(0, f"正在通过 {label} 下载…")
+        def report(detail):
+            if transfer:
+                transfer({**detail, "sourceLabel": label})
+        try:
+            _download_archive(prefix + url, size, digest, path, notify, report, method)
+            return
+        except UpdateInstallError as error:
+            errors.append(f"{label}：{error}")
+            notify(0, f"{label} 下载或校验失败，正在切换线路…")
+    raise UpdateInstallError("所有下载线路均失败：" + "；".join(errors))
+
+
 def stage_update(
     release: Mapping[str, object],
     *,
@@ -286,6 +312,7 @@ def stage_update(
     progress: Callable[[int, str], None] | None = None,
     transfer: Callable[[dict[str, object]], None] | None = None,
     method: str = "auto",
+    source: str = "github",
 ) -> dict[str, str]:
     """Download, hash-check and stage a signed app next to the installed one."""
 
@@ -297,6 +324,8 @@ def stage_update(
     version, url, expected_size, expected_hash = _validate_release_for_install(release)
     if not os.access(app.parent, os.W_OK):
         raise UpdateInstallError("应用所在目录不可写；请将 MAW-bd.app 安装到当前用户可写的位置")
+    if source not in {"auto", "github", "ghfast", "ghproxy"}:
+        raise UpdateInstallError("更新下载线路无效")
     cache = update_cache_root()
     cache.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex[:12]
@@ -325,8 +354,8 @@ def stage_update(
                             or not _DIGEST_RE.fullmatch(delta_digest)):
                         raise UpdateInstallError("增量发布信息无效")
                     _validate_app_bundle(app, current_version)
-                    _download_archive(delta_url, delta_size, delta_digest.split(":", 1)[1],
-                                      archive_path, notify, transfer, "incremental")
+                    _download_release(delta_url, delta_size, delta_digest.split(":", 1)[1],
+                                      archive_path, notify, transfer, "incremental", source)
                     notify(88, "正在重建并验证增量更新…")
                     apply_delta(app, archive_path, candidate, current_version, version)
                     _validate_app_bundle(candidate, version)
@@ -336,7 +365,7 @@ def stage_update(
                         shutil.rmtree(candidate)
                     notify(0, "增量不可用，已切换为全量下载…")
             if not used_delta:
-                _download_archive(url, expected_size, expected_hash, archive_path, notify, transfer, "full")
+                _download_release(url, expected_size, expected_hash, archive_path, notify, transfer, "full", source)
                 notify(88, "正在验证安装包…")
                 try:
                     with zipfile.ZipFile(archive_path) as archive:

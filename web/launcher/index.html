@@ -31,6 +31,13 @@
               <option value="auto">优先增量更新</option>
               <option value="full">全量更新</option>
             </select></label>
+            <label>下载线路 <select id="update-source">
+              <option value="auto">国内镜像优先（自动切换）</option>
+              <option value="github">GitHub 直连</option>
+              <option value="ghfast">GHFast 镜像</option>
+              <option value="ghproxy">GH-Proxy 镜像</option>
+            </select></label>
+            <p class="muted">安装包经第三方镜像下载，仍按 GitHub 官方发布的大小与 SHA-256 校验。</p>
             <p id="update-size" class="muted"></p>
             <p id="update-transfer" class="muted" aria-live="polite"></p>
           </div>

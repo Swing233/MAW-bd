@@ -227,6 +227,7 @@ class FocusedGuiContractTests(unittest.TestCase):
             api = FocusedLauncherApi()
             with (
                 patch("maw.focus_launcher.local_runtime_python", return_value=runtime),
+                patch("maw.focus_launcher.ensure_runtime", return_value=runtime),
                 patch("maw.focus_launcher.subprocess.Popen") as popen,
             ):
                 popen.return_value.stdout = io.StringIO("")

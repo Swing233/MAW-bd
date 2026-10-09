@@ -96,7 +96,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `Resources/ocr-runtime` / `moss-runtime` / `server-align` | 有 | **无**（产品收窄，预期） |
 | `Resources/web/srt2fcpxml-page/` | 无 | **有**（本地 SRT→FCPXML 页） |
 | `Info.plist` BundleId / Executable / Icon | `com.moy.maw.bdversion` / `MAW` / `maw.icns` | Bundle 名/Id 已区分官方 MAW.app |
-| `CFBundleShortVersionString` | `0.0.0` | `1.6.0`（跟 `pyproject.toml`） |
+| `CFBundleShortVersionString` | `0.0.0` | `1.6.1`（跟 `pyproject.toml`） |
 | Python 运行时 | `Frameworks/Python.framework` | `Frameworks/libpython3.11.dylib`（PyInstaller 6） |
 
 结论：封装格式与官方 **同为 PyInstaller macOS BUNDLE**；差异主要来自精简范围与 PyInstaller 版本，而非另一套打包体系。
@@ -128,3 +128,9 @@ codesign --force --deep --sign - dist/MAW-bd.app
 ```
 
 把增量资产和全量包一起上传到 `vNEW` Release；GitHub 资产必须提供 SHA-256 digest。差异包包含目标文件清单与变化文件，不下载未变化的运行库。客户端校验基础应用、归档摘要、重建后每个文件和完整应用签名，再沿用退出后原子替换与备份流程。只发布全量资产仍可正常更新。
+
+## 独立本地推理环境（下一版）
+
+完整应用内置原生 uv 与 MIT 许可，以及单独解析的带哈希 macOS 本地依赖清单（assets/runtime/requirements-local.in → requirements-local.txt）。首次下载模型或本地识别自动创建应用专用 Python 3.11 并安装依赖，无需系统 Python、Homebrew 或其他 MAW。数据位于 `~/Library/Application Support/MAW-bd`，签名应用本身不会被写入。安装失败可重试，取消保留已下载缓存，验证通过后才标记就绪。已有 MAW 环境保持不变。首次需要联网下载运行环境和模型，后续复用本地缓存。
+
+更新安装包下载可选国内镜像优先、GHFast、GH-Proxy 或 GitHub 直连，镜像失败或摘要不符自动换线。镜像仅传输公开资产，不发送授权或 API Key。版本和摘要仍从 GitHub 官方 API 查询；若官方 API 无法访问，仍无法检查更新。

@@ -149,7 +149,7 @@
     if (hint) {
       hint.textContent = config.localRuntimeReady
         ? '本地运行时：' + config.localRuntimePath
-        : '未检测到本地运行时，本地 ASR 将不可用';
+        : '首次使用会自动准备本地运行环境，无需安装另一份 MAW';
     }
   }
 
@@ -318,7 +318,7 @@
       }
       setBusy(true);
       button.textContent = '模型下载 / 校验中…';
-      setMsg('正在准备所选本地模型，可点停止取消；已有缓存会复用');
+      setMsg('正在自动准备运行环境和所选模型，可点停止取消；已有缓存会复用');
     } catch (error) {
       button.disabled = false;
       setMsg('无法下载模型：' + String(error), true);
@@ -514,13 +514,14 @@
     button.disabled = true;
     try {
       if (button.textContent.startsWith('一键安装') && a.install_update) {
-        const result = await a.install_update({ method: $('update-method').value });
+        const result = await a.install_update({ method: $('update-method').value, source: $('update-source').value });
         if (!result?.ok) {
           setMsg(result?.error || '无法开始更新', true);
           return;
         }
         updateInstalling = true;
         $('update-method').disabled = true;
+        $('update-source').disabled = true;
         button.textContent = '正在下载…';
         setMsg('正在下载并验证新版，完成后会自动重启安装');
         return;
@@ -630,7 +631,7 @@
     const detail = event.detail || {};
     const button = $('btn-update-download');
     if (Number.isFinite(detail.totalBytes)) {
-      $('update-transfer').textContent = `${detail.method === 'incremental' ? '增量包' : '全量包'} · 已下载 ${formatBytes(detail.downloadedBytes)} / ${formatBytes(detail.totalBytes)} · 平均速度 ${formatBytes(detail.bytesPerSecond)}/s`;
+      $('update-transfer').textContent = `${detail.sourceLabel ? detail.sourceLabel + ' · ' : ''}${detail.method === 'incremental' ? '增量包' : '全量包'} · 已下载 ${formatBytes(detail.downloadedBytes)} / ${formatBytes(detail.totalBytes)} · 平均速度 ${formatBytes(detail.bytesPerSecond)}/s`;
       return;
     }
     if (detail.error) {
@@ -638,6 +639,7 @@
       button.disabled = false;
       button.textContent = '一键安装（重试）';
       $('update-method').disabled = false;
+      $('update-source').disabled = false;
       setMsg(detail.message || '更新失败', true);
       return;
     }

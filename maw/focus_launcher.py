@@ -35,6 +35,7 @@ from maw.gui_workflow import (
     default_srt_path,
     run_transcription,
 )
+from maw.local_bootstrap import ensure_runtime, runtime_python, runtime_ready
 from maw.local_log import redact_sensitive_text
 from maw.postprocess_io import read_srt
 from maw.project_io import write_mosp
@@ -44,7 +45,7 @@ MANUSCRIPT_EXTS = {".txt", ".md", ".markdown", ".docx"}
 
 
 def local_runtime_python() -> Path:
-    return Path.home() / "Library" / "Application Support" / "MAW" / "local-runtime" / "bin" / "python"
+    return runtime_python()
 
 
 def local_model_cache_root() -> Path:
@@ -255,7 +256,7 @@ class FocusedLauncherApi:
                     {"id": "whisper", "label": "faster-whisper"},
                 ],
                 "localModel": "Qwen/Qwen3-ASR-1.7B",
-                "localRuntimeReady": rt_py.is_file(),
+                "localRuntimeReady": runtime_ready(),
                 "localRuntimePath": str(rt_py),
                 "cloudModels": [
                     {"id": QWEN_AUDIO_MODEL_ID, "label": "qwen-audio-3.0"},
@@ -314,6 +315,7 @@ class FocusedLauncherApi:
                 staged = stage_update(
                     release, progress=lambda percent, message: emit(percent, message),
                     method="full" if (_payload or {}).get("method") == "full" else "auto",
+                    source=str((_payload or {}).get("source") or "auto"),
                     transfer=lambda detail: self.pump.enqueue({"type": "focusUpdate", **detail}),
                 )
                 window = self._window()
@@ -358,9 +360,6 @@ class FocusedLauncherApi:
         engine = str((payload or {}).get("localEngine") or "qwen-asr")
         if engine not in {"qwen-asr", "funasr", "whisper"}:
             return {"ok": False, "error": "不支持的本地引擎"}
-        runtime = local_runtime_python()
-        if not runtime.is_file():
-            return {"ok": False, "error": "未检测到本地运行时，请先安装 MAW 本地 Runtime"}
         self.cancel_event = threading.Event()
         self._model_preparation = {"engine": engine, "state": "downloading"}
         self._set_status(step="model_download", busy=True, error="",
@@ -386,6 +385,7 @@ class FocusedLauncherApi:
         process = None
         reader = None
         try:
+            ensure_runtime(engine, self.cancel_event, lambda message: self._set_status(message=message))
             runtime_root = self.paths.root
             bundled = Path(sys.executable).parent.parent / "Resources" / "local-runtime"
             if not (runtime_root / "generate_subtitle_local.py").is_file() and bundled.is_dir():
@@ -528,11 +528,7 @@ class FocusedLauncherApi:
 
     def _run_local_asr(self, media_path: Path, srt_path: Path, engine: str, local_model: str = "Qwen/Qwen3-ASR-1.7B") -> None:
         runtime_py = local_runtime_python()
-        if not runtime_py.is_file():
-            raise RuntimeError(
-                f"未找到本地推理环境：{runtime_py}\n"
-                "请先安装 MAW 本地 Runtime，或在界面改用云端 Qwen。"
-            )
+        runtime_py = ensure_runtime(engine, self.cancel_event, lambda message: self._set_status(message=message))
         script = self.paths.root / "generate_subtitle_local.py"
         if not script.is_file():
             exe = Path(sys.executable)

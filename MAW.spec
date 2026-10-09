@@ -3,6 +3,7 @@
 # Only dual-Qwen ASR + localhost MAWE + bdversion proofread + local SRT→FCPXML page.
 
 import sys
+import shutil
 from pathlib import Path
 
 try:
@@ -80,6 +81,15 @@ datas = [
     (str(ROOT / "generate_subtitle_local.py"), "local-runtime"),
     (str(ROOT / "edit.py"), "local-runtime"),
 ]
+# Independent local inference bootstrap: a native uv plus locked, hash-checked dependencies.
+if sys.platform == "darwin":
+    _uv = shutil.which("uv") or str(Path.home() / ".local/bin/uv")
+    if not Path(_uv).is_file():
+        raise RuntimeError("macOS 构建必须提供 uv，以保证应用可独立准备本地环境")
+    datas.append((_uv, "bootstrap"))
+    datas.append((str(ROOT / "assets/runtime/requirements-local.txt"), "bootstrap"))
+    datas.append((str(ROOT / "assets/runtime/UV-LICENSE-MIT"), "bootstrap"))
+
 for _name in _runtime_maw_files:
     _src = ROOT / "maw" / _name
     if _src.is_file():
@@ -231,8 +241,8 @@ if sys.platform == 'darwin':
         info_plist={
             "CFBundleDisplayName": "MAW-bd",
             "CFBundleName": "MAW-bd",
-            "CFBundleShortVersionString": "1.6.0",
-            "CFBundleVersion": "1.6.0",
+            "CFBundleShortVersionString": "1.6.1",
+            "CFBundleVersion": "1.6.1",
             "NSHighResolutionCapable": True,
         },
     )

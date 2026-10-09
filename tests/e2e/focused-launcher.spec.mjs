@@ -138,7 +138,7 @@ test('update options show package sizes and live download statistics', async ({ 
   await page.locator('#update-method').selectOption('full');
   await expect(page.locator('#update-size')).toHaveText('全量包 80.0 MB');
   await page.locator('#btn-update-download').click();
-  await expect.poll(() => page.evaluate(() => window.__installCalls)).toEqual([{ method: 'full' }]);
+  await expect.poll(() => page.evaluate(() => window.__installCalls)).toEqual([{ method: 'full', source: 'auto' }]);
   await expect(page.locator('#update-method')).toBeDisabled();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('focusUpdate', { detail: {
     downloadedBytes: 2 * 1024 * 1024, totalBytes: 80 * 1024 * 1024, bytesPerSecond: 512 * 1024, method: 'full',

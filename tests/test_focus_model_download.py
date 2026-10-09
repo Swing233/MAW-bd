@@ -11,9 +11,10 @@ class ModelDownloadTests(unittest.TestCase):
     def test_invalid_engine_and_missing_runtime_do_not_start(self):
         api = FocusedLauncherApi()
         self.assertFalse(api.download_local_model({"localEngine": "unknown"})["ok"])
-        with patch("maw.focus_launcher.local_runtime_python", return_value=Path("/nonexistent/runtime")):
-            self.assertIn("运行时", api.download_local_model({})["error"])
-        self.assertIsNone(api.worker)
+        with patch.object(api.pump, "start"), patch.object(api, "_download_model_worker") as prepare:
+            self.assertTrue(api.download_local_model({})["started"])
+            api.worker.join(timeout=2)
+            prepare.assert_called_once_with("qwen-asr")
 
     def test_busy_task_cannot_start_second_download(self):
         api = FocusedLauncherApi()
@@ -33,7 +34,7 @@ class ModelDownloadTests(unittest.TestCase):
                 process.returncode = 0
                 with (patch("maw.focus_launcher.local_runtime_python", return_value=runtime),
                       patch("maw.focus_launcher.local_model_cache_root", return_value=Path(temp) / "cache"),
-                      patch("maw.focus_launcher.subprocess.Popen", return_value=process) as popen,
+                      patch("maw.focus_launcher.ensure_runtime"), patch("maw.focus_launcher.subprocess.Popen", return_value=process) as popen,
                       patch.object(api.pump, "start")):
                     result = api.download_local_model({"localEngine": engine})
                     self.assertTrue(result["started"])
@@ -55,7 +56,7 @@ class ModelDownloadTests(unittest.TestCase):
         process.stdout = io.StringIO("DASHSCOPE_API_KEY=sk-test-secret-value\n")
         process.poll.return_value = 1
         process.returncode = 1
-        with patch("maw.focus_launcher.subprocess.Popen", return_value=process):
+        with patch("maw.focus_launcher.ensure_runtime"), patch("maw.focus_launcher.subprocess.Popen", return_value=process):
             api._download_model_worker("qwen-asr")
         self.assertEqual(api._model_preparation["state"], "error")
         self.assertNotIn("sk-test-secret-value", api._status["error"])
@@ -67,7 +68,7 @@ class ModelDownloadTests(unittest.TestCase):
         process.stdout = io.StringIO("")
         process.poll.side_effect = [None, 0]
         api.cancel_event.set()
-        with patch("maw.focus_launcher.subprocess.Popen", return_value=process):
+        with patch("maw.focus_launcher.ensure_runtime"), patch("maw.focus_launcher.subprocess.Popen", return_value=process):
             api._download_model_worker("whisper")
         process.terminate.assert_called_once()
         self.assertEqual(api._model_preparation["state"], "cancelled")

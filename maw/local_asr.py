@@ -657,7 +657,9 @@ class QwenAsrEngine:
             device_map = "cuda:0" if target_device == "cuda" else target_device
             accelerated = target_device in {"cuda", "mps"}
             kwargs: dict[str, Any] = {
-                "dtype": torch.float16 if accelerated else torch.float32,
+                # Qwen3 weights are trained in BF16; FP16 on MPS can silently
+                # overflow and return an empty transcript despite successful loading.
+                "dtype": torch.bfloat16 if target_device == "mps" else (torch.float16 if accelerated else torch.float32),
                 "device_map": device_map,
                 "max_inference_batch_size": 1,
                 # Keep each request bounded by the chunk size, while leaving enough
@@ -672,7 +674,9 @@ class QwenAsrEngine:
                 }
             if on_event:
                 on_event(f"[local] loading QwenASR: {self.model_path} ({target_device})")
-            return Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+            loaded = Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+            self._active_device = target_device
+            return loaded
 
         try:
             self._runtime = load_runtime(resolved_device)
@@ -927,6 +931,38 @@ class QwenAsrEngine:
         )
 
     def transcribe(
+        self,
+        audio_path: Path,
+        *,
+        language: str | None = None,
+        batch_size_s: int = QWEN_DEFAULT_CHUNK_SECONDS,
+        hotwords: Sequence[str] = (),
+        on_event: ProgressCallback | None = None,
+        ffmpeg_path: str | Path | None = None,
+        ffprobe_path: str | Path | None = None,
+    ) -> LocalTranscription:
+        options = dict(language=language, batch_size_s=batch_size_s, hotwords=hotwords,
+                       on_event=on_event, ffmpeg_path=ffmpeg_path, ffprobe_path=ffprobe_path)
+        result = self._transcribe_once(audio_path, **options)
+        if result.text.strip() or self.device.strip().lower() != "auto" or getattr(self, "_active_device", "") != "mps":
+            return result
+        if on_event:
+            on_event("[local] Mac GPU 返回空文本，正在使用 CPU 重新识别…")
+        # Release the completed GPU attempt before allocating the CPU model.
+        self._runtime = None
+        try:
+            import torch
+            torch.mps.empty_cache()
+        except (ImportError, AttributeError, RuntimeError):
+            pass
+        original_device = self.device
+        self.device = "cpu"
+        try:
+            return self._transcribe_once(audio_path, **options)
+        finally:
+            self.device = original_device
+
+    def _transcribe_once(
         self,
         audio_path: Path,
         *,
