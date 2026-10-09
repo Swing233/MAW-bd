@@ -96,7 +96,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `Resources/ocr-runtime` / `moss-runtime` / `server-align` | 有 | **无**（产品收窄，预期） |
 | `Resources/web/srt2fcpxml-page/` | 无 | **有**（本地 SRT→FCPXML 页） |
 | `Info.plist` BundleId / Executable / Icon | `com.moy.maw.bdversion` / `MAW` / `maw.icns` | Bundle 名/Id 已区分官方 MAW.app |
-| `CFBundleShortVersionString` | `0.0.0` | `1.4.0`（跟 `pyproject.toml`） |
+| `CFBundleShortVersionString` | `0.0.0` | `1.5.0`（跟 `pyproject.toml`） |
 | Python 运行时 | `Frameworks/Python.framework` | `Frameworks/libpython3.11.dylib`（PyInstaller 6） |
 
 结论：封装格式与官方 **同为 PyInstaller macOS BUNDLE**；差异主要来自精简范围与 PyInstaller 版本，而非另一套打包体系。
@@ -114,3 +114,17 @@ codesign --force --deep --sign - dist/MAW-bd.app
 2. CI：`macos-14` 构建 + ffmpeg 下载 + `codesign` + zip
 3. Launcher 打开 `srt2fcpxml-page` 的菜单入口
 4. 将 `dual_transcribe` / 对齐 / DeepSeek 接到 GUI 一键流水线（默认关闭）
+
+## 增量更新资产（下一版起）
+
+新版更新器支持「优先增量更新」和「全量更新」，下载时显示已下载/总大小及平均速度。只有精确匹配当前版本、且小于全量包的增量包才会使用；失败自动回退全量。旧更新器需要先全量安装一次支持该功能的版本。用户配置与模型缓存不纳入增量包。
+
+发布时保留全量 ZIP，同时为支持的基础版本分别生成增量 ZIP。输入必须是原来发布的、已经签名且包含 FFmpeg 的完整 `.app`，目标也是最终签名的 `.app`；生成后不要重新签名目标。
+
+```bash
+.venv/bin/python scripts/build_macos_delta.py \
+  dist/release-vOLD/MAW-bd.app dist/release-vNEW/MAW-bd.app \
+  dist/releases/MAW-bd-OLD-to-NEW-macOS-arm64.delta.zip
+```
+
+把增量资产和全量包一起上传到 `vNEW` Release；GitHub 资产必须提供 SHA-256 digest。差异包包含目标文件清单与变化文件，不下载未变化的运行库。客户端校验基础应用、归档摘要、重建后每个文件和完整应用签名，再沿用退出后原子替换与备份流程。只发布全量资产仍可正常更新。

@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Mapping
@@ -95,6 +96,7 @@ class FocusedLauncherApi:
         self._last_update: dict[str, object] = {}
         self._update_worker: threading.Thread | None = None
         self._update_result = read_update_result()
+        self._model_preparation: dict[str, object] = {}
 
     def _set_status(self, **kwargs: Any) -> None:
         self._status.update(kwargs)
@@ -238,6 +240,7 @@ class FocusedLauncherApi:
             "updateResult": self._update_result,
             "status": {**self._status, "stepProgress": dict(self._step_progress)},
             "result": dict(self._result),
+            "modelPreparation": dict(self._model_preparation),
             "config": {
                 "dashscopeApiKey": bool(env.get("DASHSCOPE_API_KEY")),
                 "deepseekApiKey": bool(env.get("MAW_POSTPROCESS_DEEPSEEK_API_KEY") or env.get("DEEPSEEK_API_KEY")),
@@ -308,7 +311,11 @@ class FocusedLauncherApi:
                 release = check_latest_release(current_version)
                 if not release.get("available"):
                     raise UpdateInstallError("当前已是最新版本")
-                staged = stage_update(release, progress=lambda percent, message: emit(percent, message))
+                staged = stage_update(
+                    release, progress=lambda percent, message: emit(percent, message),
+                    method="full" if (_payload or {}).get("method") == "full" else "auto",
+                    transfer=lambda detail: self.pump.enqueue({"type": "focusUpdate", **detail}),
+                )
                 window = self._window()
                 if window is None:
                     raise UpdateInstallError("无法关闭当前窗口完成更新")
@@ -343,6 +350,109 @@ class FocusedLauncherApi:
         self._result["manuscriptPath"] = ""
         self._result["manuscriptText"] = ""
         return {"ok": True}
+
+    def download_local_model(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Prepare the selected model using the same loader and cache as ASR."""
+        if self.worker and self.worker.is_alive():
+            return {"ok": False, "error": "任务进行中，请先停止或等待完成"}
+        engine = str((payload or {}).get("localEngine") or "qwen-asr")
+        if engine not in {"qwen-asr", "funasr", "whisper"}:
+            return {"ok": False, "error": "不支持的本地引擎"}
+        runtime = local_runtime_python()
+        if not runtime.is_file():
+            return {"ok": False, "error": "未检测到本地运行时，请先安装 MAW 本地 Runtime"}
+        self.cancel_event = threading.Event()
+        self._model_preparation = {"engine": engine, "state": "downloading"}
+        self._set_status(step="model_download", busy=True, error="",
+                         message="正在准备本地模型，首次下载可能需要数 GB；已有缓存会复用")
+        self.pump.start()
+        self.worker = threading.Thread(target=self._download_model_worker, args=(engine,), daemon=True)
+        self.worker.start()
+        return {"ok": True, "started": True, "engine": engine}
+
+    def _local_subprocess_environment(self, runtime_root: Path) -> dict[str, str]:
+        cache_root = local_model_cache_root()
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        env["PYTHONUNBUFFERED"] = "1"
+        env["MAW_MODEL_CACHE_ROOT"] = str(cache_root)
+        env["HF_HOME"] = str(cache_root / "huggingface")
+        env["HF_HUB_CACHE"] = str(cache_root / "huggingface" / "hub")
+        env["MODELSCOPE_CACHE"] = str(cache_root / "modelscope")
+        env["PYTHONPATH"] = str(runtime_root) + os.pathsep + str(self.paths.root) + os.pathsep + env.get("PYTHONPATH", "")
+        return env
+
+    def _download_model_worker(self, engine: str) -> None:
+        process = None
+        reader = None
+        try:
+            runtime_root = self.paths.root
+            bundled = Path(sys.executable).parent.parent / "Resources" / "local-runtime"
+            if not (runtime_root / "generate_subtitle_local.py").is_file() and bundled.is_dir():
+                runtime_root = bundled
+            # Like upstream prepare_local_model: load once in a managed subprocess.
+            code = (
+                "import sys; from maw.local_asr import create_local_engine; "
+                "engine=create_local_engine(sys.argv[1], device='auto'); "
+                "engine._load(lambda text: print(text, flush=True)); "
+                "print('本地模型及所需组件准备完成', flush=True)"
+            )
+            process = subprocess.Popen(
+                [str(local_runtime_python()), "-u", "-c", code, engine],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                env=self._local_subprocess_environment(runtime_root),
+            )
+            self._local_process = process
+            output: deque[str] = deque(maxlen=8)
+
+            def read_output() -> None:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    text = redact_sensitive_text(line.strip())
+                    if text:
+                        output.append(text)
+                        self._set_status(message=text)
+
+            reader = threading.Thread(target=read_output, daemon=True)
+            reader.start()
+            started = last_report = time.monotonic()
+            while process.poll() is None:
+                if self.cancel_event.wait(0.2):
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                    raise TranscriptionCancelledError()
+                now = time.monotonic()
+                if now - last_report >= 5:
+                    self._set_status(message=f"模型下载/校验进行中 · 已用时 {int(now - started)} 秒")
+                    last_report = now
+            reader.join(timeout=2)
+            if self.cancel_event.is_set():
+                raise TranscriptionCancelledError()
+            if process.returncode:
+                raise RuntimeError("本地模型准备失败：" + (" · ".join(output)[-1500:] or f"退出码 {process.returncode}"))
+            self._model_preparation = {"engine": engine, "state": "ready"}
+            self._set_status(step="model_download_done", busy=False, error="",
+                             message="本地模型已下载并加载验证，可开始识别；缓存将自动复用")
+        except TranscriptionCancelledError:
+            self._model_preparation = {"engine": engine, "state": "cancelled"}
+            self._set_status(step="idle", busy=False, error="", message="模型下载已取消；已完成的缓存会保留")
+        except Exception as error:  # noqa: BLE001 - runtime boundary
+            self._model_preparation = {"engine": engine, "state": "error"}
+            self._set_status(step="error", busy=False, message="模型下载失败", error=redact_sensitive_text(str(error)))
+        finally:
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                if reader is not None:
+                    reader.join(timeout=2)
+                if process.stdout is not None:
+                    process.stdout.close()
+            self._local_process = None
 
     # ---------- ASR ----------
     def start_asr(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
@@ -431,15 +541,7 @@ class FocusedLauncherApi:
         if not script.is_file():
             raise RuntimeError("找不到 generate_subtitle_local.py")
         srt_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_root = local_model_cache_root()
-        runtime_root = script.parent
-        env = os.environ.copy()
-        # Python 子进程读取 app 内的 local-runtime；禁止写 __pycache__ 破坏 .app 签名。
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
-        env["MAW_MODEL_CACHE_ROOT"] = str(cache_root)
-        env["HF_HOME"] = str(cache_root / "huggingface")
-        env["MODELSCOPE_CACHE"] = str(cache_root / "modelscope")
-        env["PYTHONPATH"] = str(runtime_root) + os.pathsep + str(self.paths.root) + os.pathsep + env.get("PYTHONPATH", "")
+        env = self._local_subprocess_environment(script.parent)
         cmd = [
             str(runtime_py),
             str(script),

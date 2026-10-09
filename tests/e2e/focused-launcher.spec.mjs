@@ -55,6 +55,7 @@ test('direct media editor picks media first and forwards its explicit path', asy
         get_state: async () => state,
         browse_media: async () => {
           window.__directEditCalls.push(['browse_media', {}]);
+          state.result.mediaPath = '/tmp/direct-edit.mp4';
           return { ok: true, path: '/tmp/direct-edit.mp4' };
         },
         open_media_editor: async (payload) => {
@@ -117,4 +118,58 @@ test('available update appears after the bridge is ready and opens its trusted d
   await page.locator('#btn-update-download').click();
   await expect(page.locator('#msg')).toHaveText('已在浏览器开始下载更新');
   await expect.poll(() => page.evaluate(() => window.__updateCalls)).toEqual([{}]);
+});
+
+
+test('update options show package sizes and live download statistics', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__installCalls = [];
+    window.pywebview = { api: {
+      get_state: async () => ({ appVersion: '1.4.0', status: {}, result: {}, config: {} }),
+      check_for_updates: async () => ({ ok: true, available: true, currentVersion: '1.4.0', latestVersion: '1.5.0',
+        downloadUrl: 'trusted', assetDigest: 'sha256:abc', assetSize: 80 * 1024 * 1024,
+        incremental: { assetSize: 8 * 1024 * 1024 } }),
+      install_update: async (payload) => { window.__installCalls.push(payload); return { ok: true }; },
+    } };
+  });
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(() => window.dispatchEvent(new Event('pywebviewready')));
+  await expect(page.locator('#update-size')).toHaveText('增量包 8.0 MB · 全量包 80.0 MB');
+  await page.locator('#update-method').selectOption('full');
+  await expect(page.locator('#update-size')).toHaveText('全量包 80.0 MB');
+  await page.locator('#btn-update-download').click();
+  await expect.poll(() => page.evaluate(() => window.__installCalls)).toEqual([{ method: 'full' }]);
+  await expect(page.locator('#update-method')).toBeDisabled();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('focusUpdate', { detail: {
+    downloadedBytes: 2 * 1024 * 1024, totalBytes: 80 * 1024 * 1024, bytesPerSecond: 512 * 1024, method: 'full',
+  } })));
+  await expect(page.locator('#update-transfer')).toHaveText('全量包 · 已下载 2.0 MB / 80.0 MB · 平均速度 512.0 KB/s');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('focusUpdate', { detail: { error: true, message: '下载中断' } })));
+  await expect(page.locator('#update-method')).toBeEnabled();
+  await page.locator('#btn-update-download').click();
+  await expect.poll(() => page.evaluate(() => window.__installCalls.length)).toBe(2);
+});
+
+
+test('local model button prepares selected engine and recovers after cancel', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__modelCalls = [];
+    window.pywebview = { api: {
+      get_state: async () => ({ status: {}, result: {}, config: { localRuntimeReady: true } }),
+      download_local_model: async (payload) => { window.__modelCalls.push(payload); return { ok: true, started: true }; },
+    } };
+  });
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(() => window.dispatchEvent(new Event('pywebviewready')));
+  await page.locator('#local-engine').selectOption('whisper');
+  await page.locator('#btn-model-download').click();
+  await expect.poll(() => page.evaluate(() => window.__modelCalls)).toEqual([{ localEngine: 'whisper' }]);
+  await expect(page.locator('#btn-model-download')).toBeDisabled();
+  await expect(page.locator('#btn-stop')).toBeEnabled();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('focusStatus', { detail: {
+    step: 'idle', busy: false, message: '模型下载已取消；已完成的缓存会保留',
+  } })));
+  await expect(page.locator('#btn-model-download')).toBeEnabled();
+  await page.locator('#asr-mode').selectOption('cloud');
+  await expect(page.locator('#btn-model-download')).toBeHidden();
 });

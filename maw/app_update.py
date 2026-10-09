@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 import zipfile
 from collections.abc import Callable, Mapping
@@ -19,6 +20,8 @@ from pathlib import Path, PurePosixPath
 import urllib.error
 import urllib.request
 from typing import Final
+
+from maw.app_delta import apply_delta
 
 REPOSITORY: Final = "Swing233/MAW-bd"
 LATEST_RELEASE_API: Final = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
@@ -113,6 +116,20 @@ def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[
                     asset_size = 0
                 break
 
+    incremental = None
+    delta_name = f"MAW-bd-{current_version}-to-{latest_version}-macOS-arm64.delta.zip"
+    for item in assets if isinstance(assets, list) else []:
+        if not isinstance(item, dict):
+            continue
+        size = item.get("size")
+        digest = str(item.get("digest") or "")
+        if (item.get("name") == delta_name
+                and item.get("browser_download_url") == f"{ASSET_URL_PREFIX}{tag}/{delta_name}"
+                and _DIGEST_RE.fullmatch(digest) and type(size) is int and 0 < size < asset_size):
+            incremental = {"assetName": delta_name, "downloadUrl": item["browser_download_url"],
+                           "assetSize": size, "assetDigest": digest.lower()}
+            break
+
     notes = str(payload.get("body") or "").strip()
     if len(notes) > 4000:
         notes = notes[:3999] + "…"
@@ -126,6 +143,7 @@ def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[
         "assetName": asset_name,
         "assetSize": asset_size,
         "assetDigest": asset_digest,
+        "incremental": incremental,
         "notes": notes,
         "publishedAt": str(payload.get("published_at") or ""),
     }
@@ -228,11 +246,46 @@ def _helper_source() -> Path:
     return bundled if bundled.is_file() else Path(__file__).with_name("update_install.sh")
 
 
+def _download_archive(url, expected_size, expected_hash, archive_path, notify, transfer, method):
+    request = urllib.request.Request(url, headers={"User-Agent": "MAW-bd-updater"})
+    sha = hashlib.sha256()
+    received = 0
+    started = last_report = time.monotonic()
+    label = "正在下载增量包…" if method == "incremental" else "正在下载全量包…"
+
+    def report():
+        notify(min(85, int(received * 85 / expected_size)), label)
+        if transfer:
+            transfer({"downloadedBytes": received, "totalBytes": expected_size,
+                      "bytesPerSecond": received / max(0.001, time.monotonic() - started),
+                      "method": method})
+
+    report()
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response, archive_path.open("wb") as output:  # noqa: S310 - validated release URL
+            while chunk := response.read(128 * 1024):
+                received += len(chunk)
+                if received > MAX_ARCHIVE_BYTES or received > expected_size:
+                    raise UpdateInstallError("安装包大小与发布信息不符")
+                sha.update(chunk)
+                output.write(chunk)
+                now = time.monotonic()
+                if now - last_report >= 0.2 or received == expected_size:
+                    report()
+                    last_report = now
+    except (OSError, urllib.error.URLError, TimeoutError) as error:
+        raise UpdateInstallError(f"下载新版失败：{error}") from error
+    if received != expected_size or sha.hexdigest() != expected_hash.lower():
+        raise UpdateInstallError("安装包 SHA-256 或大小校验失败")
+
+
 def stage_update(
     release: Mapping[str, object],
     *,
     current_app: Path | None = None,
     progress: Callable[[int, str], None] | None = None,
+    transfer: Callable[[dict[str, object]], None] | None = None,
+    method: str = "auto",
 ) -> dict[str, str]:
     """Download, hash-check and stage a signed app next to the installed one."""
 
@@ -254,34 +307,47 @@ def stage_update(
     try:
         with tempfile.TemporaryDirectory(prefix="stage-", dir=cache) as temp:
             archive_path = Path(temp) / "update.zip"
-            request = urllib.request.Request(url, headers={"User-Agent": "MAW-bd-updater"})
-            sha = hashlib.sha256()
-            received = 0
-            notify(0, "正在下载新版…")
-            try:
-                with urllib.request.urlopen(request, timeout=30) as response, archive_path.open("wb") as output:  # noqa: S310 - fixed release URL + digest
-                    while chunk := response.read(1024 * 1024):
-                        received += len(chunk)
-                        if received > MAX_ARCHIVE_BYTES or received > expected_size:
-                            raise UpdateInstallError("安装包大小与发布信息不符")
-                        sha.update(chunk)
-                        output.write(chunk)
-                        notify(min(85, int(received * 85 / expected_size)), "正在下载新版…")
-            except (OSError, urllib.error.URLError, TimeoutError) as error:
-                raise UpdateInstallError(f"下载新版失败：{error}") from error
-            if received != expected_size or sha.hexdigest() != expected_hash:
-                raise UpdateInstallError("安装包 SHA-256 或大小校验失败")
-            notify(88, "正在验证安装包…")
-            try:
-                with zipfile.ZipFile(archive_path) as archive:
-                    _validate_zip_members(archive)
-            except (OSError, zipfile.BadZipFile) as error:
-                raise UpdateInstallError("安装包 ZIP 格式无效") from error
-            unpacked = Path(temp) / "unpacked"
-            unpacked.mkdir()
-            subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive_path), str(unpacked)], check=True, timeout=180)
-            candidate = unpacked / APP_NAME
-            _validate_app_bundle(candidate, version)
+            candidate = Path(temp) / APP_NAME
+            delta = release.get("incremental")
+            used_delta = False
+            if method not in {"auto", "full"}:
+                raise UpdateInstallError("更新方式无效")
+            if method == "auto" and isinstance(delta, Mapping):
+                try:
+                    current_version = str(release.get("currentVersion") or "")
+                    version_key(current_version)
+                    delta_name = f"MAW-bd-{current_version}-to-{version}-macOS-arm64.delta.zip"
+                    delta_url = f"{ASSET_URL_PREFIX}v{version}/{delta_name}"
+                    delta_size = delta.get("assetSize")
+                    delta_digest = str(delta.get("assetDigest") or "")
+                    if (delta.get("assetName") != delta_name or delta.get("downloadUrl") != delta_url
+                            or type(delta_size) is not int or not 0 < delta_size < expected_size
+                            or not _DIGEST_RE.fullmatch(delta_digest)):
+                        raise UpdateInstallError("增量发布信息无效")
+                    _validate_app_bundle(app, current_version)
+                    _download_archive(delta_url, delta_size, delta_digest.split(":", 1)[1],
+                                      archive_path, notify, transfer, "incremental")
+                    notify(88, "正在重建并验证增量更新…")
+                    apply_delta(app, archive_path, candidate, current_version, version)
+                    _validate_app_bundle(candidate, version)
+                    used_delta = True
+                except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile, UpdateInstallError):
+                    if candidate.exists():
+                        shutil.rmtree(candidate)
+                    notify(0, "增量不可用，已切换为全量下载…")
+            if not used_delta:
+                _download_archive(url, expected_size, expected_hash, archive_path, notify, transfer, "full")
+                notify(88, "正在验证安装包…")
+                try:
+                    with zipfile.ZipFile(archive_path) as archive:
+                        _validate_zip_members(archive)
+                except (OSError, zipfile.BadZipFile) as error:
+                    raise UpdateInstallError("安装包 ZIP 格式无效") from error
+                unpacked = Path(temp) / "unpacked"
+                unpacked.mkdir()
+                subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive_path), str(unpacked)], check=True, timeout=180)
+                candidate = unpacked / APP_NAME
+                _validate_app_bundle(candidate, version)
             notify(94, "正在准备替换应用…")
             subprocess.run(["/usr/bin/ditto", str(candidate), str(staged)], check=True, timeout=180)
             _validate_app_bundle(staged, version)

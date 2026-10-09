@@ -297,7 +297,32 @@
     const le = $('local-engine-wrap');
     const cm = $('cloud-model-wrap');
     if (le) le.hidden = !local;
+    $('btn-model-download').hidden = !local;
     if (cm) cm.hidden = local;
+  }
+
+  async function downloadLocalModel() {
+    const a = api();
+    if (!a?.download_local_model) {
+      setMsg('当前应用不支持模型下载，请使用包含该功能的版本', true);
+      return;
+    }
+    const button = $('btn-model-download');
+    button.disabled = true;
+    try {
+      const result = await a.download_local_model({ localEngine: $('local-engine').value });
+      if (!result?.ok) {
+        setMsg(result?.error || '无法开始模型下载', true);
+        button.disabled = false;
+        return;
+      }
+      setBusy(true);
+      button.textContent = '模型下载 / 校验中…';
+      setMsg('正在准备所选本地模型，可点停止取消；已有缓存会复用');
+    } catch (error) {
+      button.disabled = false;
+      setMsg('无法下载模型：' + String(error), true);
+    }
   }
 
   async function startAsr() {
@@ -420,6 +445,20 @@
     setMsg((res.blank ? '空白编辑器已启动：' : '编辑器已启动：') + url);
   }
 
+  let updateRelease = null;
+  function formatBytes(value) {
+    const bytes = Math.max(0, Number(value) || 0);
+    if (bytes < 1024) return `${bytes.toFixed(0)} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function renderUpdateSize() {
+    if (!updateRelease) return;
+    const delta = $('update-method').value === 'auto' && updateRelease.incremental;
+    $('update-size').textContent = delta
+      ? `增量包 ${formatBytes(delta.assetSize)} · 全量包 ${formatBytes(updateRelease.assetSize)}`
+      : `全量包 ${formatBytes(updateRelease.assetSize)}${$('update-method').value === 'auto' ? ' · 当前版本无可用增量包' : ''}`;
+  }
   function renderUpdate(result, manual) {
     const banner = $('update-banner');
     if (!result || !result.ok) {
@@ -432,6 +471,9 @@
       if (manual) setMsg('当前已是最新版本 v' + result.currentVersion);
       return;
     }
+    updateRelease = result;
+    renderUpdateSize();
+    $('update-transfer').textContent = '';
     $('update-title').textContent = `发现新版本 v${result.latestVersion}`;
     $('update-notes').textContent = result.notes || '新版本已经发布。';
     $('btn-update-download').textContent = result.downloadUrl && result.assetDigest
@@ -472,12 +514,13 @@
     button.disabled = true;
     try {
       if (button.textContent.startsWith('一键安装') && a.install_update) {
-        const result = await a.install_update({});
+        const result = await a.install_update({ method: $('update-method').value });
         if (!result?.ok) {
           setMsg(result?.error || '无法开始更新', true);
           return;
         }
         updateInstalling = true;
+        $('update-method').disabled = true;
         button.textContent = '正在下载…';
         setMsg('正在下载并验证新版，完成后会自动重启安装');
         return;
@@ -502,6 +545,7 @@
     $('btn-media').addEventListener('click', chooseMedia);
     $('btn-save-config').addEventListener('click', saveConfig);
     $('btn-asr').addEventListener('click', startAsr);
+    $('btn-model-download').addEventListener('click', downloadLocalModel);
     $('btn-revise').addEventListener('click', startRevise);
     $('btn-gpt-prompt').addEventListener('click', generateGptPrompt);
     $('btn-copy-gpt-prompt').addEventListener('click', copyGptPrompt);
@@ -510,6 +554,7 @@
     $('btn-media-editor')?.addEventListener('click', openMediaEditor);
     $('btn-update')?.addEventListener('click', () => checkForUpdates({ manual: true }));
     $('btn-update-download')?.addEventListener('click', openUpdatePage);
+    $('update-method')?.addEventListener('change', renderUpdateSize);
     $('btn-update-dismiss')?.addEventListener('click', () => { $('update-banner').hidden = true; });
     $('btn-manuscript').addEventListener('click', openManuscriptDialog);
     $('btn-clear-manuscript').addEventListener('click', clearManuscript);
@@ -571,7 +616,11 @@
     const detail = event.detail || {};
     if (detail.message) setMsg(detail.message + (detail.error ? ' · ' + detail.error : ''), !!detail.error);
     if (detail.stepProgress) setStepProgress(detail.stepProgress);
-    if (!detail.busy && (detail.step === 'asr_done' || detail.step === 'revise_done' || detail.step === 'error')) {
+    if (detail.step === 'model_download' || detail.step === 'model_download_done' || !detail.busy) {
+      $('btn-model-download').disabled = !!detail.busy;
+      $('btn-model-download').textContent = detail.busy ? '模型下载 / 校验中…' : '下载 / 检查本地模型';
+    }
+    if (!detail.busy && (detail.step === 'model_download_done' || detail.step === 'idle' || detail.step === 'asr_done' || detail.step === 'revise_done' || detail.step === 'error')) {
       setBusy(false);
       refresh();
     }
@@ -580,10 +629,15 @@
   window.addEventListener('focusUpdate', (event) => {
     const detail = event.detail || {};
     const button = $('btn-update-download');
+    if (Number.isFinite(detail.totalBytes)) {
+      $('update-transfer').textContent = `${detail.method === 'incremental' ? '增量包' : '全量包'} · 已下载 ${formatBytes(detail.downloadedBytes)} / ${formatBytes(detail.totalBytes)} · 平均速度 ${formatBytes(detail.bytesPerSecond)}/s`;
+      return;
+    }
     if (detail.error) {
       updateInstalling = false;
       button.disabled = false;
-      button.textContent = '重试更新';
+      button.textContent = '一键安装（重试）';
+      $('update-method').disabled = false;
       setMsg(detail.message || '更新失败', true);
       return;
     }
