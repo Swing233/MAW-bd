@@ -80,9 +80,9 @@ test('quick start teaches WASD, real merge with undo, then real split', async ({
   await expect(page.locator('#onboarding-title')).toHaveText('按 C 合并字幕');
   await page.keyboard.press('c');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(5);
-  await expect(page.locator('#onboarding-title')).toHaveText('Ctrl+Z：撤销刚才的合并');
+  await expect(page.locator('#onboarding-title')).toHaveText('Cmd+Z：撤销刚才的合并');
 
-  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('Meta+Z');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(6);
   await expect(page.locator('#onboarding-title')).toHaveText('合并已撤销');
   await expect(page.locator('#onboarding-primary')).toHaveText('下一步');
@@ -134,7 +134,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('help-toggle');
   const helpPanel = page.locator('#help-panel');
   await expect(helpPanel).toHaveClass(/show/);
-  await expect(helpPanel.getByRole('tab')).toHaveText(['基础操作', '快捷操作', '波形区', '播放与导航', '微调字幕', '空隙操作', '批量操作']);
+  await expect(helpPanel.getByRole('tab')).toHaveText(['基础操作', '快捷操作', '波形区', '播放与导航', '微调字幕', '批量操作']);
   await expect(helpPanel.getByRole('tab').first()).toHaveCSS('font-size', '13px');
   await expect(helpPanel.locator('.editor-settings-nav')).toHaveAttribute('aria-orientation', 'vertical');
   await expect(helpPanel.locator('.help-nav-group-label')).toHaveText('进阶');
@@ -149,10 +149,10 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(basicPanel.locator('.help-tip-callout')).toContainText('其实就是用 WASD 啦，从字幕列表看是上下跳，从波形区看是左右跳 😝');
   await expect(basicPanel.locator('.help-tip-callout')).toHaveCSS('margin-top', '8px');
   await expect(basicPanel.locator('.help-tip-text')).toHaveCSS('font-size', '12px');
-  await expect(basicPanel).toContainText('Ctrl+Z');
-  await expect(basicPanel).toContainText('Ctrl+Shift+Z');
+  await expect(basicPanel).toContainText('Cmd+Z');
+  await expect(basicPanel).toContainText('Cmd+Shift+Z');
   await expect(basicPanel).toContainText('WASD');
-  await expect(basicPanel).toContainText('Ctrl+Shift+A/D');
+  await expect(basicPanel).toContainText('Cmd+Shift+A/D');
   await helpPanel.getByRole('tab', { name: '快捷操作', exact: true }).click();
   const shortcutsPanel = helpPanel.locator('#help-tab-panel-shortcuts');
   await expect(shortcutsPanel).toBeVisible();
@@ -166,11 +166,11 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(waveformPanel).toBeVisible();
   await expect(helpPanel.getByRole('tab', { name: '波形区', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(waveformPanel.locator('.help-subtitle')).toHaveText(['空白波形区', '波形区字幕操作']);
-  await expect(waveformPanel).toContainText('按当前时间基准拆分字幕');
+  await expect(waveformPanel).toContainText('在文字光标处拆分');
   await expect(waveformPanel).not.toContainText('红色播放指针');
   await expect(waveformPanel.locator('.help-important').filter({ hasText: '拖拽空白处' })).toHaveCount(1);
-  await expect(waveformPanel.locator('.help-important').filter({ hasText: '绑定到主副字幕（自动匹配）' })).toHaveCount(1);
-  await expect(waveformPanel.locator('.help-important').filter({ hasText: '将选中的副字幕的时长对齐到绑定主字幕' })).toHaveCount(1);
+  await expect(waveformPanel).not.toContainText('双语字幕');
+
   await helpPanel.getByRole('tab', { name: '微调字幕', exact: true }).click();
   const fineTuningPanel = helpPanel.locator('#help-tab-panel-fine-tuning');
   await expect(fineTuningPanel).toBeVisible();
@@ -178,32 +178,7 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(fineTuningPanel.locator('.help-subtitle')).toHaveText(['选中字幕', '按住字幕']);
   await expect(fineTuningPanel).toContainText('无选中时作用于鼠标所在字幕');
   await expect(fineTuningPanel.locator('#help-open-keyboard-settings')).toHaveText('⚙️全局设置');
-  await helpPanel.getByRole('tab', { name: '空隙操作', exact: true }).click();
-  const gapPanel = helpPanel.locator('#help-tab-panel-gap');
-  await expect(gapPanel).toBeVisible();
-  await expect(gapPanel.locator('.help-title')).toHaveText(['空隙操作']);
-  await expect(gapPanel.locator('.help-subgroup')).toHaveCount(4);
-  await expect(gapPanel.locator('.help-subtitle')).toHaveText(['空隙状态', '移动与调整', '清理空隙', '批量操作']);
-  await expect(helpPanel.locator('.help-title')).toHaveText(['基础操作', '快捷操作', '波形区操作', '双语字幕', '波形外观调整', '微调字幕', '空隙操作', '批量操作', '播放与导航']);
-  await expect(helpPanel).toContainText('波形区字幕操作');
-  await expect(helpPanel).toContainText('波形外观调整');
-  await expect(helpPanel).toContainText('空隙操作');
-  await expect(helpPanel).toContainText('切换空隙的启用/禁用状态');
-  await expect(helpPanel).toContainText('添加新的移除空隙');
-  await expect(helpPanel).toContainText('（也可以在右键中选择「添加空隙」）');
-  await expect(helpPanel).toContainText('Alt+左键拖动');
-  await expect(helpPanel).toContainText('移动与调整');
-  await expect(helpPanel).toContainText('批量操作');
-  await expect(helpPanel).toContainText('右侧显示可禁用数量');
-  await expect(helpPanel).toContainText('在空隙上右键选择「清理空隙」');
-  await expect(helpPanel.locator('#help-open-gap-remove-panel')).toHaveText('静音空隙');
-  await expect(helpPanel).toContainText('中点击「全部清理」');
-  await expect(gapPanel).toContainText('仅在拖动边界模式生效');
-  await expect(gapPanel).toContainText('仅在中键拖动模式生效');
-  await expect(gapPanel).toContainText('具体操作取决于');
-  await expect(gapPanel.locator('#help-open-gap-settings')).toHaveText('⚙️全局设置');
-  await expect(gapPanel).toContainText('「通用操作」中的「空隙区段操作方式」，其中「边界与中键」可同时使用两套操作。');
-  await expect(gapPanel.locator('.help-important').filter({ hasText: 'Alt+左键拖动' })).toHaveCount(1);
+  await expect(helpPanel.locator('#help-tab-gap,#help-tab-panel-gap')).toHaveCount(0);
   await helpPanel.getByRole('tab', { name: '批量操作', exact: true }).click();
   const batchPanel = helpPanel.locator('#help-tab-panel-batch');
   await expect(batchPanel).toBeVisible();
@@ -225,21 +200,10 @@ test('quick start can be skipped and replayed from Help', async ({ page }) => {
   await expect(page.locator('#onboarding-title')).toHaveText('使用 WASD 选择前后字幕——就像游戏一样！');
 });
 
-test('Gap help translates the updated operations in English', async ({ page }) => {
+test('retired silence gap help is absent in English', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mawe.language', 'en'));
-  await page.goto(server.url);
-  await page.locator('#help-toggle').click();
-  await page.getByRole('tab', { name: 'Gap operations', exact: true }).click();
-
-  const gapHelp = page.locator('#help-tab-panel-gap');
-  await expect(gapHelp.locator('.help-subtitle')).toHaveText(['Gap states', 'Movement and adjustment', 'Clear gap', 'Batch actions']);
-  await expect(gapHelp).toContainText('Alt+left-drag');
-  await expect(gapHelp).toContainText('Add a new removed gap');
-  await expect(gapHelp).toContainText('Batch actions');
-  await expect(gapHelp).toContainText('Right-click a gap and choose “Clear gap” to clear the current gap');
-  await expect(gapHelp.locator('#help-open-gap-remove-panel')).toHaveText('Silent gaps');
-  await expect(gapHelp).toContainText('”, click “Clear all” to clear all gaps');
-  expect(await gapHelp.innerText()).not.toMatch(/[\u3400-\u9fff]/u);
+  await page.goto(server.url);await page.locator('#help-toggle').click();
+  await expect(page.locator('#help-tab-gap,#help-tab-panel-gap,#gap-remove-manage')).toHaveCount(0);
 });
 
 test('quick start translates dynamically rendered steps in English', async ({ page }) => {
@@ -265,10 +229,10 @@ test('quick start translates dynamically rendered steps in English', async ({ pa
   await expect(page.locator('#onboarding-title')).toHaveText('Press C to merge subtitles');
   await page.keyboard.press('c');
   await expect.poll(() => page.evaluate(() => DATA.segments.length)).toBe(5);
-  await expect(page.locator('#onboarding-title')).toHaveText('Ctrl+Z: undo the merge you just made');
+  await expect(page.locator('#onboarding-title')).toHaveText('Cmd+Z: undo the merge you just made');
   await expectEnglish();
 
-  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('Meta+Z');
   await expect(page.locator('#onboarding-title')).toHaveText('Merge undone');
   await page.locator('#onboarding-primary').click();
   await expect(page.locator('#onboarding-title')).toHaveText('Finally: split a subtitle at the cursor');
@@ -276,4 +240,13 @@ test('quick start translates dynamically rendered steps in English', async ({ pa
   await expect(page.locator('#onboarding-primary')).toBeHidden();
   await expectEnglish();
   await page.locator('#onboarding-secondary').click();
+});
+
+
+test('Help setting shortcuts open their real target panels',async({page})=>{
+ await page.goto(server.url);await page.keyboard.press('Escape');await page.locator('#help-toggle').click();
+ await page.locator('#help-tab-waveform').click();await page.locator('#help-open-waveform-settings').click();await expect(page.locator('#waveform-settings-panel')).toBeVisible();await page.evaluate(()=>setWaveformSettingsPanelOpen(false));
+ await page.locator('#help-tab-fine-tuning').click();await page.locator('#help-open-keyboard-settings').click();await expect(page.locator('#editor-settings-panel')).toBeVisible();await expect(page.locator('#editor-settings-tab-general')).toHaveAttribute('aria-selected','true');await page.locator('#editor-settings-close').click();
+ await page.locator('#help-tab-playback').click();await page.locator('#help-open-media-settings').click();await expect(page.locator('#editor-settings-tab-subtitle-preview')).toHaveAttribute('aria-selected','true');await page.locator('#editor-settings-close').click();
+ await expect(page.locator('#help-tab-gap,#help-open-gap-remove-panel')).toHaveCount(0);
 });

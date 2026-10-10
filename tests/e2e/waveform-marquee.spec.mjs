@@ -67,6 +67,12 @@ async function configureBasicMode(page) {
 }
 
 async function waitForWaveformCues(page) {
+  // The new-project workspace is multi-row; these geometry scenarios explicitly
+  // exercise the single-row renderer rather than depend on the default preset.
+  await page.evaluate(() => {
+    Object.assign(waveformEditor.settings, {mode:'basic', visibleSeconds:12, rowHeight:96});
+    waveformEditor.render();
+  });
   await page.waitForSelector('.waveform-cue-block', { state: 'visible', timeout: 15_000 });
 }
 

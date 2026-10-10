@@ -2393,7 +2393,6 @@ test('拼合主字幕时同步延展绑定副字幕并支持撤销', async ({ pa
 
   await page.locator('#auto-merge-manage').click();
   await page.locator('#auto-merge-gap-ms').fill('200');
-  await page.locator('#auto-merge-absorb-short').uncheck();
   await page.locator('#auto-merge-run').click();
 
   const secondRow = page.locator('.multi-dual-cue').filter({ hasText: '第二句' });

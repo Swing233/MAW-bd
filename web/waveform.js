@@ -577,7 +577,9 @@
   }
 
   function normalizeLayoutData(value) {
-    const source = value && typeof value === 'object' ? value : {};
+    // New projects use subtitle-list editing; saved projects keep their explicit layout.
+    const source = value && typeof value === 'object' && Object.keys(value).length
+      ? value : BUILTIN_WORKSPACES.classic;
     const preset = RENDERER_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
     const rows = normalizeLayoutRows(source.rows);
     const columnPercent = clamp(Number(source.columnPercent) || DEFAULT_SETTINGS.layoutColumnPercent, 30, 75);
@@ -2481,7 +2483,7 @@
 
     resetLayout() {
       this.recordLayoutUndo('重置工作区');
-      this.setLayout(DEFAULT_SETTINGS.layout);
+      this.setLayout('classic');
       this.setStatus('已恢复默认工作区');
     }
 
@@ -3220,13 +3222,14 @@
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在
         // 可视区内的行，不能使用 createRow 时捕获的旧值。
-        if (event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
+        if (this.options.silenceGapEditingEnabled !== false && event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
           this.beginGapRangeDrag(event, row);
           return;
         }
         // Alt+左键拖动空白处：用与中键增加静音相同的范围操作，
         // 这样不需要切换到“中键拖动”模式也能快速新增空隙。
         if (
+          this.options.silenceGapEditingEnabled !== false &&
           event.button === 0 &&
           event.altKey &&
           !event.ctrlKey &&
@@ -3325,7 +3328,7 @@
         this.cancelHoverSeekPreview();
       });
       row.addEventListener('auxclick', (event) => {
-        if (event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
+        if (this.options.silenceGapEditingEnabled !== false && event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
           event.preventDefault();
         }
       });
@@ -3438,8 +3441,10 @@
       const threshold = this.options.getSubtitleGapHighlightMs?.() || 0;
       if (!threshold || !window.MaweReview) return;
       const segments = this.options.getSegments('main');
-      for (const gap of window.MaweReview.gapPlan(segments, null, threshold)) {
-        if (gap.gap >= threshold || gap.end <= startMs || gap.oldEnd >= endMs) continue;
+      const highlights = this.options.getSubtitleGapHighlights?.()
+        ?? window.MaweReview.gapPlan(segments, null, threshold).filter(gap => gap.gap < threshold);
+      for (const gap of highlights) {
+        if (gap.end <= startMs || gap.oldEnd >= endMs) continue;
         const marker = document.createElement('div');
         marker.className = 'waveform-subtitle-gap-highlight';
         marker.dataset.index = String(gap.index); marker.dataset.gapMs = String(gap.gap);
@@ -3492,7 +3497,7 @@
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
         // 短块内文字会被截断，悬浮 title 给出完整字幕文本
         block.title = label.textContent;
-        const badges = this.settings.showGroupBadges !== false ? badgesByIndex.get(index) : null;
+        const badges = this.settings.showGroupBadges !== false ? badgesByIndex.get(index)?.filter(badge => badge.type !== 'sticker') : null;
         if (badges?.length) {
           // 徽章挂在行上、块上方（不遮挡块内文字）；短字幕也保留最小显示空间，
           // 让分组提示可以正常出现。
@@ -3598,7 +3603,7 @@
           this.layoutBlock(block, segment, startMs, endMs, row);
           // cover 模式（行高不足）下叠加块盖住主块与徽章区，不渲染叠加徽章。
           const overlayBadgesForIndex = !overlayCoverMode && this.settings.showGroupBadges !== false
-            ? overlayBadges?.get(index) : null;
+            ? overlayBadges?.get(index)?.filter(badge => badge.type !== 'sticker') : null;
           if (overlayBadgesForIndex?.length) {
             const badgeDuration = Math.max(1, endMs - startMs);
             const badgeVisibleStart = Math.max(startMs, segment.start);
@@ -5637,6 +5642,7 @@
     }
 
     beginGapRangeDrag(event, row, { removed = !event.altKey } = {}) {
+      if (this.options.silenceGapEditingEnabled === false) return;
       event.preventDefault();
       event.stopPropagation();
       const startMs = this.gapRangePointerTime(event, row);

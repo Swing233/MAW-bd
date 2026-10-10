@@ -426,7 +426,8 @@ function getExtensionTrack(trackId = null) {
 }
 
 function getActiveExtensionTrack() {
-  return getExtensionTrack();
+  // Legacy extension data remains serializable, but this edition edits one track.
+  return null;
 }
 
 function multiSubtitleVisible() {
@@ -435,10 +436,7 @@ function multiSubtitleVisible() {
 
 // 多重字幕关闭时轨道数据仍保留在工程里，但副字幕不参与 ASS 预览与导出；
 // 与 multiSubtitleVisible() 的开合语义保持一致。
-function activeExtensionSegments() {
-  if (getMultiSubtitleState().enabled !== true) return [];
-  return getActiveExtensionTrack()?.segments || [];
-}
+function activeExtensionSegments() { return []; }
 
 function isConfiguredSubtitleSplitMode(value) {
   return MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SPLIT_MODES.has(value);
@@ -1649,7 +1647,8 @@ function formatTimelineMilliseconds(ms) {
   return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(3).padStart(6, '0')}`;
 }
 
-syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase?.unit === 'frames' });
+window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
 
 // 标记颜色：5 种基础色，用于给字幕分组着色。
 // 数据模型与表情包同构：head 持完整 color {name, value, start, end}，后续 ref 持 color_ref {name, headIdx}
@@ -2093,7 +2092,7 @@ function historyGuarded() {
       || stickerPreviewModal.classList.contains('show')
       || projectMediaModal.classList.contains('show')
       || assStyleWindow?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show');
+      || document.getElementById('sticker-root-modal')?.classList.contains('show');
 }
 const undoBtn = document.getElementById('undo-btn');
 const redoBtn = document.getElementById('redo-btn');
@@ -2107,10 +2106,13 @@ updateUndoRedoButtons();
 const nowEl = document.getElementById('now');
 const searchEl = document.getElementById('search');
 const visibleCountEl = document.getElementById('visible-count');
-let proofreadFilterId = 'all';
+const proofreadFilterIds = new Set();
 const proofreadFilterDropdown = document.getElementById('proofread-filter-dropdown');
 const proofreadFilterButton = document.getElementById('proofread-filter-btn');
 const proofreadFilterMenu = document.getElementById('proofread-filter-menu');
+const listFilterControls = [document.getElementById('filter-over'),
+  document.getElementById('charcount-threshold')?.closest('label'),
+  document.getElementById('hide-disabled-toggle')?.closest('label')];
 
 let proofreadHoverAnchor = null;
 let proofreadHideTimer = null;
@@ -2151,7 +2153,8 @@ function renderProofreadPanel(segment, anchor = null) {
   anchor.setAttribute('aria-describedby', panel.id);
   document.body.appendChild(panel);
   panel.classList.add('proofread-hover-panel');
-  panel.setAttribute('role', 'tooltip');
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', '校对详情');
   const detail = window.MaweProofread.renderDetail(segment);
   const has = Boolean(segment && (detail.status || detail.scriptText || detail.asrOriginal
     || detail.secondaryAsr || detail.corrected || detail.reason));
@@ -2197,6 +2200,33 @@ function renderProofreadPanel(segment, anchor = null) {
       }
     }
   }
+  const actions = document.getElementById('proofread-suggestion-actions');
+  const row = window.MaweReview.rowsFromSegments(DATA.segments).find(item => DATA.segments[item.index] === segment);
+  if (actions) {
+    actions.hidden = !row;
+    if (row) {
+      document.getElementById('proofread-suggestion-state').textContent = row.locked ? '人工修改受保护'
+        : ({ accepted: '已采用建议', rejected: '已保留原文', pending: '待选择' }[row.state] || '待选择');
+      for (const [id, accepted] of [['proofread-suggestion-accept', true], ['proofread-suggestion-keep', false]]) {
+        const button = document.getElementById(id);
+        button.disabled = row.locked;
+        button.onclick = event => {
+          event.stopPropagation();
+          if (editingState) finishEdit(true);
+          commitCuePanelEdit();
+          const choices = [{ index: row.index, accepted }];
+          try {
+            window.MaweReview.validateDecisions(DATA.segments, [row], choices);
+            pushUndo('选择 LLM 校对建议', { captureView: true });
+            window.MaweReview.applyDecisions(DATA.segments, [row], choices);
+            hideProofreadHover();
+            scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
+            flashHint(accepted ? '已采用建议，可撤销' : '已保留原文，可撤销', 'success');
+          } catch (error) { flashHint(error.message, 'error'); }
+        };
+      }
+    }
+  }
   const rect = anchor.getBoundingClientRect();
   const size = panel.getBoundingClientRect();
   panel.style.left = `${Math.max(8, Math.min(innerWidth - size.width - 8, rect.left))}px`;
@@ -2204,33 +2234,15 @@ function renderProofreadPanel(segment, anchor = null) {
     ? rect.bottom + 6 : Math.max(8, rect.top - size.height - 6)}px`;
 }
 
-function openEditorProofreadReview() {
-  if (editingState) finishEdit(true);
-  commitCuePanelEdit();
-  const rows = window.MaweReview.rowsFromSegments(DATA.segments);
-  window.MaweReview.open({ rows, onLocate: row => {
-    selectOnly(row.index);
-    player.currentTime = row.start / 1000;
-    waveformEditor?.revealTime(row.start, true);
-  }, onApply: choices => {
-    window.MaweReview.validateDecisions(DATA.segments, rows, choices);
-    if (!choices.length) return;
-    pushUndo('审查 LLM 校对', { captureView: true });
-    window.MaweReview.applyDecisions(DATA.segments, rows, choices);
-    scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
-    flashHint('审查结果已应用，可撤销', 'success');
-  }});
-}
-document.getElementById('llm-review-btn')?.addEventListener('click', openEditorProofreadReview);
-
-let subtitleGapHighlightMs = 0;
+let subtitleGapHighlightMs = 200;
 try {
-  const saved = Number(localStorage.getItem('maw.subtitleGapHighlightMs'));
+  const raw = localStorage.getItem('maw.subtitleGapHighlightMs');
+  const saved = raw === null ? 200 : Number(raw);
   if (Number.isInteger(saved) && saved >= 0) subtitleGapHighlightMs = saved;
-} catch (_) { /* Settings unavailable: use visual highlighting disabled. */ }
+} catch (_) { /* Settings unavailable: keep the default visual threshold. */ }
 function openSubtitleGapHighlight() {
   const previous = document.getElementById('subtitle-gap-highlight-dialog');
-  if (previous?.open) return;
+  if (previous?.open) { previous.close(); return; }
   previous?.remove();
   const dialog = document.createElement('dialog'); dialog.id = 'subtitle-gap-highlight-dialog';
   dialog.className = 'mawe-dialog gap-dialog';
@@ -2262,27 +2274,79 @@ function openSubtitleGapHighlight() {
 }
 document.getElementById('subtitle-gap-highlight-btn')?.addEventListener('click', openSubtitleGapHighlight);
 
+// Button-anchored tools stay in the document layer and never dim the editor.
+let activeSubtitleToolPanel = null;
+function positionSubtitleToolPanel() {
+  if (!activeSubtitleToolPanel) return;
+  const { panel, anchor } = activeSubtitleToolPanel;
+  const rect = anchor.getBoundingClientRect();
+  const top = rect.bottom + 6;
+  panel.style.maxHeight = `${Math.max(64, innerHeight - top - 8)}px`;
+  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - panel.offsetWidth - 8))}px`;
+  panel.style.top = `${top}px`;
+}
+function showSubtitleToolPanel(panel, anchor, close) {
+  const previous = activeSubtitleToolPanel;
+  previous?.close(); previous?.anchor.setAttribute('aria-expanded', 'false');
+  activeSubtitleToolPanel = { panel, anchor, close };
+  panel.classList.add('subtitle-tool-panel');
+  anchor.setAttribute('aria-expanded', 'true');
+  positionSubtitleToolPanel();
+}
+function clearSubtitleToolPanel(panel) {
+  if (activeSubtitleToolPanel?.panel !== panel) return;
+  activeSubtitleToolPanel.anchor.setAttribute('aria-expanded', 'false');
+  activeSubtitleToolPanel = null;
+}
+window.addEventListener('resize', positionSubtitleToolPanel);
+window.addEventListener('scroll', positionSubtitleToolPanel, true);
+document.addEventListener('pointerdown', event => {
+  const active = activeSubtitleToolPanel;
+  if (active && !active.panel.contains(event.target) && !active.anchor.contains(event.target)) active.close();
+}, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !activeSubtitleToolPanel) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  const active = activeSubtitleToolPanel; active.close(); active.anchor.focus();
+}, true);
+
+function subtitleGapPlan(indices, limit) {
+  if (!timelineIsFrameMode()) return window.MaweReview.gapPlan(DATA.segments, indices, limit);
+  const timing = timelineTimingAdapter();
+  const frameSegments = DATA.segments.map(segment => ({
+    ...segment, start: timing.getStart(segment), end: timing.getEnd(segment),
+  }));
+  return window.MaweReview.gapPlan(frameSegments, indices, limit).map(change => ({
+    ...change, gapFrames: change.gap,
+    oldEnd: DATA.segments[change.index].end,
+    end: DATA.segments[change.index + 1].start,
+    gap: DATA.segments[change.index + 1].start - DATA.segments[change.index].end,
+  }));
+}
+
 function openSubtitleGapClose() {
   const previous = document.getElementById('subtitle-gap-close-dialog');
-  if (previous?.open) return;
+  if (previous?.open) { previous.close(); return; }
   previous?.remove();
   if (editingState) finishEdit(true);
   commitCuePanelEdit();
   const dialog = document.createElement('dialog');
-  dialog.id = 'subtitle-gap-close-dialog'; dialog.className = 'mawe-dialog gap-dialog';
+  dialog.id = 'subtitle-gap-close-dialog'; dialog.className = 'mawe-dialog gap-dialog subtitle-tool-panel';
+  dialog.setAttribute('aria-modal', 'false');
   dialog.setAttribute('aria-labelledby', 'subtitle-gap-close-title');
-  dialog.innerHTML = `<header><h3 id="subtitle-gap-close-title">消除字幕空隙</h3></header><p class="dialog-description">只延长前一条字幕的结束时间到后一条开始。不合并文字，不移动音频，不删除时间线内容。</p>
-    <label>最大空隙（毫秒） <input id="subtitle-gap-max" type="number" min="0" step="1" value="200"></label>
+  dialog.innerHTML = `<header><h3 id="subtitle-gap-close-title">消除字幕空隙</h3><button type="button" id="subtitle-gap-dismiss" aria-label="关闭消除字幕空隙">×</button></header><p class="dialog-description">只延长前一条字幕的结束时间到后一条开始。不合并文字，不移动音频，不删除时间线内容。</p>
+    <label>最大空隙（${timelineIsFrameMode() ? '帧' : '毫秒'}） <input id="subtitle-gap-max" type="number" min="0" step="1" value="200"></label>
     <label>处理范围 <select id="subtitle-gap-scope"><option value="selected">选中的相邻字幕</option><option value="all">全部主字幕</option></select></label>
     <p id="subtitle-gap-summary" class="dialog-summary" role="status"></p><div id="subtitle-gap-preview" class="gap-preview"></div>
     <footer><button id="subtitle-gap-cancel">取消</button><button id="subtitle-gap-apply" class="primary">应用</button></footer>`;
   const limit = dialog.querySelector('#subtitle-gap-max'), scope = dialog.querySelector('#subtitle-gap-scope');
+  if (timelineIsFrameMode()) limit.value = String(frameNumberFromMilliseconds(200, projectTimebase().fps));
   scope.value = selectedIdxs.size >= 2 ? 'selected' : 'all';
   const summary = dialog.querySelector('#subtitle-gap-summary'), preview = dialog.querySelector('#subtitle-gap-preview');
   const apply = dialog.querySelector('#subtitle-gap-apply');
   function plan() {
     if (!limit.value.trim()) throw new Error('请输入最大空隙');
-    return window.MaweReview.gapPlan(DATA.segments, scope.value === 'selected' ? [...selectedIdxs] : null, Number(limit.value));
+    return subtitleGapPlan(scope.value === 'selected' ? [...selectedIdxs] : null, Number(limit.value));
   }
   function render() {
     preview.replaceChildren();
@@ -2309,46 +2373,68 @@ function openSubtitleGapClose() {
   });
   dialog.querySelector('#subtitle-gap-cancel').addEventListener('click', () => dialog.close());
   dialog.addEventListener('keydown', event => event.stopPropagation());
-  dialog.addEventListener('close', () => dialog.remove());
-  document.body.appendChild(dialog); render(); dialog.showModal();
+  dialog.querySelector('#subtitle-gap-dismiss').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => { clearSubtitleToolPanel(dialog); dialog.remove(); });
+  document.body.appendChild(dialog); render(); dialog.show();
+  showSubtitleToolPanel(dialog, document.getElementById('subtitle-gap-close-btn'), () => dialog.close());
 }
 document.getElementById('subtitle-gap-close-btn')?.addEventListener('click', openSubtitleGapClose);
 
 function buildProofreadFilterMenu() {
   if (!proofreadFilterMenu || !window.MaweProofread) return;
   proofreadFilterMenu.replaceChildren();
+  const heading = text => { const el=document.createElement('div'); el.className='menu-section-label'; el.textContent=text; el.setAttribute('role','presentation'); proofreadFilterMenu.appendChild(el); };
   window.MaweProofread.FILTERS.forEach((item) => {
+    if (item.id === 'verified') heading('校对状态');
+    if (item.id === 'digits') heading('字幕内容');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'dropdown-item proofread-filter-item' + (proofreadFilterId === item.id ? ' active' : '');
+    const selected = item.id === 'all' ? !proofreadFilterIds.size : proofreadFilterIds.has(item.id);
+    btn.className = 'dropdown-item proofread-filter-item' + (selected ? ' active' : '');
     btn.dataset.filter = item.id;
-    btn.setAttribute('role', 'menuitem');
+    btn.setAttribute('role', 'menuitemcheckbox');
+    btn.setAttribute('aria-checked', String(selected));
     btn.textContent = item.label;
-    btn.addEventListener('click', () => {
-      proofreadFilterId = item.id;
-      if (proofreadFilterButton) {
-        proofreadFilterButton.textContent = item.id === 'all' ? '校对' : `校对·${item.label}`;
-        proofreadFilterButton.classList.toggle('filter-active', item.id !== 'all');
-      }
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      cueFilterSnapshot.clear();
+      if (item.id === 'all') proofreadFilterIds.clear();
+      else if (proofreadFilterIds.has(item.id)) proofreadFilterIds.delete(item.id);
+      else proofreadFilterIds.add(item.id);
+      const labels = window.MaweProofread.FILTERS.filter(filter => proofreadFilterIds.has(filter.id)).map(filter => filter.label);
+      proofreadFilterButton.textContent = labels.length === 1 ? `审阅·${labels[0]}` : labels.length ? `审阅·${labels.length}项` : '审阅';
+      proofreadFilterButton.title = labels.length ? `已选：${labels.join('、')}` : '按校验状态和内容筛选字幕';
+      proofreadFilterButton.classList.toggle('filter-active', labels.length > 0);
       buildProofreadFilterMenu();
+      proofreadFilterMenu.querySelector(`[data-filter="${item.id}"]`)?.focus();
+      positionProofreadFilterMenu();
       applySearch(searchEl?.value || '');
     });
     proofreadFilterMenu.appendChild(btn);
   });
+  const hint = document.createElement('p'); hint.className = 'review-filter-hint'; hint.textContent = '状态任选其一；内容条件同时满足。全部清除条件。'; proofreadFilterMenu.appendChild(hint);
+  heading('长度与可见性');
+  listFilterControls.filter(Boolean).forEach(control=>proofreadFilterMenu.appendChild(control));
+  const longButton=listFilterControls[0];
+  longButton.classList.add('dropdown-item'); longButton.setAttribute('role','menuitemcheckbox');
+  longButton.setAttribute('aria-checked',String(longButton.classList.contains('active')));
 }
 
-if (proofreadFilterButton && proofreadFilterMenu) {
-  buildProofreadFilterMenu();
-  proofreadFilterButton.addEventListener('click', () => {
-    const open = proofreadFilterDropdown.classList.toggle('open');
-    proofreadFilterButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-  document.addEventListener('click', (event) => {
-    if (!proofreadFilterDropdown?.contains(event.target)) {
-      proofreadFilterDropdown.classList.remove('open');
-      proofreadFilterButton.setAttribute('aria-expanded', 'false');
-    }
-  });
+buildProofreadFilterMenu();
+proofreadFilterMenu?.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !event.target.closest('input')) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  proofreadFilterDropdown.classList.remove('open'); proofreadFilterButton.setAttribute('aria-expanded','false'); proofreadFilterButton.focus();
+}, true);
+function positionProofreadFilterMenu() {
+  if (!proofreadFilterDropdown?.classList.contains('open')) return;
+  const rect = proofreadFilterButton.getBoundingClientRect();
+  const menu = proofreadFilterMenu;
+  menu.style.maxHeight = `${Math.max(100, innerHeight - 16)}px`;
+  const width = menu.offsetWidth, height = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`;
+  const top = rect.bottom + height + 6 <= innerHeight - 8 ? rect.bottom + 6 : rect.top - height - 6;
+  menu.style.top = `${Math.max(8, top)}px`;
 }
 const totalCountEl = document.getElementById('total-count');
 const selCountEl = document.getElementById('sel-count');
@@ -2775,9 +2861,6 @@ const autoMergeManageButton = document.getElementById('auto-merge-manage');
 const autoMergeRunButton = document.getElementById('auto-merge-run');
 const autoMergeGapMsInput = document.getElementById('auto-merge-gap-ms');
 const autoMergeSnapDirectionSelect = document.getElementById('auto-merge-snap-direction');
-const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-short');
-const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
-const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
 const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
@@ -2901,7 +2984,7 @@ document.addEventListener('keydown', event => {
   if (!action) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  if (action.startsWith('nav')) { handleSubtitleNavigationShortcut(event, action); return; }
+  if (action.startsWith('nav')) { handleSubtitleNavigationShortcut(event, action); window.MAWE_ONBOARDING?.afterNavigation(event, action); return; }
   if (event.repeat) return;
   if (action === 'start' || action === 'end') handlePointerBoundaryShortcut(event, action);
   else if (action === 'split') handleEditingSplitShortcut(event);
@@ -3916,14 +3999,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   container.classList.toggle('hide-disabled', hideDisabled);
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
-  // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
-  // 分配首个表情包时由本函数根据最新数据直接恢复。
-  const overlaySegments = getOverlayTrack()?.segments || [];
-  const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref)
-    || overlaySegments.some(segment => segment.sticker || segment.sticker_ref);
-  container.classList.toggle('hide-cue-sticker',
-    !EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,
-  );
+  container.classList.add('hide-cue-sticker');
   container.classList.toggle('hide-cue-charcount', !EDITOR_SETTINGS.cueListShowCharcount);
   restoreCueListRenderAnchor(cueListAnchor);
 }
@@ -4085,7 +4161,7 @@ function applyCueEditorDisplaySettings() {
   cueEditorShowStickerToggle.checked = EDITOR_SETTINGS.cueEditorShowSticker;
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
   cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
-  cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
+  cuePanel.classList.add('hide-cue-editor-sticker');
 }
 
 const EDITOR_DISPLAY_KEYS = [
@@ -4122,6 +4198,7 @@ function modKeyLabel() {
 }
 
 function splitKeyLabel() {
+  if (splitKeySel.value === 'none') return '按钮';
   return splitKeySel.value === 'enter' ? 'Enter' : `${modKeyLabel()}+Enter`;
 }
 
@@ -4142,6 +4219,9 @@ function applyPlatformKeyLabels() {
 }
 
 function refreshSplitKeyHelp() {
+  const disabled=splitKeySel.value === 'none';
+  const toggle=document.getElementById('cue-editor-disable-enter-split'); if(toggle) toggle.checked=disabled;
+  if(cueEditorSplitKey) cueEditorSplitKey.closest('.cue-editor-key-hint').hidden=disabled;
   const label = splitKeyLabel();
   if (helpSplitKey) helpSplitKey.textContent = label;
   if (cuePanelSplitKey) cuePanelSplitKey.textContent = label;
@@ -4829,21 +4909,6 @@ autoMergeSnapDirectionSelect?.addEventListener('change', () => {
     autoMergeSnapDirection: autoMergeSnapDirectionSelect.value === 'forward' ? 'forward' : 'backward',
   });
 });
-autoMergeAbsorbShortToggle?.addEventListener('change', () => {
-  updateEditorSettings({ autoMergeAbsorbShort: autoMergeAbsorbShortToggle.checked });
-  syncAutoMergeAbsorbFields();
-});
-autoMergeShortCountInput?.addEventListener('input', () => {
-  updateEditorSettings({ autoMergeShortCount: clampAutoMergeShortCount(autoMergeShortCountInput.value) });
-});
-autoMergeShortCountInput?.addEventListener('change', () => {
-  autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
-});
-autoMergeAbsorbDirectionSelect?.addEventListener('change', () => {
-  updateEditorSettings({
-    autoMergeAbsorbDirection: autoMergeAbsorbDirectionSelect.value === 'next' ? 'next' : 'previous',
-  });
-});
 autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
   input.addEventListener('wheel', (event) => {
     if (!event.deltaY) return;
@@ -5079,6 +5144,24 @@ function refreshTimelineSettingsUi() {
       `Frame timecode example: HH:MM:SS${separator}FF; only the separator between seconds and frames changes.`,
     );
   }
+  const gapInput = document.getElementById('list-gap-highlight-ms');
+  if (gapInput) {
+    gapInput.value = String(frameMode ? Math.max(1,frameNumberFromMilliseconds(subtitleGapHighlightMs || 200,timebase.fps)) : subtitleGapHighlightMs || 200);
+    document.getElementById('list-gap-highlight-unit').textContent = frameMode ? '帧' : 'ms';
+  }
+  [subtitleExtendForwardInput, subtitleExtendBackwardInput].forEach(input => {
+    if (!input) return;
+    const previous = input.dataset.timeUnit || 'milliseconds';
+    if (previous !== timebase.unit) {
+      const raw = Number(input.value) || 0;
+      input.value = String(frameMode ? frameNumberFromMilliseconds(raw, timebase.fps)
+        : millisecondsFromFrameNumber(raw, timebase.fps));
+    }
+    input.dataset.timeUnit = timebase.unit;
+    input.step = frameMode ? '1' : '50';
+    input.max = frameMode ? String(Math.round(60*timebase.fps)) : '60000';
+    input.parentElement.querySelector('.gap-remove-unit').textContent = frameMode ? '帧' : 'ms';
+  });
   mediaSeekInputLastValue = timelineMediaSeekStepValue();
   refreshMediaSeekStepHelp();
   refreshMediaSeekControlLabels();
@@ -6716,16 +6799,13 @@ function groupMemberIdxs(idx) {
   const seg = DATA.segments[idx];
   if (!seg) return [idx];
   const heads = new Set();
-  if (seg.sticker) heads.add(idx);
-  else if (seg.sticker_ref) heads.add(seg.sticker_ref.headIdx);
   if (seg.color) heads.add(idx);
   else if (seg.color_ref) heads.add(seg.color_ref.headIdx);
   if (!heads.size) return [idx];
   const members = [];
   DATA.segments.forEach((s, i) => {
-    const sHead = s.sticker ? i : (s.sticker_ref ? s.sticker_ref.headIdx : null);
     const cHead = s.color ? i : (s.color_ref ? s.color_ref.headIdx : null);
-    if ((sHead !== null && heads.has(sHead)) || (cHead !== null && heads.has(cHead))) {
+    if (cHead !== null && heads.has(cHead)) {
       members.push(i);
     }
   });
@@ -7898,6 +7978,9 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   }
   if (seg._dirty) el.classList.add('dirty');
   if (seg.disabled) el.classList.add('disabled');
+  const proofreadSlot = document.createElement('span');
+  proofreadSlot.className = 'cue-proofread-slot';
+  el.appendChild(proofreadSlot);
   if (window.MaweProofread) {
     window.MaweProofread.applyCueClass(el, seg);
     const prBadge = window.MaweProofread.createBadge(seg);
@@ -7909,7 +7992,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
       prBadge.addEventListener('blur', scheduleProofreadHide);
       prBadge.addEventListener('pointerdown', event => event.stopPropagation());
       prBadge.addEventListener('click', event => event.stopPropagation());
-      el.appendChild(prBadge);
+      proofreadSlot.appendChild(prBadge);
     }
   }
 
@@ -7938,7 +8021,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   // 表情包槽位
   const slotEl = document.createElement('span');
   slotEl.className = 'sticker-slot';
-  updateCueStickerPresentation(el, slotEl, seg, idx, { extensionTrack, overlayTrack });
+
 
   const textEl = document.createElement('span');
   textEl.className = 'text';
@@ -7955,7 +8038,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   el.appendChild(colorBar);
   el.appendChild(indexEl);
   el.appendChild(timeEl);
-  el.appendChild(slotEl);
+
   el.appendChild(textEl);
   el.appendChild(cntEl);
 
@@ -8584,6 +8667,11 @@ bindToolbarExportDropdown(
   positionColorFilterMenu,
 );
 
+// Keep a review cohort stable while its text is edited. Changing criteria or
+// loading a different project starts a fresh cohort; IDs survive undo/reordering.
+let cueFilterSnapshot = new Map();
+let cueFilterSnapshotCriteria = '';
+let cueFilterSnapshotProject = null;
 // === 搜索 ===
 function applySearch(query, { refreshText = true, preserveCueListScroll = true } = {}) {
   const cueListAnchor = preserveCueListScroll ? captureCueListRenderAnchor() : null;
@@ -8594,6 +8682,15 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
     const filterOver = document.getElementById('filter-over').classList.contains('active');
     const threshold = getCharCountThreshold();
     const extensionTrack = getActiveExtensionTrack();
+    const criteria = JSON.stringify([trimmed, [...proofreadFilterIds].sort(),
+      colorFilterSelection ? [...colorFilterSelection].sort() : null,
+      colorFilterSuspended(), filterOver, threshold, extensionTrack?.id]);
+    if (criteria !== cueFilterSnapshotCriteria || DATA !== cueFilterSnapshotProject) {
+      cueFilterSnapshot.clear();
+      cueFilterSnapshotCriteria = criteria;
+      cueFilterSnapshotProject = DATA;
+    }
+    const freezeFilter = !!(trimmed || proofreadFilterIds.size || colorFilterSelection || filterOver);
     // 容器内还有布局拖拽栏和“加载工程后显示字幕列表”占位层；过滤只作用于真实字幕行。
     const cueElements = container.querySelectorAll(':scope > .cue');
     cueElements.forEach(el => {
@@ -8609,18 +8706,14 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         ? getOverlayTrack()?.segments?.[overlayIdx] : null;
       const searchableText = [mainSeg?.text, extensionSeg?.text, overlaySeg?.text]
         .filter(Boolean).join('\n');
-      if (!searchableText) {
-        el.classList.add('hidden');
-        return;
-      }
-      let matched = !re || re.test(searchableText);
+      let matched = !!searchableText && (!re || re.test(searchableText));
       if (re) re.lastIndex = 0;
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
       }
-      if (matched && window.MaweProofread && proofreadFilterId && proofreadFilterId !== 'all') {
+      if (matched && window.MaweProofread && proofreadFilterIds.size) {
         const prSeg = mainSeg || extensionSeg || overlaySeg;
-        matched = window.MaweProofread.filterPass(prSeg || {}, proofreadFilterId);
+        matched = window.MaweProofread.filterPassMany(prSeg || {}, proofreadFilterIds);
       }
       const keepTemporaryVisible = filterOver
         && EDITOR_SETTINGS.cueListKeepSplitVisible
@@ -8632,6 +8725,13 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
             : 0)
           + (overlaySeg ? calcCharWidth(overlaySeg.text, getMainSubtitleSplitMode(overlaySeg)) : 0);
         matched = count > threshold;
+      }
+      if (freezeFilter) {
+        const rowKey = JSON.stringify([mainSeg?.id ?? (mainSeg ? mainIdx : null),
+          extensionTrack?.id, extensionSeg?.id ?? (extensionSeg ? extIdx : null),
+          overlaySeg?.id ?? (overlaySeg ? overlayIdx : null)]);
+        if (cueFilterSnapshot.has(rowKey)) matched = cueFilterSnapshot.get(rowKey);
+        else cueFilterSnapshot.set(rowKey, matched);
       }
       el.classList.toggle('hidden', !matched);
       if (matched) visible++;
@@ -11082,8 +11182,8 @@ function extendSubtitleRanges() {
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
   const plan = window.AsrEditorUtils.planSubtitleExtension(DATA.segments, indices, {
-    forwardMs,
-    backwardMs,
+    forwardMs: timelineValueToMilliseconds(forwardMs),
+    backwardMs: timelineValueToMilliseconds(backwardMs),
     durationMs: getSubtitleTimelineDuration(),
   });
   if (plan.changedIndices.length) {
@@ -11117,53 +11217,28 @@ function extendSubtitleRanges() {
 }
 
 // === 拼合字幕 ===
-// 把工具窗参数同步到控件；「吸收过短字幕」关闭时禁用短句相关参数。
+// 拼接字幕只贴合间隔，不合并字幕或修改文字。
 function syncAutoMergePanelInputs() {
   if (autoMergeGapMsInput) autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
   if (autoMergeSnapDirectionSelect) autoMergeSnapDirectionSelect.value = EDITOR_SETTINGS.autoMergeSnapDirection;
-  if (autoMergeAbsorbShortToggle) autoMergeAbsorbShortToggle.checked = EDITOR_SETTINGS.autoMergeAbsorbShort;
-  if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
-  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.value = EDITOR_SETTINGS.autoMergeAbsorbDirection;
-  syncAutoMergeAbsorbFields();
 }
-
-function syncAutoMergeAbsorbFields() {
-  const enabled = EDITOR_SETTINGS.autoMergeAbsorbShort;
-  if (autoMergeShortCountInput) autoMergeShortCountInput.disabled = !enabled;
-  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.disabled = !enabled;
-  autoMergePanel?.classList.toggle('absorb-disabled', !enabled);
-}
-
-// 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
-// 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if (editingState) finishEdit(false);
+  commitCuePanelEdit();
   const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
     gapMs: EDITOR_SETTINGS.autoMergeGapMs,
     snapDirection: EDITOR_SETTINGS.autoMergeSnapDirection,
-    absorbShort: EDITOR_SETTINGS.autoMergeAbsorbShort,
-    shortCount: EDITOR_SETTINGS.autoMergeShortCount,
-    absorbDirection: EDITOR_SETTINGS.autoMergeAbsorbDirection,
+    absorbShort: false,
   });
-  if (!plan.snaps.length && !plan.groups.length) {
-    flashHint('没有需要拼接/合并的间隔或过短字幕', 'invalid');
+  if (!plan.snaps.length) {
+    flashHint('没有需要拼接的字幕间隔', 'invalid');
     return;
   }
-  if (editingState) finishEdit(false);
-  commitCuePanelEdit();
-  clearSelection({ silent: true });
-  pushUndo('拼接/合并字幕');
+  pushUndo('拼接字幕');
   const snappedCount = applyAutoMergeSnapsWithBindings(plan.snaps);
-  // 合并从后往前进行，保持靠前组的下标仍然有效
-  for (let i = plan.groups.length - 1; i >= 0; i--) {
-    mergeContiguousIndices(plan.groups[i]);
-  }
-  renderAll();
-  updateWithoutCueListAutoScroll();
-  const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
-  const parts = [];
-  if (snappedCount) parts.push(`吸附 ${snappedCount} 处间隔`);
-  if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
-  flashHint(`已拼接/合并字幕：${parts.join('，')}`, 'success');
+  syncTimelineGroupRanges(); scheduleAutoSaveFlush();
+  renderAll(); updateWithoutCueListAutoScroll();
+  flashHint(`已拼接 ${snappedCount} 处字幕间隔，可撤销`, 'success');
 }
 
 // 「拼合字幕」的自动延展直接修改主轨边界，不能绕过普通时间编辑使用的
@@ -11961,7 +12036,7 @@ function handlePointerBoundaryShortcut(event, edge) {
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
       || multiSubtitleImportModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
 
   const reference = keyboardOperationReference();
@@ -12210,7 +12285,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (waveformEditor?.hasCueDrag?.()) {
     // 拖动中的 Esc 不取消拖动，也不清空选区；拖动仍由 pointerup 正常完成。
@@ -12518,7 +12593,13 @@ function bindPlayerEvents(mediaElement) {
 function seekMediaBy(deltaSeconds) {
   if (!hasLoadedMedia()) return;
   const duration = Number.isFinite(player.duration) ? player.duration : Infinity;
-  player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
+  if (timelineIsFrameMode()) {
+    const fps = projectTimebase().fps;
+    const currentFrame = Math.round(player.currentTime * fps);
+    const deltaFrames = Math.round(deltaSeconds * fps);
+    const lastFrame = Number.isFinite(duration) ? Math.floor(duration * fps) : Infinity;
+    player.currentTime = Math.max(0, Math.min(lastFrame, currentFrame + deltaFrames)) / fps;
+  } else player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
   update();
   syncMediaControls();
 }
@@ -12681,7 +12762,7 @@ document.addEventListener('keydown', (e) => {
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
       || multiSubtitleImportModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   if (navigationOwner === 'cue-list' && navigateCueListBoundary(e.key)) {
     e.preventDefault();
@@ -12817,7 +12898,7 @@ document.addEventListener('keydown', (e) => {
   if (replaceModal.classList.contains('show') || stickerModal.classList.contains('show')
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   if (!switchMultiSubtitleTrack(e.key === 'ArrowUp' ? -1 : 1)) return;
   e.preventDefault();
@@ -12905,7 +12986,7 @@ document.addEventListener('keydown', (e) => {
   if (replaceModal.classList.contains('show')) return;
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   const a = document.activeElement;
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
   // Ctrl/Alt/Meta 别误触发（让浏览器自己处理 Ctrl+L 等）
@@ -12969,7 +13050,7 @@ function handleSubtitleNavigationShortcut(e, action) {
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
   if (multiSubtitleSplitModal?.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   const direction = (key === 'a' || key === 'w') ? -1 : 1;
   const panelTarget = getCurrentCuePanelTarget();
@@ -13084,7 +13165,7 @@ document.addEventListener('keydown', (e) => {
   )) return;
   if (replaceModal.classList.contains('show') || stickerModal.classList.contains('show')
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   e.stopPropagation();
@@ -13110,7 +13191,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   selectAll();
@@ -13135,7 +13216,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
   e.preventDefault();
@@ -13157,7 +13238,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (selectedIdxs.size === 0 && selectedOverlayIdxs.size === 0) return;
@@ -13200,7 +13281,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (!getCurrentCuePanelTarget()) {
     e.preventDefault();
@@ -13223,7 +13304,7 @@ function handleEditingMergeShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   e.stopPropagation();
@@ -13275,7 +13356,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size > 0) {
@@ -13309,7 +13390,7 @@ document.addEventListener('keydown', (e) => {
     if (stickerModal.classList.contains('show')) return;
     if (stickerPreviewModal.classList.contains('show')) return;
     if (projectMediaModal.classList.contains('show')) return;
-    if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+    if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
     if (waveformEditor.getTool() !== 'razor') return;
     e.preventDefault();
     waveformEditor.setTool('select');
@@ -13322,7 +13403,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const tool = (e.key === 'v' || e.key === 'V') ? 'select' : 'razor';
@@ -13342,7 +13423,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const target = getCurrentCuePanelTarget();
@@ -13378,7 +13459,7 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (multiSubtitleSplitModal?.classList.contains('show')) return;
   if (multiSubtitleImportModal?.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const boundary = e.key.toLowerCase() === 'i' ? 'start' : 'end';
@@ -13398,7 +13479,7 @@ function handleEditingCreateShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   const reference = keyboardOperationReference();
   if (!reference) {
@@ -13419,7 +13500,7 @@ document.addEventListener('keydown', handleEditingCreateShortcut);
 // G：绑定当前单选的副字幕。若同时选中一条主字幕则直接绑定，否则沿用
 // 右键「绑定到主字幕」的自动匹配/等待选择流程。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'g' && e.key !== 'G') return;
+  if (!multiSubtitleVisible() || (e.key !== 'g' && e.key !== 'G')) return;
   if (editingState || extensionEditingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (
@@ -13432,7 +13513,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (!multiSubtitleVisible()) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -13486,7 +13567,7 @@ document.addEventListener('keydown', (e) => {
 
 // H：把当前选中的副字幕批量对齐到各自绑定的主字幕时间轴。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'h' && e.key !== 'H') return;
+  if (!multiSubtitleVisible() || (e.key !== 'h' && e.key !== 'H')) return;
   if (editingState || extensionEditingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (
@@ -13499,7 +13580,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (!multiSubtitleVisible()) return;
@@ -13553,7 +13634,7 @@ function handleEditingSplitShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (forceMainEdit) {
     e.preventDefault();
@@ -15332,7 +15413,7 @@ stickerOverlayLayer.appendChild(stickerOverlayContent);
   handle.dataset.handle = h;
   stickerOverlayLayer.appendChild(handle);
 });
-playerStage.appendChild(stickerOverlayLayer);
+// Legacy sticker geometry stays detached for old project serialization.
 bindPreviewBoxPointerEvents(stickerOverlayLayer, 'sticker');
 stickerOverlayLayer.addEventListener('keydown', (event) => handlePreviewBoxKeydown(event, 'sticker'));
 
@@ -17606,7 +17687,7 @@ function configureServerWorkspaceLibrary() {
   const initialPreset = typeof savedSelection === 'string' && !savedSelection.startsWith('saved:')
     ? savedSelection : DATA.workspace?.preset;
   currentBuiltinWorkspaceName = currentServerWorkspaceName ? ''
-    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'wave-right';
+    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'classic';
   if (!savedSelection && currentBuiltinWorkspaceName && presetWorkspaceHasLayout(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName])) {
     waveformEditor.setLayoutData(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]);
     if (workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
@@ -17680,7 +17761,7 @@ function configureWorkspaceTransfer() {
   });
   if (SERVER_CONFIG?.settingsUrl) return;  // 服务器版的下拉选择由工作区库接管
   // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
-  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
+  let selectedWorkspaceId = workspacePresetSelect?.value || 'classic';
   workspacePresetSelect?.addEventListener('change', () => {
     selectedWorkspaceId = workspacePresetSelect.value;
     if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) {
@@ -18701,6 +18782,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
       setSubmenuOpen(wrapper, !wrapper.classList.contains('open'));
       return;
     }
+    if (menu === proofreadFilterMenu) return;
     setOpen(false);
   });
   menu.addEventListener('keydown', (e) => {
@@ -18738,7 +18820,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       item.click();
-      if (!item.classList.contains('dropdown-submenu-toggle')) btn.focus();
+      if (menu !== proofreadFilterMenu && !item.classList.contains('dropdown-submenu-toggle')) btn.focus();
     }
   });
   document.addEventListener('click', (e) => {
@@ -18756,6 +18838,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     dd.closest('.cue-list-toolbar, .toolbar')?.addEventListener('scroll', positioner);
   }
 }
+bindToolbarExportDropdown('proofread-filter-dropdown', 'proofread-filter-btn', 'proofread-filter-menu', positionProofreadFilterMenu);
 bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
 bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
 bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
@@ -18929,7 +19012,8 @@ function applyCanonicalProject(data, filename) {
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(data.overlay_track);
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase.unit === 'frames' });
+  window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   editorHistory.clear();
   updateUndoRedoButtons();
   clearSelection();
@@ -19287,42 +19371,13 @@ function renderProjectImportPreview(pending) {
 }
 
 async function showMultiSubtitleImportChoice(file, segments, options = {}) {
-  const existingTrack = getActiveExtensionTrack();
-  const projectFile = options.projectFile || null;
-  const projectImport = Boolean(projectFile);
-  pendingMultiImport = {
-    file,
-    segments,
-    existingTrackId: existingTrack?.id || null,
-    match: null,
-    choice: null,
-    projectFile,
-    projectMediaFile: options.projectMediaFile || null,
-    projectImport,
-  };
-  if (multiSubtitleImportDescription) multiSubtitleImportDescription.textContent = '请选择你要执行的行为：';
-  if (multiSubtitleImportReplace) {
-    multiSubtitleImportReplace.textContent = projectImport
-      ? '打开工程' : (existingTrack ? '替换副轨' : '替换当前字幕');
+  // Use normal import/checkpoint behavior; no second-track choice.
+  if (options.projectFile) {
+    const opened = await openProjectFile(options.projectFile, { suppressMediaPrompt: Boolean(options.projectMediaFile) });
+    if (opened && options.projectMediaFile) await loadMediaFile(options.projectMediaFile);
+    return;
   }
-  if (multiSubtitleImportExtension) {
-    multiSubtitleImportExtension.hidden = projectImport ? false : Boolean(existingTrack);
-    multiSubtitleImportExtension.textContent = projectImport
-      ? '使用工程字幕作为副字幕' : '作为副字幕';
-  }
-  if (multiSubtitleImportChoiceActions) multiSubtitleImportChoiceActions.hidden = false;
-  if (multiSubtitleImportResultActions) multiSubtitleImportResultActions.hidden = false;
-  if (multiSubtitleImportResultConfirm) multiSubtitleImportResultConfirm.disabled = true;
-  [multiSubtitleImportReplace, multiSubtitleImportExtension].forEach((button) => {
-    button?.setAttribute('aria-pressed', 'false');
-  });
-  if (projectImport) renderProjectImportPreview(pendingMultiImport);
-  else renderMultiImportPreview(null, segments);
-  multiSubtitleImportModal?.classList.add('show');
-  // 工程文件必须明确选择“打开”或“作为副字幕”；SRT 保持原有默认导入路径。
-  if (!projectImport) prepareMultiSubtitleImport();
-  (projectImport ? multiSubtitleImportReplace
-    : (existingTrack ? multiSubtitleImportReplace : multiSubtitleImportExtension))?.focus();
+  await openSrtFile(file);
 }
 
 function prepareMultiSubtitleImport() {
@@ -19769,8 +19824,31 @@ async function loadMediaFile(file) {
     return false;
   }
 
-  if (isVideo) captureProjectVideoDimensions(candidatePlayer);
-  else clearProjectVideoDimensions();
+  // A new file must not inherit the old video's FPS or frame count.
+  const nextMetadata = { ...(normalizeMediaMetadata(DATA.media_metadata) || {}) };
+  delete nextMetadata.video_fps; delete nextMetadata.video_fps_ratio; delete nextMetadata.video_frame_count;
+  delete nextMetadata.video_width; delete nextMetadata.video_height;
+  DATA.media_metadata = Object.keys(nextMetadata).length ? nextMetadata : null;
+  if (isVideo) {
+    captureProjectVideoDimensions(candidatePlayer);
+    updateEditorLoading(55, '正在检查视频帧率与帧数…');
+    const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
+    if (measured) {
+      DATA.media_metadata = { ...DATA.media_metadata, ...measured };
+      window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+      projectImportDirty = true;
+    } else {
+      DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
+      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+      flashHint('未读取到视频帧率，暂用毫秒；可在工程设置中指定帧率', 'warning');
+    }
+  } else {
+    DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
+    syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+  }
+  refreshTimelineSettingsUi();
+  renderAll({ waveform: 'full' });
 
   let mediaTimeReference = null;
   try {
@@ -20179,6 +20257,8 @@ const textProcessSelectedOnlyHint = document.getElementById('text-process-select
 const textProcessScopeInfo = document.getElementById('text-process-scope-info');
 const textProcessPreview = document.getElementById('text-process-preview');
 const textProcessConfirm = document.getElementById('text-process-confirm');
+const textProcessNumbers = document.getElementById('text-process-numbers');
+const textProcessEnglishCase = document.getElementById('text-process-english-case');
 const textProcessTrim = document.getElementById('text-process-trim');
 const textProcessCapitalize = document.getElementById('text-process-capitalize');
 const textProcessPrefix = document.getElementById('text-process-prefix');
@@ -20188,6 +20268,8 @@ const textProcessSuffixInput = document.getElementById('text-process-suffix-inpu
 const textProcessStripMarkdown = document.getElementById('text-process-strip-markdown');
 let textProcessSelectionSnapshot = [];
 let textProcessScope = null;
+let textProcessRemoveSpaces = false;
+let textProcessRemovePunctuation = false;
 
 function textProcessSelectionTargets() {
   const targets = [...selectedIdxs]
@@ -20232,13 +20314,17 @@ function buildTextProcessPreview(targets, options) {
     const segment = segments[target.index];
     if (!segment) return [];
     const before = String(segment.text == null ? '' : segment.text);
-    const after = window.AsrEditorUtils.applyTextProcessing(before, options);
+    const after = window.AsrEditorUtils.applyTextProcessing(before, { ...options, originalNumberText: segment.proofread?.review_original ?? segment.proofread?.asr_original ?? '' });
     return [{ ...target, before, after, changed: before !== after }];
   });
 }
 
 function getTextProcessOptions() {
   return {
+    removeSpaces: textProcessRemoveSpaces,
+    removePunctuation: textProcessRemovePunctuation,
+    numbers: textProcessNumbers.value,
+    englishCase: textProcessEnglishCase.value,
     trim: textProcessTrim.checked,
     capitalize: textProcessCapitalize.checked,
     addPrefix: textProcessPrefix.checked,
@@ -20259,17 +20345,19 @@ function refreshTextProcessScopeInfo() {
 
 function refreshTextProcessSelectionControl() {
   const available = textProcessSelectionSnapshot.length > 0;
-  textProcessSelectedOnlyCb.disabled = !available;
+  textProcessSelectedOnlyCb.closest('label').hidden = true;
+  textProcessSelectedOnlyCb.disabled = true;
+  textProcessSelectedOnlyCb.checked = available;
   if (!available) textProcessSelectedOnlyCb.checked = false;
   if (textProcessSelectedOnlyHint) textProcessSelectedOnlyHint.hidden = available;
-  textProcessScope = textProcessSelectedOnlyCb.checked
+  textProcessScope = textProcessSelectionSnapshot.length
     ? [...textProcessSelectionSnapshot] : null;
   refreshTextProcessScopeInfo();
 }
 
 function renderTextProcessPreview() {
   const options = getTextProcessOptions();
-  const hasOperation = textProcessTrim.checked || textProcessCapitalize.checked
+  const hasOperation = options.removeSpaces || options.removePunctuation || textProcessNumbers.value || textProcessEnglishCase.value || textProcessTrim.checked || textProcessCapitalize.checked
     || textProcessPrefix.checked || textProcessSuffix.checked || textProcessStripMarkdown.checked;
   const targets = textProcessTargets();
   textProcessPreview.replaceChildren();
@@ -20317,9 +20405,11 @@ function refreshTextProcessInputState() {
 
 function closeTextProcessModal() {
   textProcessModal.classList.remove('show');
+  clearSubtitleToolPanel(textProcessModal);
 }
 
 function openTextProcessModal() {
+  if (textProcessModal.classList.contains('show')) { closeTextProcessModal(); return; }
   if (!DATA.segments.length && !getActiveExtensionTrack()?.segments?.length) {
     flashHint('当前没有可处理的字幕', 'invalid');
     return;
@@ -20330,22 +20420,27 @@ function openTextProcessModal() {
   refreshTextProcessSelectionControl();
   [textProcessTrim, textProcessCapitalize, textProcessPrefix,
     textProcessSuffix, textProcessStripMarkdown].forEach((input) => { input.checked = false; });
+  textProcessRemoveSpaces = false;
+  textProcessRemovePunctuation = false;
+  textProcessNumbers.value = '';
+  textProcessEnglishCase.value = '';
   textProcessPrefixInput.value = '';
   textProcessSuffixInput.value = '';
   refreshTextProcessInputState();
   textProcessModal.classList.add('show');
   renderTextProcessPreview();
-  setTimeout(() => textProcessTrim.focus(), 50);
+  showSubtitleToolPanel(textProcessModal, textProcessButton, closeTextProcessModal);
+  setTimeout(() => { if (textProcessModal.classList.contains('show')) textProcessNumbers.focus(); }, 50);
 }
 
 textProcessButton?.addEventListener('click', openTextProcessModal);
 textProcessSelectedOnlyCb?.addEventListener('change', () => {
-  textProcessScope = textProcessSelectedOnlyCb.checked
+  textProcessScope = textProcessSelectionSnapshot.length
     ? [...textProcessSelectionSnapshot] : null;
   refreshTextProcessScopeInfo();
   renderTextProcessPreview();
 });
-[textProcessTrim, textProcessCapitalize, textProcessPrefix,
+[textProcessNumbers, textProcessEnglishCase, textProcessTrim, textProcessCapitalize, textProcessPrefix,
   textProcessSuffix, textProcessStripMarkdown].forEach((input) => {
   input?.addEventListener('change', () => {
     refreshTextProcessInputState();
@@ -20356,6 +20451,7 @@ textProcessSelectedOnlyCb?.addEventListener('change', () => {
   input?.addEventListener('input', renderTextProcessPreview);
 });
 document.getElementById('text-process-cancel')?.addEventListener('click', closeTextProcessModal);
+document.getElementById('text-process-close')?.addEventListener('click', closeTextProcessModal);
 textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
@@ -20404,6 +20500,17 @@ textProcessConfirm?.addEventListener('click', () => {
     flashHint('无法应用文本处理：字幕行结构发生了变化', 'warning');
     return;
   }
+  // Text-only operations never move subtitle timing; record manual changes.
+  result.rows.filter(row => row.changed).forEach(row => {
+    const next = row.kind === 'main' ? nextMainSegments?.[row.index]
+      : nextExtensionSegments.find(draft => draft.track.id === row.trackId)?.segments[row.index];
+    const original = textProcessTargetSegments(row)[row.index];
+    if (!next || !original) return;
+    next.start = original.start; next.end = original.end;
+    if (original.start_frame !== undefined) next.start_frame = original.start_frame;
+    if (original.end_frame !== undefined) next.end_frame = original.end_frame;
+    window.MaweProofread?.markManual(next);
+  });
   pushUndo('文本处理');
   if (nextMainSegments) {
     DATA.segments.splice(0, DATA.segments.length, ...nextMainSegments);
@@ -22237,11 +22344,6 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
       extensionIdx < 0,
     );
   }
-  addSep();
-  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
-  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
-    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
-  }
 
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
@@ -22251,6 +22353,22 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.style.left = nx + 'px';
   ctxmenu.style.top = ny + 'px';
 }
+
+function positionContextSubmenu(group) {
+  const submenu = group.querySelector('.ctx-submenu');
+  if (submenu.hidden) return;
+  const anchor = group.querySelector('.ctx-submenu-trigger').getBoundingClientRect();
+  const width = submenu.offsetWidth, height = submenu.offsetHeight;
+  const left = anchor.right + width <= innerWidth - 4 ? anchor.right - 1 : anchor.left - width + 1;
+  submenu.style.left = `${Math.max(4, Math.min(left, innerWidth - width - 4))}px`;
+  submenu.style.top = `${Math.max(4, Math.min(anchor.top, innerHeight - height - 4))}px`;
+}
+function repositionContextSubmenus() {
+  if (!ctxmenu.classList.contains('show')) return;
+  ctxmenu.querySelectorAll('.ctx-text-transform').forEach(positionContextSubmenu);
+}
+ctxmenu.addEventListener('scroll', repositionContextSubmenus);
+window.addEventListener('resize', repositionContextSubmenus);
 
 // === 右键菜单 ===
 let ctxLastClickX = 0, ctxLastClickY = 0;
@@ -22378,6 +22496,61 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }, { danger: true });
     addItem('取消选择', `${modKeyLabel()}+D`, () => clearSelection());
   }
+
+  addSep();
+  const transforms = [
+    ['数字转换', 'numbers', [['233→二三三', 'toChinese'], ['二三三→233', 'toArabic']]],
+    ['英文大小写', 'englishCase', [['每个单词首字母大写', 'initial'], ['全大写', 'upper'], ['全小写', 'lower']]],
+  ];
+  function applyTransform(key, value) {
+    ctxmenu.classList.remove('show');
+    if (textProcessModal.classList.contains('show')) closeTextProcessModal();
+    openTextProcessModal();
+    if (key === 'removeSpaces') textProcessRemoveSpaces = true;
+    else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
+    else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
+    renderTextProcessPreview();
+    if (!textProcessConfirm.disabled) textProcessConfirm.click();
+    else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
+  }
+  addItem('删除空格', '', () => applyTransform('removeSpaces', true));
+  addItem('删除标点符号', '', () => applyTransform('removePunctuation', true));
+  transforms.forEach(([title, key, options], groupIndex) => {
+    const group = document.createElement('div'); group.className = 'ctx-text-transform';
+    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'item ctx-submenu-trigger'; trigger.textContent = title;
+    trigger.setAttribute('role', 'menuitem'); trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false');
+    const submenu = document.createElement('div'); submenu.className = 'ctx-submenu'; submenu.hidden = true;
+    submenu.id = `ctx-transform-${groupIndex}`; submenu.setAttribute('role', 'menu'); submenu.setAttribute('aria-label', title); trigger.setAttribute('aria-controls', submenu.id);
+    group.append(trigger, submenu);
+    let closeTimer;
+    function close() { clearTimeout(closeTimer); submenu.hidden = true; trigger.setAttribute('aria-expanded', 'false'); }
+    function open() {
+      clearTimeout(closeTimer);
+      ctxmenu.querySelectorAll('.ctx-text-transform').forEach(other => {
+        if (other === group) return;
+        other.querySelector('.ctx-submenu').hidden = true;
+        other.querySelector('.ctx-submenu-trigger').setAttribute('aria-expanded', 'false');
+      });
+      submenu.hidden = false; trigger.setAttribute('aria-expanded', 'true'); positionContextSubmenu(group);
+    }
+    options.forEach(([label, value]) => {
+      const button = document.createElement('button'); button.className = 'item'; button.type = 'button'; button.textContent = label; button.setAttribute('role','menuitem');
+      button.addEventListener('click', () => applyTransform(key, value)); submenu.appendChild(button);
+    });
+    group.addEventListener('pointerenter', open);
+    group.addEventListener('pointerleave', () => { closeTimer = setTimeout(close, 180); });
+    group.addEventListener('focusout', event => { if (!group.contains(event.relatedTarget)) close(); });
+    trigger.addEventListener('click', open);
+    group.addEventListener('keydown', event => {
+      const buttons = [...submenu.querySelectorAll('button')];
+      if (event.key === 'ArrowRight') { event.preventDefault(); open(); buttons[0]?.focus(); }
+      else if (event.key === 'ArrowLeft' || event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); trigger.focus(); }
+      else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && submenu.contains(event.target)) {
+        event.preventDefault(); const offset=event.key==='ArrowDown'?1:-1; buttons[(buttons.indexOf(event.target)+offset+buttons.length)%buttons.length]?.focus();
+      }
+    });
+    ctxmenu.appendChild(group);
+  });
 
   // 调整 ctxmenu 位置（避免溢出）
   ctxmenu.classList.add('show');
@@ -22751,6 +22924,10 @@ function initWaveformEditor() {
   }
   waveformEditor = window.AsrWaveform.create({
     getSubtitleGapHighlightMs: () => subtitleGapHighlightMs,
+    getSubtitleGapHighlights: () => {
+      const threshold = timelineIsFrameMode() ? frameNumberFromMilliseconds(subtitleGapHighlightMs, projectTimebase().fps) : subtitleGapHighlightMs;
+      return subtitleGapPlan(null, threshold).filter(gap => (gap.gapFrames ?? gap.gap) < threshold);
+    },
     getSegments: (track = 'main') => track === 'extension'
       ? (getActiveExtensionTrack()?.segments || [])
       : track === 'overlay'
@@ -22870,7 +23047,8 @@ function initWaveformEditor() {
     togglePlayback,
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
     getHideDisabled: () => hideDisabled,
-    getGapRemoveGaps,
+    silenceGapEditingEnabled: false,
+    getGapRemoveGaps: () => [],
     getGapOperationMode: getGapRemoveOperationMode,
     toggleGapRemoved,
     applyGapRange: applyManualGapRange,
@@ -23337,6 +23515,7 @@ if (SERVER_CONFIG?.startupStatus !== 'loading') void loadDeferredReapeaks();
 
 document.getElementById('filter-over')?.addEventListener('click', (e) => {
   e.currentTarget.classList.toggle('active');
+  e.currentTarget.setAttribute('aria-checked',String(e.currentTarget.classList.contains('active')));
   if (!e.currentTarget.classList.contains('active')) {
     clearTemporaryVisibleSplitCues();
   }
@@ -23416,3 +23595,160 @@ document.getElementById('fcpxml-export-confirm')?.addEventListener('click', asyn
     flashHint(String(e && e.message ? e.message : e), 'error');
   }
 });
+
+// Remove the unused sticker surfaces after legacy listeners have captured their
+// nodes. Detached references keep old-project geometry/history compatible.
+function removeUnusedStickerControls() {
+  document.querySelectorAll('[id*="sticker"], [data-otio-export-option="stickers"]').forEach(node => {
+    const surface = node.closest('.cue-panel-sticker-wrap, #editor-settings-page-sticker, #sticker-modal, #sticker-preview-modal, #sticker-root-modal');
+    (surface || node.closest('label') || node).remove();
+  });
+  stickerOverlayLayer.remove();
+  if (stickerOverlayToggle) stickerOverlayToggle.checked = false;
+  EDITOR_SETTINGS.stickerOverlayEnabled = false;
+  EDITOR_SETTINGS.cueListShowSticker = false;
+  EDITOR_SETTINGS.cueEditorShowSticker = false;
+}
+removeUnusedStickerControls();
+
+// List marquee starts only after a drag threshold, preserving click, double
+// click, inline text editing and toolbar controls. Visible rows are the scope.
+(function bindCueListMarquee() {
+  let gesture = null, suppressClick = false, frame = 0;
+  const box = document.createElement('div');
+  box.className = 'cue-list-marquee'; box.hidden = true;
+  document.body.appendChild(box);
+  function draw() {
+    if (!gesture?.dragging) return;
+    const g=gesture, bounds=container.getBoundingClientRect();
+    const x=Math.max(bounds.left, Math.min(g.x, g.startX));
+    const y=Math.max(bounds.top, Math.min(g.y, g.startY-container.scrollTop+g.scroll));
+    const right=Math.min(bounds.right, Math.max(g.x,g.startX));
+    const bottom=Math.min(bounds.bottom, Math.max(g.y,g.startY-container.scrollTop+g.scroll));
+    Object.assign(box.style,{left:x+'px',top:y+'px',width:Math.max(0,right-x)+'px',height:Math.max(0,bottom-y)+'px'});
+    selectedIdxs.clear(); selectedExtensionIdxs.clear();
+    for(const i of g.main) selectedIdxs.add(i);
+    for(const i of g.extension) selectedExtensionIdxs.add(i);
+    container.querySelectorAll('.cue').forEach(row=>{
+      const initial=g.rows.get(row);
+      const delta=container.scrollTop-g.scroll;
+      const rect=initial?{...initial,top:initial.top-delta,bottom:initial.bottom-delta}:row.getBoundingClientRect();
+      const extension=row.dataset.extIdx != null && row.dataset.idx == null;
+      const index=Number(extension?row.dataset.extIdx:row.dataset.idx);
+      const selected=extension?selectedExtensionIdxs:selectedIdxs;
+      if(Number.isInteger(index) && row.getClientRects().length && right>x && bottom>y
+          && rect.left<right && rect.right>x && rect.top<bottom && rect.bottom>y
+          && !isHiddenDisabled(index,extension?'extension':'main')) selected.add(index);
+      row.classList.toggle('selected',selected.has(index));
+    });
+    updateSelectionCountText();
+  }
+  function tick() {
+    if(!gesture?.dragging) return;
+    const bounds=container.getBoundingClientRect();
+    if(gesture.y<bounds.top+24) container.scrollTop-=12;
+    else if(gesture.y>bounds.bottom-24) container.scrollTop+=12;
+    draw(); frame=requestAnimationFrame(tick);
+  }
+  container.addEventListener('pointerdown', event=>{
+    if(event.button!==0 || editingState || extensionEditingState || event.target.closest('button,input,textarea,select,a,[contenteditable],.cue-list-toolbar,.proofread-badge')) return;
+    const bounds=container.getBoundingClientRect();
+    if(event.clientX>=bounds.right-14) return;
+    gesture={id:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,scroll:container.scrollTop, rows:new Map([...container.querySelectorAll('.cue')].map(row=>{const r=row.getBoundingClientRect();return [row,{left:r.left,right:r.right,top:r.top,bottom:r.bottom}];})),
+      main:event.shiftKey?[...selectedIdxs]:[], extension:event.shiftKey?[...selectedExtensionIdxs]:[], dragging:false};
+    // Defer row selection to its existing click fallback so panel/layout changes
+    // cannot move rows underneath a new marquee.
+    event.stopImmediatePropagation();
+  },true);
+  document.addEventListener('pointermove',event=>{
+    if(!gesture || event.pointerId!==gesture.id) return;
+    gesture.x=event.clientX;gesture.y=event.clientY;
+    if(!gesture.dragging && Math.hypot(gesture.x-gesture.startX,gesture.y-gesture.startY)<6) return;
+    if(!gesture.dragging) {
+      gesture.dragging=true;box.hidden=false;container.classList.add('marquee-selecting');
+      setCueListFollowing(false);hideCueSplitPreview();frame=requestAnimationFrame(tick);
+    }
+    event.preventDefault();event.stopImmediatePropagation();window.getSelection()?.removeAllRanges();draw();
+  },true);
+  function finish(event) {
+    if(!gesture || (event.pointerId!==undefined && event.pointerId!==gesture.id)) return;
+    const dragged=gesture.dragging;
+    if(event.type==='pointercancel' || event.key==='Escape') {
+      selectedIdxs.clear();selectedExtensionIdxs.clear();
+      container.querySelectorAll('.cue').forEach(row=>row.classList.remove('selected'));updateSelectionCountText();
+    }
+    gesture=null;cancelAnimationFrame(frame);box.hidden=true;container.classList.remove('marquee-selecting');
+    if(dragged) {suppressClick=true;setTimeout(()=>{suppressClick=false;},0);event.preventDefault();event.stopImmediatePropagation();}
+  }
+  document.addEventListener('pointerup',finish,true);
+  document.addEventListener('pointercancel',finish,true);
+  document.addEventListener('keydown',event=>{if(event.key==='Escape') finish(event);},true);
+  container.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}},true);
+})();
+
+// Detach retired bilingual controls after legacy listeners capture their refs.
+(function removeBilingualControls() {
+  ['multi-subtitle-controls','multi-subtitle-waveform-controls','download-multi-srt',
+   'extension-overlay-toggle-wrap','extension-subtitle-preview-title','extension-subtitle-preview-settings',
+   'split-multi-subtitle-settings-enabled','split-multi-subtitle-settings-disabled',
+   'multi-subtitle-import-modal','multi-subtitle-split-modal'].forEach(id=>document.getElementById(id)?.remove());
+  document.querySelectorAll('option[value="extension"], option[value="main_and_extension"]').forEach(option=>option.remove());
+})();
+
+// Retired joining tool: ordinary merge and batch gap closing remain available.
+document.getElementById('auto-merge-panel')?.remove();
+document.getElementById('auto-merge-manage')?.remove();
+
+document.getElementById('cue-editor-disable-enter-split')?.addEventListener('change',event=>{
+  splitKeySel.value=event.target.checked?'none':'enter';
+  updateEditorSettings({splitKey:splitKeySel.value});refreshSplitKeyHelp();
+});
+
+// Task-specific actions are direct; only replacement and long-form editing stay
+// in the batch menu. Reuse the same nodes/listeners and selection snapshots.
+(function arrangeSubtitleActions() {
+  const toolbar=document.querySelector('.cue-list-toolbar');
+  const batch=document.getElementById('batch-operations-dropdown');
+  const actions=document.createElement('div');actions.className='subtitle-task-actions';toolbar.insertBefore(actions,batch);
+  for(const id of ['text-process-btn','subtitle-gap-close-btn']) {
+    const button=document.getElementById(id);button.classList.remove('dropdown-item');button.removeAttribute('role');actions.appendChild(button);
+  }
+  document.getElementById('text-process-btn').replaceChildren(document.createTextNode('文本处理'));
+  document.getElementById('subtitle-gap-highlight-btn')?.remove();
+  const gapSettings=document.createElement('section'); gapSettings.className='cue-list-settings-section';
+  gapSettings.innerHTML='<span class="settings-panel-title">字幕空隙</span><label><input type="checkbox" id="list-gap-highlight-enabled">高亮短空隙</label><label class="list-gap-highlight-limit">空隙阈值<input type="number" id="list-gap-highlight-ms" min="1" step="1" value="200"><span id="list-gap-highlight-unit">ms</span></label>';
+  document.getElementById('cue-list-settings-panel').appendChild(gapSettings);
+  const enabled=gapSettings.querySelector('#list-gap-highlight-enabled'), threshold=gapSettings.querySelector('#list-gap-highlight-ms');
+  enabled.checked=subtitleGapHighlightMs>0; threshold.value=timelineIsFrameMode() ? frameNumberFromMilliseconds(subtitleGapHighlightMs || 200, projectTimebase().fps) : subtitleGapHighlightMs || 200;
+  gapSettings.querySelector('#list-gap-highlight-unit').textContent=timelineIsFrameMode() ? '帧' : 'ms';
+  threshold.disabled=!enabled.checked;
+  function applyHighlightSetting() {
+    const value=Number(threshold.value);
+    if (!Number.isInteger(value) || value<1) { threshold.setCustomValidity(`请输入大于0的整数${timelineIsFrameMode() ? '帧' : '毫秒'}`); threshold.reportValidity(); return; }
+    threshold.setCustomValidity(''); threshold.disabled=!enabled.checked;
+    subtitleGapHighlightMs=enabled.checked ? timelineValueToMilliseconds(value) : 0;
+    try { localStorage.setItem('maw.subtitleGapHighlightMs',String(subtitleGapHighlightMs)); } catch (_) {}
+    waveformEditor?.refreshSubtitleGapHighlights();
+  }
+  enabled.addEventListener('change',applyHighlightSetting);
+  threshold.addEventListener('input',()=>threshold.setCustomValidity(''));
+  threshold.addEventListener('change',applyHighlightSetting);
+  toolbar.insertBefore(actions,batch);
+  document.querySelector('#batch-operations-menu .menu-section-label:last-of-type')?.remove();
+  const follow=document.getElementById('cue-list-follow');
+  document.querySelector('#cue-list-settings-panel .cue-list-settings-section').prepend(follow);
+  document.getElementById('proofread-filter-btn').textContent='审阅';
+  for(const id of ['text-process-trim','text-process-capitalize','text-process-prefix','text-process-suffix','text-process-strip-markdown']) {
+    document.getElementById(id)?.closest('label')?.remove();
+  }
+})();
+
+// Retired audio-silence removal UI. Preserve old project metadata on save.
+(function removeSilenceGapControls() {
+  document.getElementById('gap-operation-mode-settings-title')?.remove();
+  document.querySelector('[aria-labelledby="gap-operation-mode-settings-title"]')?.remove();
+  for (const id of ['gap-remove-manage','gap-remove-panel','gap-removed-export-dropdown','help-tab-gap','help-tab-panel-gap']) document.getElementById(id)?.remove();
+  document.getElementById('gap-remove-operation-mode')?.closest('label')?.remove();
+  document.getElementById('gap-skip-playback')?.closest('label')?.remove();
+  for (const id of ['lottie-export-gap-removed','ograf-export-gap-removed']) document.getElementById(id)?.closest('label')?.remove();
+})();

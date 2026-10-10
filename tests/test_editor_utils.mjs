@@ -441,7 +441,7 @@ test('normalizes optional source video FPS metadata for frame-mode defaults', ()
     video_width: 3840,
     video_height: 2160,
   }))), {
-    video_fps: 29.97,
+    video_fps: 30000 / 1001,
     video_fps_ratio: '30000/1001',
     video_width: 3840,
     video_height: 2160,
@@ -5715,3 +5715,70 @@ test('navigation shortcut defaults support legacy preferences and custom combos'
   assert.equal(helpers.matchesEditingShortcut({key:'ArrowUp',ctrlKey:true},'navUp',custom),true);
   assert.equal(helpers.matchesEditingShortcut({key:'w'},'navUp',custom),false);
 });
+
+
+test('subtitle numeric conversion handles quantities, years, decimal percentages and mixed English', () => {
+  const cases = [
+    ['二十五个苹果，三点一四米，百分之十二点五', '25个苹果，3.14米，12.5%'],
+    ['二〇二六年有一亿二千万个人', '2026年有120000000个人'],
+    ['一起看一样的东西，万一失败', '一起看一样的东西，万一失败'],
+    ['Qwen3 v1.2.3 https://a.com/123 0123', 'Qwen3 v1.2.3 https://a.com/123 零一二三'],
+  ];
+  for (const [before, after] of cases.slice(0,3)) assert.equal(helpers.applyTextProcessing(before,{numbers:'toArabic'}),after);
+  assert.equal(helpers.applyTextProcessing(cases[3][0],{numbers:'toChinese'}),cases[3][1]);
+  assert.equal(helpers.convertSubtitleNumbers('2026年有120000000个人，12.5%和-3.14米','toChinese'),'二零二六年有一亿二千万人，百分之十二点五和负三点一四米'.replace('万人','万个人'));
+});
+test('English casing changes letters only without adding spaces',()=>{
+ assert.equal(helpers.applyTextProcessing('这是hELLo world和GPT',{englishCase:'initial'}),'这是Hello World和Gpt');
+ assert.equal(helpers.applyTextProcessing('这是hello和GPT',{englishCase:'upper'}),'这是HELLO和GPT');
+ assert.equal(helpers.applyTextProcessing('这是HELLO和GPT',{englishCase:'lower'}),'这是hello和gpt');
+});
+
+test('disabled Enter splitting saves for Enter and modifier combinations',()=>{
+ for(const modifiers of [{},{ctrlKey:true},{metaKey:true},{ctrlKey:true,shiftKey:true}]) assert.equal(helpers.configuredEnterAction({key:'Enter',...modifiers},'none'),'save');
+});
+
+test('Chinese number restoration prefers pre-LLM wording without reverting other corrections',()=>{
+ assert.equal(helpers.applyTextProcessing('这2个驱水效果很好',{numbers:'toChinese',originalNumberText:'这两个曲水效果很好'}),'这两个驱水效果很好');
+ assert.equal(helpers.applyTextProcessing('这2个苹果',{numbers:'toChinese',originalNumberText:'这二个苹果'}),'这二个苹果');
+ assert.equal(helpers.applyTextProcessing('2个杯子和2个苹果',{numbers:'toChinese',originalNumberText:'两个杯子和二个苹果'}),'两个杯子和二个苹果');
+ assert.equal(helpers.applyTextProcessing('25个苹果',{numbers:'toChinese',originalNumberText:'两个苹果'}),'二十五个苹果');
+ assert.equal(helpers.applyTextProcessing('2个苹果',{numbers:'toChinese'}),'二个苹果');
+});
+
+
+test('space removal removes horizontal Unicode spaces without adding or rewriting text', () => {
+  assert.equal(helpers.applyTextProcessing(' A　B  C\tD ', {removeSpaces:true}), 'ABCD');
+  assert.equal(helpers.applyTextProcessing('Hello world', {removeSpaces:true}), 'Helloworld');
+  assert.equal(helpers.applyTextProcessing('Hello world', {}), 'Hello world');
+});
+
+ test('explicit punctuation removal keeps letters, spaces and mathematical symbols', () => {
+ assert.equal(helpers.applyTextProcessing('你好，世界！Hello, world.（2个）',{removePunctuation:true}), '你好世界Hello world2个');
+ assert.equal(helpers.applyTextProcessing('价格￥20+3=23',{removePunctuation:true}), '价格￥20+3=23');
+ });
+
+ test('source FPS selects frames without guessing unknown media rates', () => {
+ for(const fps of [24000/1001,24,25,30000/1001,30,50,60000/1001,60]) {
+  const project={timebase:{unit:'milliseconds',fps:30},media_metadata:{video_fps:fps}};
+  assert.equal(helpers.adoptSourceVideoTimebase(project),true);
+  assert.equal(project.timebase.unit,'frames');assert.equal(project.timebase.fps,fps);
+  let ms=10000;for(let i=0;i<100;i++)ms=helpers.millisecondsFromFrameNumber(helpers.frameNumberFromMilliseconds(ms,fps)+1,fps);
+  assert.equal(helpers.frameNumberFromMilliseconds(ms,fps),helpers.frameNumberFromMilliseconds(10000,fps)+100);
+ }
+ const audio={segments:[],timebase:{unit:'milliseconds',fps:30}};assert.equal(helpers.adoptSourceVideoTimebase(audio),false);assert.equal(audio.timebase.unit,'milliseconds');
+ assert.equal(helpers.normalizeMediaMetadata({video_fps:25,video_frame_count:250}).video_frame_count,250);
+ assert.equal(helpers.normalizeMediaMetadata({video_fps:25,video_frame_count:-1}),null);
+ });
+ test('MP4 probing reads a tail moov and video sample tables without decoding mdat', async () => {
+ const box=(type,...parts)=>{const payload=Buffer.concat(parts),header=Buffer.alloc(8);header.writeUInt32BE(payload.length+8);header.write(type,4);return Buffer.concat([header,payload]);};
+ const mdhd=Buffer.alloc(24);mdhd.writeUInt32BE(30000,12);
+ const hdlr=Buffer.alloc(16);hdlr.write('vide',8);
+ const stts=Buffer.alloc(16);stts.writeUInt32BE(1,4);stts.writeUInt32BE(300,8);stts.writeUInt32BE(1001,12);
+ const moov=box('moov',box('trak',box('mdia',box('mdhd',mdhd),box('hdlr',hdlr),box('minf',box('stbl',box('stts',stts))))));
+ const data=Buffer.concat([box('ftyp',Buffer.alloc(8)),box('mdat',Buffer.alloc(100000)),moov]);let bytesRead=0;
+ const file={name:'example.mp4',size:data.length,slice(a,b){return {async arrayBuffer(){const slice=data.subarray(a,b);bytesRead+=slice.length;return Uint8Array.from(slice).buffer;}};}};
+ const result=await helpers.readVideoFrameMetadata(file);assert.equal(result.video_fps,30000/1001);assert.equal(result.video_fps_ratio,'30000/1001');assert.equal(result.video_frame_count,300);assert.ok(bytesRead<1000);
+ assert.equal(await helpers.readVideoFrameMetadata({...file,name:'unknown.webm'}),null);
+ assert.equal(await helpers.readVideoFrameMetadata({...file,size:3}),null);
+ });

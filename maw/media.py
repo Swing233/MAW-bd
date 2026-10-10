@@ -143,7 +143,7 @@ def probe_video_fps(
     command = [
         str(executable), "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate",
+        "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,nb_frames",
         "-of", "json", str(source),
     ]
     try:
@@ -175,6 +175,9 @@ def probe_video_fps(
     height = _parse_probe_integer(stream.get("height"), minimum=1)
     if width is not None and height is not None:
         metadata.update(video_width=width, video_height=height)
+    frame_count = _parse_probe_integer(stream.get("nb_frames"), minimum=1)
+    if frame_count is not None:
+        metadata["video_frame_count"] = frame_count
     return metadata or None
 
 

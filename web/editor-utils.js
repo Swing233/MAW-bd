@@ -353,6 +353,99 @@
     });
   }
 
+  // Convert numeric expressions only; ambiguous Chinese single characters in
+  // prose (一起、一样、万一) are not treated as standalone numbers.
+  function convertSubtitleNumbers(text, direction, originalText = '') {
+    const digits = '零一二三四五六七八九';
+    const values = Object.fromEntries([...digits].map((c, i) => [c, BigInt(i)]));
+    Object.assign(values, { '〇': 0n, '两': 2n });
+    const units = { 十:10n, 百:100n, 千:1000n, 万:10000n, 亿:100000000n };
+    function parse(raw) {
+      if (![...raw].some(c => units[c])) return [...raw].map(c => values[c].toString()).join('');
+      let total=0n, section=0n, number=0n;
+      for (const c of raw) {
+        if (values[c] !== undefined) { number=values[c]; continue; }
+        const unit=units[c];
+        if (unit < 10000n) { section += (number || 1n)*unit; number=0n; }
+        else { section += number; total=unit===100000000n?(total+section)*unit:total+section*unit; section=0n; number=0n; }
+      }
+      return String(total+section+number);
+    }
+    function integer(raw) {
+      if (raw.length > 16 || /^0\d/.test(raw)) return [...raw].map(c=>digits[Number(c)]).join('');
+      function section(n) {
+        let out='', zero=false;
+        for (let i=3;i>=0;i--) {
+          const power=10**i, d=Math.floor(n/power)%10;
+          if (d) { if(zero) out+='零'; out+=digits[d]+['','十','百','千'][i]; zero=false; }
+          else if(out && n%power) zero=true;
+        }
+        return out;
+      }
+      let n=BigInt(raw), out='', zero=false, index=0;
+      const groups=[];
+      do { groups.push(Number(n%10000n)); n/=10000n; } while(n);
+      for(index=groups.length-1;index>=0;index--) {
+        const g=groups[index];
+        if(!g) { if(out) zero=true; continue; }
+        if(out && (zero || g<1000)) out+='零';
+        out+=section(g)+['','万','亿','万亿'][index]; zero=false;
+      }
+      return (out || '零').replace(/^一十/, '十');
+    }
+    const source=String(text ?? '');
+    if(direction==='toArabic') return source.replace(/(?:百分之)?负?[零〇一二两三四五六七八九十百千万亿]+(?:点[零〇一二三四五六七八九]+)?/gu,(raw, offset)=>{
+      if (raw === '万一') return raw;
+      const percent=raw.startsWith('百分之'); let value=percent?raw.slice(3):raw;
+      const negative=value.startsWith('负'); if(negative) value=value.slice(1);
+      const next=source.slice(offset+raw.length);
+      if(value.length===1 && !percent && !negative && !/^(?:个|位|名|只|条|次|岁|年|月|日|天|点|米|厘米|毫米|毫升|升|克|千克|秒|分钟|小时|元|万|亿|%|％)/u.test(next) && source.trim()!==raw) return raw;
+      if(['一','万','千','百'].includes(value) && /^(?:起|样|直|旦|般|定|切|一|分之)/u.test(next)) return raw;
+      const parts=value.split('点');
+      return (negative?'-':'')+parse(parts[0])+(parts[1]?'.'+parse(parts[1]):'')+(percent?'%':'');
+    });
+    // Align the normalized pre-LLM text locally. Restore only the original
+    // numeric span, never restore unrelated ASR wording or punctuation.
+    const preferred = [];
+    const original = String(originalText || '');
+    const normalized = direction === 'toChinese' && original ? convertSubtitleNumbers(original, 'toArabic') : '';
+    const map = new Map();
+    if (normalized === source) { for(let i=0;i<source.length;i++) map.set(i,i); }
+    else if(normalized && source.length*normalized.length <= 200000) {
+      const dp=Array.from({length:source.length+1},()=>new Uint16Array(normalized.length+1));
+      for(let i=source.length-1;i>=0;i--) for(let j=normalized.length-1;j>=0;j--)
+        dp[i][j]=source[i]===normalized[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+      if(dp[0][0]/Math.max(source.length,normalized.length)>=0.65) {
+        let i=0,j=0;
+        while(i<source.length && j<normalized.length) {
+          if(source[i]===normalized[j]) { map.set(i,j);i++;j++; }
+          else if(dp[i+1][j]>=dp[i][j+1]) i++; else j++;
+        }
+      }
+    }
+    if(normalized) for(const match of original.matchAll(/(?:百分之)?负?[零〇一二两三四五六七八九十百千万亿]+(?:点[零〇一二三四五六七八九]+)?/gu)) {
+      const numeric=convertSubtitleNumbers(match[0],'toArabic');
+      const start=convertSubtitleNumbers(original.slice(0,match.index),'toArabic').length;
+      if(/^-?[0-9]+(?:[.][0-9]+)?%?$/.test(numeric) && normalized.slice(start,start+numeric.length)===numeric)
+        preferred.push({start,numeric,text:match[0]});
+    }
+    if(direction==='toChinese') return source.replace(/-?\d+(?:\.\d+)?%?/g,(raw, offset)=>{
+      const before=source[offset-1] || '', after=source[offset+raw.length] || '';
+      if(/[A-Za-z0-9_./:@-]/.test(before) || /[A-Za-z0-9_./:@]/.test(after)) return raw;
+      const old=preferred.find(candidate=>candidate.numeric===raw
+        && [...raw].every((c,i)=>map.get(offset+i)===candidate.start+i)
+        && (normalized===source || source[offset-1]===normalized[candidate.start-1]
+          || source[offset+raw.length]===normalized[candidate.start+raw.length]));
+      if(old) return old.text;
+      const percent=raw.endsWith('%'), negative=raw.startsWith('-');
+      const parts=raw.replace(/^-|%$/g,'').split('.');
+      // Years are read digit by digit, not as quantities.
+      const whole=after==='年' && parts[0].length===4 ? [...parts[0]].map(c=>digits[Number(c)]).join('') : integer(parts[0]);
+      return (percent?'百分之':'')+(negative?'负':'')+whole+(parts[1]?'点'+[...parts[1]].map(c=>digits[Number(c)]).join(''):'');
+    });
+    return source;
+  }
+
   // Apply the selected operations in a stable order so preview and execution
   // always agree: Markdown -> trim -> capitalization -> prefix -> suffix.
   function applyTextProcessing(text, options = {}) {
@@ -360,6 +453,12 @@
     if (options.stripMarkdown) result = stripMarkdownFormatting(result);
     if (options.trim) result = result.trim();
     if (options.capitalize) result = capitalizeFirstLetter(result);
+    result = convertSubtitleNumbers(result, options.numbers, options.originalNumberText);
+    if (options.removePunctuation) result = result.replace(/\p{P}+/gu, '');
+    if (options.removeSpaces) result = result.replace(/[\p{Zs}\t]+/gu, '');
+    if (options.englishCase === 'upper') result = result.replace(/[a-z]+/g, word => word.toUpperCase());
+    if (options.englishCase === 'lower') result = result.replace(/[A-Z]+/g, word => word.toLowerCase());
+    if (options.englishCase === 'initial') result = result.replace(/[A-Za-z]+/g, word => word[0].toUpperCase()+word.slice(1).toLowerCase());
     if (options.addPrefix) result = `${String(options.prefix == null ? '' : options.prefix)}${result}`;
     if (options.addSuffix) result = `${result}${String(options.suffix == null ? '' : options.suffix)}`;
     return result;
@@ -2725,7 +2824,7 @@
     const safe = Number.isFinite(numeric) ? numeric : fallbackValue;
     return Math.min(
       MAX_TIMELINE_FPS,
-      Math.max(MIN_TIMELINE_FPS, Math.round(safe * 1000) / 1000),
+      Math.max(MIN_TIMELINE_FPS, safe),
     );
   }
 
@@ -2789,6 +2888,10 @@
       metadata.video_width = value.video_width;
       metadata.video_height = value.video_height;
     }
+    if (value.video_frame_count !== undefined) {
+      if (!Number.isSafeInteger(value.video_frame_count) || value.video_frame_count <= 0) return null;
+      metadata.video_frame_count = value.video_frame_count;
+    }
     if (hasFps) metadata.video_fps = normalizeTimelineFps(fps);
     if (typeof value.video_fps_ratio === 'string') {
       metadata.video_fps_ratio = value.video_fps_ratio.trim();
@@ -2819,6 +2922,65 @@
     }
     if (hasSelectedAudioTrack) metadata.selected_audio_track = value.selected_audio_track;
     return metadata;
+  }
+
+  // Adopt a measured source clock; never invent a rate when probing failed.
+  function adoptSourceVideoTimebase(project) {
+    const metadata = normalizeMediaMetadata(project?.media_metadata);
+    if (!metadata?.video_fps) return false;
+    project.timebase = { unit: 'frames', fps: metadata.video_fps };
+    return true;
+  }
+
+  // MP4/MOV sample tables can be read without decoding or loading the video.
+  // Skip mdat by its box size, including large 64-bit boxes and tail moov.
+  async function readVideoFrameMetadata(file) {
+    if (!file || !/\.(mp4|mov|m4v)$/i.test(file.name || '')) return null;
+    const typeAt = (v, p) => String.fromCharCode(...[0,1,2,3].map(i=>v.getUint8(p+i)));
+    function boxes(view, start=0, end=view.byteLength) {
+      const result=[];
+      for(let p=start;p+8<=end;) {
+        let size=view.getUint32(p), header=8;
+        if(size===1) { if(p+16>end) break;size=Number(view.getBigUint64(p+8));header=16; }
+        if(size===0) size=end-p;
+        if(!Number.isSafeInteger(size)||size<header||p+size>end) break;
+        result.push({type:typeAt(view,p+4),start:p+header,end:p+size});p+=size;
+      }
+      return result;
+    }
+    try {
+      for(let offset=0;offset+8<=file.size;) {
+        const head=new DataView(await file.slice(offset,Math.min(offset+16,file.size)).arrayBuffer());
+        let size=head.getUint32(0),header=8;
+        if(size===1) { if(head.byteLength<16)return null;size=Number(head.getBigUint64(8));header=16; }
+        if(size===0)size=file.size-offset;
+        if(!Number.isSafeInteger(size)||size<header||offset+size>file.size)return null;
+        if(typeAt(head,4)==='moov') {
+          if(size>64*1024*1024)return null;
+          const view=new DataView(await file.slice(offset+header,offset+size).arrayBuffer());
+          for(const trak of boxes(view).filter(b=>b.type==='trak')) {
+            const mdia=boxes(view,trak.start,trak.end).find(b=>b.type==='mdia');if(!mdia)continue;
+            const children=boxes(view,mdia.start,mdia.end), hdlr=children.find(b=>b.type==='hdlr'), mdhd=children.find(b=>b.type==='mdhd');
+            if(!hdlr||hdlr.start+12>hdlr.end||typeAt(view,hdlr.start+8)!=='vide'||!mdhd)continue;
+            const version=view.getUint8(mdhd.start),scaleOffset=mdhd.start+(version===1?20:12);
+            if(scaleOffset+4>mdhd.end)continue;const scale=view.getUint32(scaleOffset);
+            const minf=children.find(b=>b.type==='minf');if(!minf)continue;
+            const stbl=boxes(view,minf.start,minf.end).find(b=>b.type==='stbl');if(!stbl)continue;
+            const stts=boxes(view,stbl.start,stbl.end).find(b=>b.type==='stts');if(!stts||stts.start+8>stts.end)continue;
+            const count=view.getUint32(stts.start+4);if(stts.start+8+count*8>stts.end)continue;
+            let samples=0,ticks=0;
+            for(let i=0;i<count;i++) {const p=stts.start+8+i*8,n=view.getUint32(p),d=view.getUint32(p+4);samples+=n;ticks+=n*d;}
+            if(!scale||!samples||!ticks||!Number.isSafeInteger(samples*scale)||!Number.isSafeInteger(ticks))continue;
+            const fps=samples*scale/ticks;if(fps<MIN_TIMELINE_FPS||fps>MAX_TIMELINE_FPS)continue;
+            const gcd=(a,b)=>b?gcd(b,a%b):a,divisor=gcd(samples*scale,ticks);
+            return {video_fps:fps,video_fps_ratio:`${samples*scale/divisor}/${ticks/divisor}`,video_frame_count:samples};
+          }
+          return null;
+        }
+        offset+=size;
+      }
+    } catch (_) { return null; }
+    return null;
   }
 
   function frameNumberFromMilliseconds(value, fps = DEFAULT_TIMELINE_FPS) {
@@ -3079,7 +3241,7 @@
     return {
       ...DEFAULT_EDITOR_SETTINGS,
       editingShortcuts: normalizeEditingShortcuts(savedSettings.editingShortcuts),
-      splitKey: savedSettings.splitKey === 'ctrl-enter' ? 'ctrl-enter' : 'enter',
+      splitKey: ['enter','ctrl-enter','none'].includes(savedSettings.splitKey) ? savedSettings.splitKey : 'enter',
       splitUseWordTimestamps: savedSettings.splitUseWordTimestamps !== false,
       splitAutoSubmit: savedSettings.splitAutoSubmit !== false,
       // 主字幕拆分类型手动指定偏好：word / continuous / null（跟随工程与检测）。
@@ -5823,6 +5985,7 @@
   function configuredEnterAction(event, splitKey) {
     if (event?.key !== 'Enter') return null;
     const mod = event.ctrlKey || event.metaKey;
+    if (splitKey === 'none') return event.shiftKey && !mod ? 'newline' : 'save';
     if (event.shiftKey && mod) return 'split';
     if (event.shiftKey) return 'newline';
     if (mod) return splitKey === 'ctrl-enter' ? 'split' : 'save';
@@ -6737,6 +6900,7 @@ export default MawDynamicCaptions;
     resolveKeyboardOperationReference,
     buildReplacementPreview,
     applyTextProcessing,
+    convertSubtitleNumbers,
     buildTextProcessingPreview,
     buildTimedTextDiff,
     timedTextItemCoverage,
@@ -6822,6 +6986,8 @@ export default MawDynamicCaptions;
     normalizeTimelineTimebase,
     normalizeMediaMetadata,
     sourceVideoFormat,
+    adoptSourceVideoTimebase,
+    readVideoFrameMetadata,
     frameNumberFromMilliseconds,
     millisecondsFromFrameNumber,
     formatFrameTimecode,

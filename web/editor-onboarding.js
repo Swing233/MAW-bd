@@ -615,11 +615,15 @@ document.addEventListener('keydown', (event) => {
     finishOnboarding('skipped');
     return;
   }
+});
+
+function onboardingAfterNavigation(event, action) {
+  if (!onboardingIsOpen()) return;
   if (onboardingState.mode !== 'tour' || !onboardingState.started) return;
   const key = event.key.toLowerCase();
-  const wasd = key === 'w' || key === 'a' || key === 's' || key === 'd';
+  const wasd = action.startsWith('nav');
   if (onboardingState.step === 0 && onboardingState.phase === 'navigation'
-      && wasd && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat) {
+      && wasd && !event.shiftKey && !event.repeat) {
     const nextIdx = editor.currentCuePanelIdx;
     if (nextIdx >= 0 && nextIdx !== onboardingState.lastCueIdx) {
       onboardingState.lastCueIdx = nextIdx;
@@ -639,7 +643,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (onboardingState.step === 1 && onboardingState.phase === 'merge-armed'
-      && wasd && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat) {
+      && wasd && event.shiftKey && !event.repeat) {
     if (selectedIdxs.size > 1) {
       onboardingState.shiftUsed = true;
       onboardingState.mergeSelectedCount = selectedIdxs.size;
@@ -647,9 +651,10 @@ document.addEventListener('keydown', (event) => {
       renderOnboarding();
     }
   }
-});
+}
 
   window.MAWE_ONBOARDING = Object.freeze({
+    afterNavigation: onboardingAfterNavigation,
     afterRender: scheduleOnboardingAfterRender,
     scheduleStart: scheduleOnboardingAfterRender,
     beginRealSplit: beginOnboardingRealSplit,

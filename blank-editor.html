@@ -3846,10 +3846,6 @@
 .proofread-badge-improvised { background: #c4a019; }
 .proofread-badge-uncertain { background: #f07f6f; }
 .proofread-badge-manual { background: #9aa4b2; color: #fff; }
-.cue.proofread-verified .color-bar { box-shadow: inset 2px 0 0 #66bb6a; }
-.cue.proofread-improvised .color-bar { box-shadow: inset 2px 0 0 #c4a019; }
-.cue.proofread-uncertain .color-bar { box-shadow: inset 2px 0 0 #f07f6f; }
-.cue.proofread-manual .color-bar { box-shadow: inset 2px 0 0 #9aa4b2; }
 .proofread-filter-dropdown { display: inline-block; position: relative; }
 #proofread-filter-btn.filter-active { color: #8ecfff; }
 .proofread-filter-menu .proofread-filter-item.active { font-weight: 700; }
@@ -4001,26 +3997,7 @@
 .mawe-dialog button:disabled { opacity:.45; cursor:default; }
 .mawe-dialog :is(button,input,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .mawe-dialog footer { display:flex; gap:8px; justify-content:flex-end; padding:14px 22px; border-top:1px solid var(--border-subtle); background:var(--bg-panel); }
-.review-muted,.review-reason,.dialog-description { color:var(--text-secondary); font-size:12px; }
-.review-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 22px; }
-.review-toolbar .review-muted { margin:0; flex:1; font-size:11px; }
-.review-actions { display:flex; gap:6px; }
-.llm-review-list { max-height:52vh; overflow:auto; padding:0 22px 12px; }
-.llm-review-row { padding:14px 0; border-top:1px solid var(--border-subtle); }
-.review-row-head { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
-.review-row-head label { display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; }
-.review-row-head input { width:14px; height:14px; margin:0; accent-color:var(--accent); }
-.review-time { flex:1; color:var(--text-muted); font-size:11px; font-variant-numeric:tabular-nums; }
-.review-row-head button { font-size:11px; height:26px; }
-.review-comparison { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.llm-review-row .review-text { margin:0; padding:10px 12px; background:var(--bg-raised); border:1px solid var(--border-subtle); border-radius:var(--radius-md); }
-.review-text strong { display:block; color:var(--text-muted); font-size:11px; font-weight:500; margin-bottom:4px; }
-.review-text span { white-space:pre-wrap; overflow-wrap:anywhere; }
-.review-removed { color:var(--red); background:var(--red-soft); border-radius:2px; }
-.review-added { color:var(--green); background:var(--green-soft); border-radius:2px; }
-.llm-review-row .review-reason { margin-top:8px; }
-.review-error { color:var(--red); padding:0 22px; }
-.review-error:empty { display:none; }
+.dialog-description { color:var(--text-secondary); font-size:12px; }
 .gap-dialog { width:min(560px,calc(100vw - 40px)); }
 .gap-dialog > :is(p,label,.gap-preview) { margin:14px 22px; }
 .gap-dialog > label { display:grid; grid-template-columns:1fr 200px; gap:12px; align-items:center; color:var(--text-secondary); }
@@ -4035,12 +4012,120 @@
 #editing-shortcuts-settings #editing-shortcuts-reset { margin-top:8px; }
 #editing-shortcut-status { display:block; color:var(--accent); font-size:12px; }
 #proofread-filter-btn.filter-active { color:var(--accent); background:var(--accent-tint); }
-@media(max-width:620px) { .review-comparison { grid-template-columns:1fr; } .review-actions { width:100%; } .gap-dialog > label { grid-template-columns:1fr; } .review-row-head { gap:8px; } }
+@media(max-width:620px) { .gap-dialog > label { grid-template-columns:1fr; } }
 
-.toolbar.cue-list-toolbar #llm-review-btn,.toolbar.cue-list-toolbar #proofread-filter-btn { white-space:nowrap; flex-shrink:0; }
+.toolbar.cue-list-toolbar #proofread-filter-btn { white-space:nowrap; flex-shrink:0; }
 #editing-shortcuts-settings { gap:0; }
 #editing-shortcuts-settings .editor-settings-hint { margin-bottom:8px; }
 #editing-shortcuts-settings .editor-settings-item + .editor-settings-item { border-top:1px solid var(--border-subtle); }
+
+.proofread-suggestion-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-subtle); }
+.proofread-suggestion-actions[hidden] { display:none; }
+#proofread-suggestion-state { flex:1; color:var(--text-secondary); font-size:12px; }
+.proofread-suggestion-actions button { height:28px; padding:0 10px; border:1px solid var(--btn-border); border-radius:var(--radius-sm); background:var(--btn-bg); color:var(--btn-text); font:inherit; cursor:pointer; }
+.proofread-suggestion-actions button:hover:not(:disabled) { background:var(--btn-bg-hover); border-color:var(--btn-border-hover); }
+.proofread-suggestion-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.proofread-suggestion-actions button:disabled { opacity:.45; cursor:default; }
+
+.toolbar .proofread-filter-dropdown > .proofread-filter-menu { position:fixed; right:auto; overflow-y:auto; min-width:180px; max-width:calc(100vw - 16px); }
+
+/* A fixed status column keeps checked and unchecked caption rows aligned. */
+.cue-proofread-slot { flex:0 0 24px; width:24px; display:flex; align-items:flex-start; justify-content:center; }
+.cue-proofread-slot .proofread-badge { margin-left:0; }
+
+.cue-list-marquee { position: fixed; pointer-events: none; z-index: 1200; border: 1px solid var(--accent, #3979ce); background: rgba(57,121,206,.14); border-radius: 3px; }
+.cue-list-marquee[hidden] { display: none; }
+.marquee-selecting, .marquee-selecting * { user-select: none !important; }
+
+/* Subtitle task bar: search/filter, editing actions, then list preferences. */
+.toolbar.cue-list-toolbar { display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px; overflow:visible; align-items:center; }
+.cue-list-toolbar > .sep { display:none; }
+.cue-list-toolbar > .layout-toolbar-label { order:0; }
+.cue-list-toolbar > #cue-list-follow { order:1; }
+.cue-list-toolbar > #search-wrap { order:2; flex:1 1 150px; min-width:120px; max-width:none; }
+.cue-list-toolbar #search { width:100%; box-sizing:border-box; }
+.cue-list-toolbar > #color-filter-dropdown { order:3; }
+.cue-list-toolbar > #proofread-filter-dropdown { order:4; }
+.cue-list-toolbar > .cue-list-count { order:5; font-size:12px; color:var(--text-muted); white-space:nowrap; }
+.cue-list-toolbar > #batch-operations-dropdown { order:6; margin-left:auto; }
+.cue-list-toolbar > #cue-list-settings { order:7; }
+.cue-list-toolbar > #filter-over { display:none; }
+.toolbar.cue-list-toolbar > button, .cue-list-toolbar > .dropdown > button, .cue-list-toolbar .cue-list-settings-toggle { height:30px; min-height:30px; padding:0 10px; font-size:13px; }
+.toolbar #proofread-filter-menu, .toolbar #batch-operations-menu { width:240px; min-width:220px; max-width:calc(100vw - 16px); padding:6px; border-radius:9px; box-sizing:border-box; background:var(--bg-panel); box-shadow:var(--shadow-3); }
+.toolbar #proofread-filter-menu .dropdown-item, .toolbar #batch-operations-menu .dropdown-item { display:flex; align-items:center; width:100%; min-height:29px; height:auto; margin:0; padding:6px 10px; border:0; border-radius:5px; background:transparent; box-shadow:none; color:var(--text-secondary); font-size:13px; font-weight:400; line-height:1.35; text-align:left; white-space:nowrap; }
+.toolbar #proofread-filter-menu .dropdown-item:hover, .toolbar #batch-operations-menu .dropdown-item:hover { background:var(--accent-tint); color:var(--text-primary); }
+.toolbar #proofread-filter-menu .dropdown-item.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+.toolbar #proofread-filter-menu .dropdown-item.active::after { content:'✓'; margin-left:auto; }
+.menu-section-label { padding:9px 10px 4px; margin-top:4px; border-top:1px solid var(--border-subtle); color:var(--text-muted); font-size:11px; font-weight:600; letter-spacing:.04em; }
+.menu-section-label:first-child { border-top:0; margin-top:0; padding-top:5px; }
+.menu-item-hint { margin-left:auto; padding-left:12px; font-size:11px; color:var(--text-muted); }
+.toolbar #proofread-filter-menu label { display:flex; align-items:center; gap:8px; padding:7px 10px; margin:0; min-height:28px; font-size:12px; color:var(--text-secondary); }
+.toolbar #proofread-filter-menu input[type=number] { width:62px; height:28px; margin-left:auto; padding:3px 6px; box-sizing:border-box; font-size:12px; }
+.toolbar #proofread-filter-menu input[type=checkbox] { width:14px; height:14px; margin:0; }
+.cue-list-settings-panel { width:260px; padding:10px; }
+.cue-list-settings-panel .cue-list-settings-section { border:0; background:none; padding:4px 0 8px; margin:0; border-radius:0; }
+.cue-list-settings-panel .cue-list-settings-section + .cue-list-settings-section { border-top:1px solid var(--border-subtle); padding-top:10px; }
+.cue-list-settings-panel .settings-panel-title { text-align:left; font-size:11px; color:var(--text-muted); margin:0 0 6px; }
+.cue-list-settings-panel .cue-list-setting-toggle { margin:0; padding:6px 4px; min-height:28px; font-size:12px; }
+.cue-list-settings-panel .cue-list-settings-display-group { gap:12px; padding:4px; }
+
+.cue-list-toolbar > .cue-list-count { display:inline; }
+.cue-editor-key-hint[hidden] { display:none !important; }
+
+.toolbar.cue-list-toolbar { height:auto; min-height:44px; box-sizing:border-box; }
+.cue-list-toolbar .subtitle-task-actions { order:6; display:flex; gap:5px; flex:0 0 auto; }
+.cue-list-toolbar .subtitle-task-actions button { height:30px; min-height:30px; padding:0 9px; font-size:12px; white-space:nowrap; }
+.cue-list-toolbar > #batch-operations-dropdown { order:7; }
+.cue-list-toolbar > #cue-list-settings { order:8; margin-left:0; }
+#cue-list-settings-panel #cue-list-follow { display:block; width:100%; margin:4px 0 10px; font-size:12px; height:30px; }
+.toolbar #proofread-filter-menu { display:none; grid-template-columns:1fr 1fr; gap:4px; width:280px; min-width:260px; }
+.toolbar .proofread-filter-dropdown.open > #proofread-filter-menu { display:grid; }
+#proofread-filter-menu .menu-section-label, #proofread-filter-menu > label, #proofread-filter-menu > #filter-over { grid-column:1 / -1; }
+.toolbar #proofread-filter-menu .proofread-filter-item { justify-content:center; background:var(--bg-raised); border:1px solid var(--border-subtle); padding:8px 6px; white-space:normal; text-align:center; }
+.toolbar #proofread-filter-menu .proofread-filter-item.active { border-color:var(--accent); background:var(--accent-soft); }
+.toolbar #proofread-filter-menu .proofread-filter-item.active::after { content:none; }
+.text-process-operations > .text-process-operation:has(select) { display:flex; flex-wrap:wrap; gap:10px; padding:12px; }
+.text-process-operations > .text-process-operation select { flex:1; min-width:180px; }
+.text-process-operations > .text-process-operation .modal-hint { width:100%; }
+
+/* Small tools open below their toolbar button, without a page overlay. */
+.subtitle-tool-panel { position:fixed; inset:auto; margin:0; z-index:340; box-sizing:border-box; width:min(430px,calc(100vw - 16px)); overflow:auto; color:var(--text-primary); background:var(--bg-panel); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); box-shadow:var(--shadow-3); font-size:13px; }
+#text-process-modal { display:none; }
+#text-process-modal.show { display:block; }
+#text-process-modal .text-process-modal { width:auto; max-width:none; max-height:none; margin:0; padding:16px; border:0; box-shadow:none; background:transparent; font-size:13px; }
+#text-process-modal h3 { margin:0 0 10px; font-size:15px; }
+#text-process-modal .text-process-operations { gap:8px; }
+#text-process-modal .text-process-operation { padding:8px; }
+#text-process-modal .text-process-preview { max-height:120px; overflow:auto; }
+#text-process-modal .modal-desc { margin:0 0 10px; }
+#text-process-modal .actions { margin-top:12px; }
+#subtitle-gap-close-dialog header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; }
+#subtitle-gap-close-dialog > :is(p,label,.gap-preview) { margin:10px 16px; }
+#subtitle-gap-close-dialog > label { grid-template-columns:1fr 165px; }
+#subtitle-gap-close-dialog .gap-preview { max-height:110px; }
+#subtitle-gap-close-dialog footer { padding:10px 16px; }
+.review-filter-hint { grid-column:1 / -1; margin:4px 8px; color:var(--text-muted); font-size:11px; line-height:1.5; }
+.toolbar #proofread-filter-menu .proofread-filter-item.active::before { content:'✓'; margin-right:5px; }
+.ctxmenu { max-height:calc(100vh - 8px); overflow-y:auto; }
+
+.subtitle-tool-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+#text-process-modal .subtitle-tool-heading h3 { margin:0; }
+.subtitle-tool-heading button { background:var(--btn-bg); color:var(--text-secondary); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); width:28px; height:28px; cursor:pointer; }
+.cue-list-settings-panel .list-gap-highlight-limit { display:flex; align-items:center; gap:6px; }
+#list-gap-highlight-ms { width:66px; margin-left:auto; padding:4px 6px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-primary); font:inherit; }
+
+#text-process-modal [hidden] { display:none !important; }
+
+.cues-container > .toolbar.cue-list-toolbar { width:calc(100% + 8px); min-width:0; max-width:calc(100% + 8px); }
+
+/* Standard right-click submenus: hover sideways, flip at the viewport edge. */
+.ctxmenu .ctx-text-transform > .ctx-submenu-trigger { display:flex; width:100%; border:0; border-radius:0; background:transparent; text-align:left; font:inherit; color:var(--text-secondary); }
+.ctxmenu .ctx-submenu-trigger::after { content:'▸'; margin-left:auto; }
+.ctxmenu .ctx-submenu-trigger[aria-expanded=true] { background:var(--accent-tint); color:var(--text-primary); }
+.ctx-submenu { position:fixed; z-index:481; min-width:190px; max-width:calc(100vw - 8px); max-height:calc(100vh - 8px); overflow:auto; padding:4px 0; background:var(--bg-overlay); border:1px solid var(--border-subtle); border-radius:var(--radius-md); box-shadow:var(--shadow-3); }
+.ctx-submenu[hidden] { display:none; }
+.ctxmenu .ctx-submenu > button { display:flex; width:100%; border:0; border-radius:0; background:transparent; text-align:left; font:inherit; color:var(--text-secondary); white-space:nowrap; }
+.ctxmenu button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
 .toolbar.main-toolbar {
@@ -5123,7 +5208,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="app-version" id="app-version" data-label="版本号">版本号 v1.7.0</span>
+  <span class="app-version" id="app-version" data-label="版本号">版本号 v1.8.0</span>
   <span class="json-name empty" id="json-name" title="点击复制工程文件名">未加载工程</span>
 </h1>
 <div class="server-connection-banner" id="server-connection-banner" hidden role="alert" aria-live="assertive">
@@ -5305,8 +5390,8 @@
   <span class="sep"></span>
   <span class="info layout-toolbar-label">工作区</span>
   <select id="workspace-preset" title="工作区：窗口布局与显示状态（列表显示项、波形模式等）">
-    <option value="wave-right" selected>右侧整列波形</option>
-    <option value="classic">字幕列表编辑</option>
+    <option value="wave-right">右侧整列波形</option>
+    <option value="classic" selected>字幕列表编辑</option>
     <option value="three-fold">三折叠布局</option>
     <option value="cinema">大荧幕布局</option>
   </select>
@@ -5449,14 +5534,14 @@
   </div>
 </aside>
 
-<!-- 可拖动的非模态拼接/合并字幕工具窗 -->
+<!-- 可拖动的非模态拼接字幕工具窗 -->
 <aside class="gap-remove-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
   <header class="gap-remove-panel-header" id="auto-merge-drag-handle">
     <div class="gap-remove-heading">
       <span class="gap-remove-eyebrow">波形处理</span>
-      <h3 id="auto-merge-panel-title">拼接/合并字幕</h3>
+      <h3 id="auto-merge-panel-title">拼接字幕</h3>
     </div>
-    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗">×</button>
+    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接字幕工具窗">×</button>
   </header>
   <div class="gap-remove-panel-body">
     <section class="auto-merge-section" aria-labelledby="auto-merge-join-heading">
@@ -5480,34 +5565,9 @@
         </label>
       </div>
     </section>
-    <section class="auto-merge-section" aria-labelledby="auto-merge-absorb-heading">
-      <h4 id="auto-merge-absorb-heading">吸收合并字幕</h4>
-      <label class="gap-remove-field auto-merge-absorb-field" title="关闭后只吸附间隔，不合并任何字幕">
-        <span class="gap-remove-field-label">吸收过短字幕</span>
-        <input type="checkbox" id="auto-merge-absorb-short" checked>
-        <small>过短字幕与相邻字幕间隔在阈值内时吸收，间隔为 0ms 也会生效；关闭后只吸附间隔</small>
-      </label>
-      <div class="gap-remove-fields">
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">短字幕阈值</span>
-          <span class="gap-remove-number-control">
-            <input type="number" id="auto-merge-short-count" min="1" max="20" step="1" value="3" inputmode="numeric">
-          </span>
-          <small>中文少于 N 个字 / 英文少于 N 个词即视为过短字幕</small>
-        </label>
-        <label class="gap-remove-field">
-          <span class="gap-remove-field-label">吸收方向</span>
-          <select id="auto-merge-absorb-direction">
-            <option value="previous" selected>向前吸收</option>
-            <option value="next">向后吸收</option>
-          </select>
-          <small>向前：过短字幕并入上一条；向后：并入下一条</small>
-        </label>
-      </div>
-    </section>
     <button type="button" id="auto-merge-run" class="gap-remove-scan">
-      <span>拼接/合并字幕</span>
-      <small>按当前参数处理整段工程</small>
+      <span>拼接字幕</span>
+      <small>只贴合字幕间隔，保留字幕数量和文字</small>
     </button>
     <footer class="gap-remove-panel-footer">
       <span>滚轮可调数值 · Esc 关闭</span>
@@ -5610,10 +5670,10 @@
         </div>
         <aside class="help-tip-callout" role="note">
           <span class="help-wasd" role="img" aria-label="WASD 方向键">
-            <kbd data-wasd-direction="up" aria-hidden="true">W</kbd>
-            <kbd data-wasd-direction="left" aria-hidden="true">A</kbd>
-            <kbd data-wasd-direction="down" aria-hidden="true">S</kbd>
-            <kbd data-wasd-direction="right" aria-hidden="true">D</kbd>
+            <kbd data-wasd-direction="up" data-editing-shortcut-label="navUp" aria-hidden="true">W</kbd>
+            <kbd data-wasd-direction="left" data-editing-shortcut-label="navLeft" aria-hidden="true">A</kbd>
+            <kbd data-wasd-direction="down" data-editing-shortcut-label="navDown" aria-hidden="true">S</kbd>
+            <kbd data-wasd-direction="right" data-editing-shortcut-label="navRight" aria-hidden="true">D</kbd>
           </span>
           <span class="help-tip-text">其实就是用 WASD 啦，从字幕列表看是上下跳，从波形区看是左右跳 😝</span>
         </aside>
@@ -5675,17 +5735,8 @@
           <span class="help-note">通用快捷键见「快捷操作」；此处只列出波形区特有的操作</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
-          <span><kbd id="help-split-key">Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
+          <span><kbd id="help-split-key">Enter</kbd>（主字幕文字编辑时）在文字光标处拆分；双击波形小编辑窗按 Enter 保存，点击「在光标处切割」拆分</span>
           <span class="help-important"><kbd id="help-waveform-split-key" data-editing-shortcut-label="split">B</kbd> 按鼠标切割线直接分割字幕</span>
-        </div>
-      </section>
-      <h4 class="help-title">双语字幕</h4>
-      <section class="help-subgroup">
-        <div class="help-category">
-          <span class="help-important"><kbd>G</kbd> 绑定到主副字幕（自动匹配）</span>
-          <span><kbd>Shift+G</kbd> 解绑当前副字幕</span>
-          <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>
         </div>
       </section>
       <h4 class="help-title">波形外观调整</h4>
@@ -5716,7 +5767,7 @@
           <span><kbd data-mod-key>Ctrl+←/→</kbd> 微调字幕左边界（起点）</span>
           <span><kbd data-mod-key>Ctrl+Shift+←/→</kbd> 微调字幕右边界（终点）</span>
         </div>
-        <span class="help-note">无选中时作用于鼠标所在字幕；主字幕会联动绑定副字幕，副字幕只调整自身；多选不生效</span>
+        <span class="help-note">无选中时作用于鼠标所在字幕；多选不生效</span>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">按住字幕</h5>
@@ -5780,13 +5831,13 @@
         <div class="help-category">
           <span><kbd>批量替换</kbd> 查找并批量替换字幕文本</span>
           <span><kbd>纯文本编辑</kbd> 集中编辑字幕文本，可预览拆分、合并和字词时间码映射</span>
-          <span><kbd>文本处理</kbd> 批量修剪空白、首字母大写、添加前缀/后缀或去除 Markdown 符号</span>
+          <span><kbd>文本处理</kbd> 中文与阿拉伯数字双向转换、英文首字母大写或大小写转换</span>
         </div>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">处理范围</h5>
         <div class="help-category">
-          <span>批量替换和文本处理支持勾选「仅处理选中的字幕」限定范围</span>
+          <span>文本处理有选中字幕时仅处理选中项；批量替换可勾选「仅处理选中的字幕」</span>
         </div>
       </section>
     </section>
@@ -5933,10 +5984,10 @@
       </select>
     </label>
     <div class="editor-settings-field">
-    <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
+    <label class="toggle editor-settings-item" title="开启后，普通点击属于颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>
-    <small class="editor-settings-hint">选中字幕时，同时选中和它相同颜色/表情包的字幕</small>
+    <small class="editor-settings-hint">选中字幕时，同时选中和它相同颜色的字幕</small>
     </div>
     </div>
   </div>
@@ -6341,6 +6392,7 @@
       <select id="split-key">
         <option value="enter" selected>Enter</option>
         <option value="ctrl-enter">Ctrl+Enter</option>
+        <option value="none">关闭回车切分（Enter 保存）</option>
     </select>
   </label>
     <label class="toggle editor-settings-item" title="开启时，自动按可用时间码拆分；关闭后将打开拆分弹窗，手动拆分">
@@ -6740,6 +6792,9 @@
           </div>
           <div class="settings-panel-section cue-editor-settings-section">
             <span class="settings-panel-title">操作</span>
+            <label class="toggle settings-panel-item" title="关闭 Enter 与组合回车切分；按 Enter 保存，仍可用分割快捷键或按钮拆分">
+              <input type="checkbox" id="cue-editor-disable-enter-split"> 关闭回车切分
+            </label>
             <label class="toggle settings-panel-item" title="开启后，按 Esc 会恢复当前字幕编辑前的文本；关闭后按 Esc 保留文本改动并退出编辑">
               <input type="checkbox" id="cue-editor-cancel-on-escape"> Esc 取消编辑
             </label>
@@ -6790,6 +6845,11 @@
           <div class="cue-panel-proofread-field">
             <label for="cue-panel-proofread-reason">原因</label>
             <div id="cue-panel-proofread-reason" class="proofread-readonly"></div>
+          </div>
+          <div id="proofread-suggestion-actions" class="proofread-suggestion-actions" hidden>
+            <span id="proofread-suggestion-state" role="status"></span>
+            <button type="button" id="proofread-suggestion-keep">保留原文</button>
+            <button type="button" id="proofread-suggestion-accept">采用建议</button>
           </div>
         </div>
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
@@ -6860,7 +6920,7 @@
                 <option value="192">192 px</option>
               </select>
             </label>
-            <label class="toggle editor-settings-item" title="在多行波形中，为成组（颜色/表情包）字幕在块上方显示队长皇冠与组内序号">
+            <label class="toggle editor-settings-item" title="在多行波形中，为成组（颜色）字幕在块上方显示队长皇冠与组内序号">
               <input type="checkbox" id="waveform-show-group-badges" checked> 显示分组标记
             </label>
             <label class="editor-settings-item" title="被禁用字幕的波形显示方式">禁用波形显示
@@ -6880,7 +6940,7 @@
       <button type="button" id="gap-remove-manage" title="打开可拖动的移除静音空隙工具窗" aria-expanded="false" aria-controls="gap-remove-panel">静音空隙</button>
       <label class="toggle gap-skip-toggle" title="播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览"><input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙</label>
       <span class="sep"></span>
-      <button type="button" id="auto-merge-manage" title="将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白（可直接吸收短字幕）" aria-expanded="false" aria-controls="auto-merge-panel">拼接/合并字幕</button>
+      <button type="button" id="auto-merge-manage" title="将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白" aria-expanded="false" aria-controls="auto-merge-panel">拼接字幕</button>
       <button type="button" id="subtitle-extend-manage" title="打开可拖动的延长字幕工具窗" aria-expanded="false" aria-controls="subtitle-extend-panel">延长字幕</button>
       <span class="sep"></span>
       <span class="multi-subtitle-controls multi-subtitle-waveform-controls" id="multi-subtitle-waveform-controls" hidden>
@@ -6904,10 +6964,10 @@
       <span class="info layout-toolbar-label">字幕</span>
       <button type="button" id="cue-list-follow" aria-pressed="true" title="定位当前播放头并恢复字幕跟随；手动翻看后可再次点击">跟随播放</button>
       <div class="settings-anchor cue-list-settings" id="cue-list-settings">
-        <button type="button" id="cue-list-settings-toggle" class="cue-list-settings-toggle" title="字幕列表设置" aria-label="字幕列表设置" aria-expanded="false" aria-controls="cue-list-settings-panel" aria-haspopup="dialog">⚙️</button>
+        <button type="button" id="cue-list-settings-toggle" class="cue-list-settings-toggle" title="字幕列表设置" aria-label="字幕列表设置" aria-expanded="false" aria-controls="cue-list-settings-panel" aria-haspopup="dialog">列表设置</button>
         <div class="settings-panel cue-list-settings-panel" id="cue-list-settings-panel" role="dialog" aria-label="字幕列表设置" hidden>
           <div class="settings-panel-section cue-list-settings-section">
-            <span class="settings-panel-title">筛选</span>
+            <span class="settings-panel-title">浏览行为</span>
             <label class="settings-panel-item subtitle-preview-setting-row cue-list-setting-row" title="仅影响“仅看超长”筛选和字幕字数标记">
               <span>字数阈值</span>
               <input type="number" id="charcount-threshold" min="1" max="200" value="16">
@@ -6923,7 +6983,7 @@
             </label>
           </div>
           <div class="settings-panel-section cue-list-settings-section">
-            <span class="settings-panel-title">显示</span>
+            <span class="settings-panel-title">显示列</span>
             <div class="cue-list-settings-display-group">
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
               <label class="toggle settings-panel-item"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
@@ -6934,16 +6994,15 @@
         </div>
       </div>
       <span class="input-clear" id="search-wrap">
-        <input type="text" id="search" placeholder="过滤字幕…" autocomplete="off">
+        <input type="text" id="search" placeholder="搜索字幕文字…" autocomplete="off">
         <span class="clear-x" id="search-clear" title="清空">×</span>
       </span>
       <div class="dropdown color-filter-dropdown" id="color-filter-dropdown">
         <button type="button" id="color-filter-btn" hidden title="按颜色过滤显示的字幕" aria-expanded="false" aria-controls="color-filter-menu">🎨</button>
         <div class="dropdown-menu color-filter-menu" id="color-filter-menu" role="menu"></div>
       </div>
-      <button type="button" id="llm-review-btn" title="审查 LLM 校对建议">审查</button>
       <div class="dropdown proofread-filter-dropdown" id="proofread-filter-dropdown">
-        <button type="button" id="proofread-filter-btn" title="按校对状态过滤字幕" aria-expanded="false" aria-controls="proofread-filter-menu">校对</button>
+        <button type="button" id="proofread-filter-btn" title="按校验状态和内容筛选字幕" aria-expanded="false" aria-controls="proofread-filter-menu">审阅</button>
         <div class="dropdown-menu proofread-filter-menu" id="proofread-filter-menu" role="menu"></div>
       </div>
       <span class="info cue-list-count">显示 <b id="visible-count">0</b> / <b id="total-count">0</b></span>
@@ -6951,11 +7010,13 @@
       <div class="dropdown batch-operations-dropdown" id="batch-operations-dropdown">
         <button type="button" id="batch-operations-btn" aria-expanded="false" aria-controls="batch-operations-menu" aria-haspopup="menu">批量操作 ▾</button>
         <div class="dropdown-menu" id="batch-operations-menu" role="menu">
+          <div class="menu-section-label" role="presentation">文字编辑</div>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换</button>
+          <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem" title="数字转换、英文大小写、空白与格式处理">文本处理<span class="menu-item-hint">数字 · 大小写 · 格式</span></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑</button>
-          <button id="subtitle-gap-highlight-btn" type="button" class="dropdown-item" role="menuitem">高亮短字幕空隙…</button>
-<button type="button" class="dropdown-item" id="subtitle-gap-close-btn" role="menuitem">消除字幕空隙</button>
-          <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理</button>
+          <div class="menu-section-label" role="presentation">时间调整</div>
+          <button type="button" class="dropdown-item" id="subtitle-gap-close-btn" role="menuitem">消除字幕空隙</button>
+          <button type="button" class="dropdown-item" id="subtitle-gap-highlight-btn" role="menuitem">高亮短字幕空隙…</button>
         </div>
       </div>
       <span class="sep" id="filter-over-sep"></span>
@@ -7126,12 +7187,12 @@
 </div>
 
 <!-- 常用文本处理 modal：保持字幕行和时间范围结构，只批量变更文本。 -->
-<div class="modal-mask" id="text-process-modal">
-  <div class="modal text-process-modal" role="dialog" aria-modal="true"
+<div class="subtitle-tool-panel" id="text-process-modal">
+  <div class="modal text-process-modal" role="dialog" aria-modal="false"
        aria-labelledby="text-process-title" aria-describedby="text-process-description">
-    <h3 id="text-process-title">文本处理</h3>
+    <header class="subtitle-tool-heading"><h3 id="text-process-title">文本处理</h3><button type="button" id="text-process-close" aria-label="关闭文本处理">×</button></header>
     <p class="modal-desc" id="text-process-description">
-      选择要执行的文本操作；字幕行不会被删除，处理为空时会保留空字幕行。字词时间码会按文本编辑规则尽量保留。
+      选择数字或英文转换方式，先预览再应用；保留字幕时间，不添加英文前后空格。
     </p>
     <div id="text-process-scope-info" class="text-process-scope-info">范围：全部字幕</div>
     <label class="modal-check-row" for="text-process-selected-only">
@@ -7144,6 +7205,13 @@
         <input type="checkbox" id="text-process-trim">
         <span>修剪前后空白</span>
         <span class="modal-hint">去除字幕前方和后方的空格</span>
+      </label>
+      <label class="text-process-operation" for="text-process-numbers">
+        <span>数字转换</span><select id="text-process-numbers"><option value="">不转换</option><option value="toArabic">中文数字 → 阿拉伯数字</option><option value="toChinese">阿拉伯数字 → 中文数字</option></select>
+      </label>
+      <label class="text-process-operation" for="text-process-english-case">
+        <span>英文大小写</span><select id="text-process-english-case"><option value="">保持原样</option><option value="initial">每个单词首字母大写</option><option value="upper">全大写</option><option value="lower">全小写</option></select>
+        <span class="modal-hint">保留原有空格，不自动添加空格</span>
       </label>
       <label class="text-process-operation" for="text-process-capitalize">
         <input type="checkbox" id="text-process-capitalize">
@@ -9249,6 +9317,99 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     });
   }
 
+  // Convert numeric expressions only; ambiguous Chinese single characters in
+  // prose (一起、一样、万一) are not treated as standalone numbers.
+  function convertSubtitleNumbers(text, direction, originalText = '') {
+    const digits = '零一二三四五六七八九';
+    const values = Object.fromEntries([...digits].map((c, i) => [c, BigInt(i)]));
+    Object.assign(values, { '〇': 0n, '两': 2n });
+    const units = { 十:10n, 百:100n, 千:1000n, 万:10000n, 亿:100000000n };
+    function parse(raw) {
+      if (![...raw].some(c => units[c])) return [...raw].map(c => values[c].toString()).join('');
+      let total=0n, section=0n, number=0n;
+      for (const c of raw) {
+        if (values[c] !== undefined) { number=values[c]; continue; }
+        const unit=units[c];
+        if (unit < 10000n) { section += (number || 1n)*unit; number=0n; }
+        else { section += number; total=unit===100000000n?(total+section)*unit:total+section*unit; section=0n; number=0n; }
+      }
+      return String(total+section+number);
+    }
+    function integer(raw) {
+      if (raw.length > 16 || /^0\d/.test(raw)) return [...raw].map(c=>digits[Number(c)]).join('');
+      function section(n) {
+        let out='', zero=false;
+        for (let i=3;i>=0;i--) {
+          const power=10**i, d=Math.floor(n/power)%10;
+          if (d) { if(zero) out+='零'; out+=digits[d]+['','十','百','千'][i]; zero=false; }
+          else if(out && n%power) zero=true;
+        }
+        return out;
+      }
+      let n=BigInt(raw), out='', zero=false, index=0;
+      const groups=[];
+      do { groups.push(Number(n%10000n)); n/=10000n; } while(n);
+      for(index=groups.length-1;index>=0;index--) {
+        const g=groups[index];
+        if(!g) { if(out) zero=true; continue; }
+        if(out && (zero || g<1000)) out+='零';
+        out+=section(g)+['','万','亿','万亿'][index]; zero=false;
+      }
+      return (out || '零').replace(/^一十/, '十');
+    }
+    const source=String(text ?? '');
+    if(direction==='toArabic') return source.replace(/(?:百分之)?负?[零〇一二两三四五六七八九十百千万亿]+(?:点[零〇一二三四五六七八九]+)?/gu,(raw, offset)=>{
+      if (raw === '万一') return raw;
+      const percent=raw.startsWith('百分之'); let value=percent?raw.slice(3):raw;
+      const negative=value.startsWith('负'); if(negative) value=value.slice(1);
+      const next=source.slice(offset+raw.length);
+      if(value.length===1 && !percent && !negative && !/^(?:个|位|名|只|条|次|岁|年|月|日|天|点|米|厘米|毫米|毫升|升|克|千克|秒|分钟|小时|元|万|亿|%|％)/u.test(next) && source.trim()!==raw) return raw;
+      if(['一','万','千','百'].includes(value) && /^(?:起|样|直|旦|般|定|切|一|分之)/u.test(next)) return raw;
+      const parts=value.split('点');
+      return (negative?'-':'')+parse(parts[0])+(parts[1]?'.'+parse(parts[1]):'')+(percent?'%':'');
+    });
+    // Align the normalized pre-LLM text locally. Restore only the original
+    // numeric span, never restore unrelated ASR wording or punctuation.
+    const preferred = [];
+    const original = String(originalText || '');
+    const normalized = direction === 'toChinese' && original ? convertSubtitleNumbers(original, 'toArabic') : '';
+    const map = new Map();
+    if (normalized === source) { for(let i=0;i<source.length;i++) map.set(i,i); }
+    else if(normalized && source.length*normalized.length <= 200000) {
+      const dp=Array.from({length:source.length+1},()=>new Uint16Array(normalized.length+1));
+      for(let i=source.length-1;i>=0;i--) for(let j=normalized.length-1;j>=0;j--)
+        dp[i][j]=source[i]===normalized[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+      if(dp[0][0]/Math.max(source.length,normalized.length)>=0.65) {
+        let i=0,j=0;
+        while(i<source.length && j<normalized.length) {
+          if(source[i]===normalized[j]) { map.set(i,j);i++;j++; }
+          else if(dp[i+1][j]>=dp[i][j+1]) i++; else j++;
+        }
+      }
+    }
+    if(normalized) for(const match of original.matchAll(/(?:百分之)?负?[零〇一二两三四五六七八九十百千万亿]+(?:点[零〇一二三四五六七八九]+)?/gu)) {
+      const numeric=convertSubtitleNumbers(match[0],'toArabic');
+      const start=convertSubtitleNumbers(original.slice(0,match.index),'toArabic').length;
+      if(/^-?[0-9]+(?:[.][0-9]+)?%?$/.test(numeric) && normalized.slice(start,start+numeric.length)===numeric)
+        preferred.push({start,numeric,text:match[0]});
+    }
+    if(direction==='toChinese') return source.replace(/-?\d+(?:\.\d+)?%?/g,(raw, offset)=>{
+      const before=source[offset-1] || '', after=source[offset+raw.length] || '';
+      if(/[A-Za-z0-9_./:@-]/.test(before) || /[A-Za-z0-9_./:@]/.test(after)) return raw;
+      const old=preferred.find(candidate=>candidate.numeric===raw
+        && [...raw].every((c,i)=>map.get(offset+i)===candidate.start+i)
+        && (normalized===source || source[offset-1]===normalized[candidate.start-1]
+          || source[offset+raw.length]===normalized[candidate.start+raw.length]));
+      if(old) return old.text;
+      const percent=raw.endsWith('%'), negative=raw.startsWith('-');
+      const parts=raw.replace(/^-|%$/g,'').split('.');
+      // Years are read digit by digit, not as quantities.
+      const whole=after==='年' && parts[0].length===4 ? [...parts[0]].map(c=>digits[Number(c)]).join('') : integer(parts[0]);
+      return (percent?'百分之':'')+(negative?'负':'')+whole+(parts[1]?'点'+[...parts[1]].map(c=>digits[Number(c)]).join(''):'');
+    });
+    return source;
+  }
+
   // Apply the selected operations in a stable order so preview and execution
   // always agree: Markdown -> trim -> capitalization -> prefix -> suffix.
   function applyTextProcessing(text, options = {}) {
@@ -9256,6 +9417,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     if (options.stripMarkdown) result = stripMarkdownFormatting(result);
     if (options.trim) result = result.trim();
     if (options.capitalize) result = capitalizeFirstLetter(result);
+    result = convertSubtitleNumbers(result, options.numbers, options.originalNumberText);
+    if (options.removePunctuation) result = result.replace(/\p{P}+/gu, '');
+    if (options.removeSpaces) result = result.replace(/[\p{Zs}\t]+/gu, '');
+    if (options.englishCase === 'upper') result = result.replace(/[a-z]+/g, word => word.toUpperCase());
+    if (options.englishCase === 'lower') result = result.replace(/[A-Z]+/g, word => word.toLowerCase());
+    if (options.englishCase === 'initial') result = result.replace(/[A-Za-z]+/g, word => word[0].toUpperCase()+word.slice(1).toLowerCase());
     if (options.addPrefix) result = `${String(options.prefix == null ? '' : options.prefix)}${result}`;
     if (options.addSuffix) result = `${result}${String(options.suffix == null ? '' : options.suffix)}`;
     return result;
@@ -11621,7 +11788,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     const safe = Number.isFinite(numeric) ? numeric : fallbackValue;
     return Math.min(
       MAX_TIMELINE_FPS,
-      Math.max(MIN_TIMELINE_FPS, Math.round(safe * 1000) / 1000),
+      Math.max(MIN_TIMELINE_FPS, safe),
     );
   }
 
@@ -11685,6 +11852,10 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       metadata.video_width = value.video_width;
       metadata.video_height = value.video_height;
     }
+    if (value.video_frame_count !== undefined) {
+      if (!Number.isSafeInteger(value.video_frame_count) || value.video_frame_count <= 0) return null;
+      metadata.video_frame_count = value.video_frame_count;
+    }
     if (hasFps) metadata.video_fps = normalizeTimelineFps(fps);
     if (typeof value.video_fps_ratio === 'string') {
       metadata.video_fps_ratio = value.video_fps_ratio.trim();
@@ -11715,6 +11886,65 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     }
     if (hasSelectedAudioTrack) metadata.selected_audio_track = value.selected_audio_track;
     return metadata;
+  }
+
+  // Adopt a measured source clock; never invent a rate when probing failed.
+  function adoptSourceVideoTimebase(project) {
+    const metadata = normalizeMediaMetadata(project?.media_metadata);
+    if (!metadata?.video_fps) return false;
+    project.timebase = { unit: 'frames', fps: metadata.video_fps };
+    return true;
+  }
+
+  // MP4/MOV sample tables can be read without decoding or loading the video.
+  // Skip mdat by its box size, including large 64-bit boxes and tail moov.
+  async function readVideoFrameMetadata(file) {
+    if (!file || !/\.(mp4|mov|m4v)$/i.test(file.name || '')) return null;
+    const typeAt = (v, p) => String.fromCharCode(...[0,1,2,3].map(i=>v.getUint8(p+i)));
+    function boxes(view, start=0, end=view.byteLength) {
+      const result=[];
+      for(let p=start;p+8<=end;) {
+        let size=view.getUint32(p), header=8;
+        if(size===1) { if(p+16>end) break;size=Number(view.getBigUint64(p+8));header=16; }
+        if(size===0) size=end-p;
+        if(!Number.isSafeInteger(size)||size<header||p+size>end) break;
+        result.push({type:typeAt(view,p+4),start:p+header,end:p+size});p+=size;
+      }
+      return result;
+    }
+    try {
+      for(let offset=0;offset+8<=file.size;) {
+        const head=new DataView(await file.slice(offset,Math.min(offset+16,file.size)).arrayBuffer());
+        let size=head.getUint32(0),header=8;
+        if(size===1) { if(head.byteLength<16)return null;size=Number(head.getBigUint64(8));header=16; }
+        if(size===0)size=file.size-offset;
+        if(!Number.isSafeInteger(size)||size<header||offset+size>file.size)return null;
+        if(typeAt(head,4)==='moov') {
+          if(size>64*1024*1024)return null;
+          const view=new DataView(await file.slice(offset+header,offset+size).arrayBuffer());
+          for(const trak of boxes(view).filter(b=>b.type==='trak')) {
+            const mdia=boxes(view,trak.start,trak.end).find(b=>b.type==='mdia');if(!mdia)continue;
+            const children=boxes(view,mdia.start,mdia.end), hdlr=children.find(b=>b.type==='hdlr'), mdhd=children.find(b=>b.type==='mdhd');
+            if(!hdlr||hdlr.start+12>hdlr.end||typeAt(view,hdlr.start+8)!=='vide'||!mdhd)continue;
+            const version=view.getUint8(mdhd.start),scaleOffset=mdhd.start+(version===1?20:12);
+            if(scaleOffset+4>mdhd.end)continue;const scale=view.getUint32(scaleOffset);
+            const minf=children.find(b=>b.type==='minf');if(!minf)continue;
+            const stbl=boxes(view,minf.start,minf.end).find(b=>b.type==='stbl');if(!stbl)continue;
+            const stts=boxes(view,stbl.start,stbl.end).find(b=>b.type==='stts');if(!stts||stts.start+8>stts.end)continue;
+            const count=view.getUint32(stts.start+4);if(stts.start+8+count*8>stts.end)continue;
+            let samples=0,ticks=0;
+            for(let i=0;i<count;i++) {const p=stts.start+8+i*8,n=view.getUint32(p),d=view.getUint32(p+4);samples+=n;ticks+=n*d;}
+            if(!scale||!samples||!ticks||!Number.isSafeInteger(samples*scale)||!Number.isSafeInteger(ticks))continue;
+            const fps=samples*scale/ticks;if(fps<MIN_TIMELINE_FPS||fps>MAX_TIMELINE_FPS)continue;
+            const gcd=(a,b)=>b?gcd(b,a%b):a,divisor=gcd(samples*scale,ticks);
+            return {video_fps:fps,video_fps_ratio:`${samples*scale/divisor}/${ticks/divisor}`,video_frame_count:samples};
+          }
+          return null;
+        }
+        offset+=size;
+      }
+    } catch (_) { return null; }
+    return null;
   }
 
   function frameNumberFromMilliseconds(value, fps = DEFAULT_TIMELINE_FPS) {
@@ -11975,7 +12205,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     return {
       ...DEFAULT_EDITOR_SETTINGS,
       editingShortcuts: normalizeEditingShortcuts(savedSettings.editingShortcuts),
-      splitKey: savedSettings.splitKey === 'ctrl-enter' ? 'ctrl-enter' : 'enter',
+      splitKey: ['enter','ctrl-enter','none'].includes(savedSettings.splitKey) ? savedSettings.splitKey : 'enter',
       splitUseWordTimestamps: savedSettings.splitUseWordTimestamps !== false,
       splitAutoSubmit: savedSettings.splitAutoSubmit !== false,
       // 主字幕拆分类型手动指定偏好：word / continuous / null（跟随工程与检测）。
@@ -14719,6 +14949,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   function configuredEnterAction(event, splitKey) {
     if (event?.key !== 'Enter') return null;
     const mod = event.ctrlKey || event.metaKey;
+    if (splitKey === 'none') return event.shiftKey && !mod ? 'newline' : 'save';
     if (event.shiftKey && mod) return 'split';
     if (event.shiftKey) return 'newline';
     if (mod) return splitKey === 'ctrl-enter' ? 'split' : 'save';
@@ -15633,6 +15864,7 @@ export default MawDynamicCaptions;
     resolveKeyboardOperationReference,
     buildReplacementPreview,
     applyTextProcessing,
+    convertSubtitleNumbers,
     buildTextProcessingPreview,
     buildTimedTextDiff,
     timedTextItemCoverage,
@@ -15718,6 +15950,8 @@ export default MawDynamicCaptions;
     normalizeTimelineTimebase,
     normalizeMediaMetadata,
     sourceVideoFormat,
+    adoptSourceVideoTimebase,
+    readVideoFrameMetadata,
     frameNumberFromMilliseconds,
     millisecondsFromFrameNumber,
     formatFrameTimecode,
@@ -17198,7 +17432,7 @@ export default MawDynamicCaptions;
     { id: 'improvised', label: '现场发挥' },
     { id: 'uncertain', label: '待确认' },
     { id: 'manual', label: '人工修改' },
-    { id: 'llm_edited', label: 'LLM 校对修改' },
+    { id: 'llm_edited', label: 'LLM 修改' },
     { id: 'digits', label: '含阿拉伯数字' },
     { id: 'english', label: '含英文' },
     { id: 'punctuation', label: '含标点符号' },
@@ -17233,10 +17467,22 @@ export default MawDynamicCaptions;
     if (filterId === 'spaces') return /\p{Zs}/u.test(String(segment?.text || ''));
     const pr = getProofread(segment);
     if (filterId === 'llm_edited') {
-      return Boolean(pr && (pr.review_text || (pr.status !== 'manual' && pr.corrected
-        && pr.corrected !== pr.asr_original)));
+      const original = pr?.review_original ?? pr?.asr_original;
+      const suggestion = pr?.review_text ?? pr?.corrected;
+      return typeof original === 'string' && typeof suggestion === 'string'
+        && Boolean(suggestion) && suggestion !== original
+        && (pr.status !== 'manual' || pr.review_text != null);
     }
     return getStatus(segment) === filterId;
+  }
+
+  // Alternative statuses form a union; content requirements intersect.
+  function filterPassMany(segment, filterIds) {
+    const ids = Array.from(filterIds || []).filter(id => id !== 'all');
+    const statuses = ids.filter(id => Object.hasOwn(STATUS_META, id));
+    const contents = ids.filter(id => !Object.hasOwn(STATUS_META, id));
+    return (!statuses.length || statuses.some(id => filterPass(segment, id)))
+      && contents.every(id => filterPass(segment, id));
   }
 
   /**
@@ -17278,9 +17524,9 @@ export default MawDynamicCaptions;
       statusLabel: meta ? meta.label : '—',
       matchScore: pr && typeof pr.match_score === 'number' ? pr.match_score : null,
       scriptText: pr && pr.script_text != null ? String(pr.script_text) : '',
-      asrOriginal: pr && pr.asr_original != null ? String(pr.asr_original) : '',
+      asrOriginal: pr && (pr.review_original ?? pr.asr_original) != null ? String(pr.review_original ?? pr.asr_original) : '',
       secondaryAsr: pr && pr.secondary_asr != null ? String(pr.secondary_asr) : '',
-      corrected: pr && pr.corrected != null ? String(pr.corrected) : '',
+      corrected: pr && (pr.review_text ?? pr.corrected) != null ? String(pr.review_text ?? pr.corrected) : '',
       reason: pr && pr.reason != null ? String(pr.reason) : '',
       disagreement: pr && pr.disagreement && typeof pr.disagreement === 'object'
         ? pr.disagreement
@@ -17354,6 +17600,7 @@ export default MawDynamicCaptions;
     statusMeta,
     statusLabel,
     filterPass,
+    filterPassMany,
     markManual,
     renderDetail,
     applyCueClass,
@@ -17362,7 +17609,7 @@ export default MawDynamicCaptions;
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-/** Human review UI using MAWE design tokens. */
+/** Subtitle suggestion decisions and gap helpers. */
 (function (global) {
   'use strict';
   function rowsFromSegments(segments) {
@@ -17386,7 +17633,7 @@ export default MawDynamicCaptions;
       const row = fresh.get(choice.index), old = before.get(choice.index);
       if (seen.has(choice.index) || typeof choice.accepted !== 'boolean' || !row || !old || row.locked
           || ['start', 'end', 'original', 'corrected', 'current'].some(key => row[key] !== old[key])) {
-        throw new Error('字幕已变化或已人工修改，请重新打开审查');
+        throw new Error('字幕已变化或已人工修改，请重新查看校对建议');
       }
       seen.add(choice.index);
     });
@@ -17402,90 +17649,6 @@ export default MawDynamicCaptions;
       segment._dirty = true;
     });
   }
-  function node(tag, text, parent) {
-    const element = document.createElement(tag);
-    if (text != null) element.textContent = text;
-    if (parent) parent.appendChild(element);
-    return element;
-  }
-  function open({ rows, onApply, onLocate } = {}) {
-    const previous = document.getElementById('llm-review-dialog');
-    if (previous?.open) return;
-    previous?.remove();
-    const opener = document.activeElement;
-    const dialog = node('dialog'); dialog.id = 'llm-review-dialog'; dialog.className = 'mawe-dialog llm-review';
-    dialog.setAttribute('aria-labelledby', 'llm-review-title');
-    const header = node('header', null, dialog); node('h3', '校对审查', header).id = 'llm-review-title';
-    const toolbar = node('div', null, dialog); toolbar.className = 'review-toolbar';
-    const filter = node('select', null, toolbar); filter.id = 'llm-review-filter'; filter.setAttribute('aria-label', '筛选校对建议');
-    [['all', '全部建议'], ['pending', '待审查'], ['digits', '含阿拉伯数字'], ['english', '含英文'], ['punctuation', '含标点符号']].forEach(([value, label]) => {
-      const option = node('option', label, filter); option.value = value;
-    });
-    const checked = new Map(rows.map(row => [row.index, row.state === 'accepted']));
-    node('p', '勾选采用建议，未勾选保留原文。应用后可撤销。', header).className = 'review-muted';
-    const count = node('p', '', toolbar); count.className = 'review-muted';
-    const actions = node('div', null, toolbar); actions.className = 'review-actions';
-    const selectAll = node('button', '勾选当前显示', actions), deselectAll = node('button', '取消当前显示', actions);
-    const list = node('div', null, dialog); list.id = 'llm-review-list'; list.className = 'llm-review-list';
-    const visible = () => rows.filter(row => filter.value === 'all'
-      || (filter.value === 'pending' && row.state === 'pending')
-      || (filter.value === 'digits' && /[0-9]/.test(row.original + row.corrected))
-      || (filter.value === 'english' && /[A-Za-z]/.test(row.original + row.corrected))
-      || (filter.value === 'punctuation' && /\p{P}/u.test(row.original + row.corrected)));
-    function diffLine(parent, label, parts, className) {
-      const line = node('p', null, parent); line.className = 'review-text'; node('strong', label, line);
-      const content = node('span', null, line);
-      parts.forEach(part => { const span = node(part.changed ? 'mark' : 'span', part.text, content); if (part.changed) span.className = className; });
-    }
-    function render() {
-      list.replaceChildren();
-      const displayed = visible();
-      count.textContent = `显示 ${displayed.length} / ${rows.length} 条建议 · 已勾选 ${rows.filter(row => !row.locked && checked.get(row.index)).length} 条`;
-      if (!displayed.length) node('p', '没有符合条件的校对建议', list);
-      displayed.forEach(row => {
-        const item = node('section', null, list); item.className = 'llm-review-row'; item.dataset.index = row.index;
-        const rowHeader = node('div', null, item); rowHeader.className = 'review-row-head';
-        const label = node('label', null, rowHeader), checkbox = node('input', null, label);
-        checkbox.type = 'checkbox'; checkbox.checked = checked.get(row.index); checkbox.disabled = row.locked;
-        checkbox.setAttribute('aria-label', `采用第 ${row.index + 1} 条建议`);
-        node('span', `字幕 ${row.index + 1}`, label);
-        const time = ms => { const sec = Math.floor(ms / 1000); return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`; };
-        node('span', `${time(row.start)} → ${time(row.end)}`, rowHeader).className = 'review-time';
-        if (onLocate) node('button', '定位', rowHeader).addEventListener('click', () => onLocate(row));
-        checkbox.addEventListener('change', () => { checked.set(row.index, checkbox.checked); count.textContent = `显示 ${displayed.length} / ${rows.length} 条建议 · 已勾选 ${rows.filter(r => !r.locked && checked.get(r.index)).length} 条`; });
-        const diff = global.MaweProofread.diffText(row.original, row.corrected);
-        const comparison = node('div', null, item); comparison.className = 'review-comparison';
-        diffLine(comparison, '原文', diff.left, 'review-removed'); diffLine(comparison, '建议', diff.right, 'review-added');
-        node('p', row.reason || '未提供修改原因', item).className = 'review-reason';
-        if (row.locked) node('p', '已人工修改或文字已变化，已保护，不会覆盖', item).className = 'review-muted';
-      });
-    }
-    filter.addEventListener('change', render);
-    for (const [button, value] of [[selectAll, true], [deselectAll, false]]) button.addEventListener('click', () => { visible().forEach(row => { if (!row.locked) checked.set(row.index, value); }); render(); });
-    const error = node('p', '', dialog); error.id = 'llm-review-error'; error.className = 'review-error'; error.setAttribute('role', 'alert');
-    const footer = node('footer', null, dialog);
-    const save = node('button', '应用审查结果', footer); save.id = 'llm-review-save'; save.className = 'primary';
-    const cancel = node('button', '暂不处理', footer); cancel.id = 'llm-review-cancel';
-    footer.append(cancel, save);
-    let busy = false;
-    save.addEventListener('click', async () => {
-      if (busy) return;
-      busy = true; error.textContent = '';
-      dialog.querySelectorAll('button,input,select').forEach(el => { el.disabled = true; });
-      try {
-        await onApply(rows.filter(row => !row.locked).map(row => ({ index: row.index, accepted: checked.get(row.index) })));
-        dialog.close();
-      } catch (err) {
-        error.textContent = err.message || String(err); busy = false;
-        dialog.querySelectorAll('button,select').forEach(el => { el.disabled = false; }); render();
-      }
-    });
-    cancel.addEventListener('click', () => { if (!busy) dialog.close(); });
-    dialog.addEventListener('keydown', event => event.stopPropagation());
-    dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
-    dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); });
-    document.body.appendChild(dialog); render(); dialog.showModal();
-  }
   function gapPlan(segments, indices, maxGapMs) {
     if (!Number.isInteger(maxGapMs) || maxGapMs < 0) throw new Error('最大空隙须为非负整数毫秒');
     const selected = indices == null ? null : new Set(indices);
@@ -17500,7 +17663,7 @@ export default MawDynamicCaptions;
     }
     return changes;
   }
-  global.MaweReview = { rowsFromSegments, validateDecisions, applyDecisions, open, gapPlan };
+  global.MaweReview = { rowsFromSegments, validateDecisions, applyDecisions, gapPlan };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 // Framework-neutral waveform runtime. Browser/Tauri-specific file access is
@@ -18082,7 +18245,9 @@ export default MawDynamicCaptions;
   }
 
   function normalizeLayoutData(value) {
-    const source = value && typeof value === 'object' ? value : {};
+    // New projects use subtitle-list editing; saved projects keep their explicit layout.
+    const source = value && typeof value === 'object' && Object.keys(value).length
+      ? value : BUILTIN_WORKSPACES.classic;
     const preset = RENDERER_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
     const rows = normalizeLayoutRows(source.rows);
     const columnPercent = clamp(Number(source.columnPercent) || DEFAULT_SETTINGS.layoutColumnPercent, 30, 75);
@@ -19986,7 +20151,7 @@ export default MawDynamicCaptions;
 
     resetLayout() {
       this.recordLayoutUndo('重置工作区');
-      this.setLayout(DEFAULT_SETTINGS.layout);
+      this.setLayout('classic');
       this.setStatus('已恢复默认工作区');
     }
 
@@ -20725,13 +20890,14 @@ export default MawDynamicCaptions;
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在
         // 可视区内的行，不能使用 createRow 时捕获的旧值。
-        if (event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
+        if (this.options.silenceGapEditingEnabled !== false && event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
           this.beginGapRangeDrag(event, row);
           return;
         }
         // Alt+左键拖动空白处：用与中键增加静音相同的范围操作，
         // 这样不需要切换到“中键拖动”模式也能快速新增空隙。
         if (
+          this.options.silenceGapEditingEnabled !== false &&
           event.button === 0 &&
           event.altKey &&
           !event.ctrlKey &&
@@ -20830,7 +20996,7 @@ export default MawDynamicCaptions;
         this.cancelHoverSeekPreview();
       });
       row.addEventListener('auxclick', (event) => {
-        if (event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
+        if (this.options.silenceGapEditingEnabled !== false && event.button === 1 && gapOperationAllowsMiddle(this.options.getGapOperationMode?.())) {
           event.preventDefault();
         }
       });
@@ -20943,8 +21109,10 @@ export default MawDynamicCaptions;
       const threshold = this.options.getSubtitleGapHighlightMs?.() || 0;
       if (!threshold || !window.MaweReview) return;
       const segments = this.options.getSegments('main');
-      for (const gap of window.MaweReview.gapPlan(segments, null, threshold)) {
-        if (gap.gap >= threshold || gap.end <= startMs || gap.oldEnd >= endMs) continue;
+      const highlights = this.options.getSubtitleGapHighlights?.()
+        ?? window.MaweReview.gapPlan(segments, null, threshold).filter(gap => gap.gap < threshold);
+      for (const gap of highlights) {
+        if (gap.end <= startMs || gap.oldEnd >= endMs) continue;
         const marker = document.createElement('div');
         marker.className = 'waveform-subtitle-gap-highlight';
         marker.dataset.index = String(gap.index); marker.dataset.gapMs = String(gap.gap);
@@ -20997,7 +21165,7 @@ export default MawDynamicCaptions;
         this.setBindingMarker(block, mainBindingMarkers?.has?.(index) === true);
         // 短块内文字会被截断，悬浮 title 给出完整字幕文本
         block.title = label.textContent;
-        const badges = this.settings.showGroupBadges !== false ? badgesByIndex.get(index) : null;
+        const badges = this.settings.showGroupBadges !== false ? badgesByIndex.get(index)?.filter(badge => badge.type !== 'sticker') : null;
         if (badges?.length) {
           // 徽章挂在行上、块上方（不遮挡块内文字）；短字幕也保留最小显示空间，
           // 让分组提示可以正常出现。
@@ -21103,7 +21271,7 @@ export default MawDynamicCaptions;
           this.layoutBlock(block, segment, startMs, endMs, row);
           // cover 模式（行高不足）下叠加块盖住主块与徽章区，不渲染叠加徽章。
           const overlayBadgesForIndex = !overlayCoverMode && this.settings.showGroupBadges !== false
-            ? overlayBadges?.get(index) : null;
+            ? overlayBadges?.get(index)?.filter(badge => badge.type !== 'sticker') : null;
           if (overlayBadgesForIndex?.length) {
             const badgeDuration = Math.max(1, endMs - startMs);
             const badgeVisibleStart = Math.max(startMs, segment.start);
@@ -23142,6 +23310,7 @@ export default MawDynamicCaptions;
     }
 
     beginGapRangeDrag(event, row, { removed = !event.altKey } = {}) {
+      if (this.options.silenceGapEditingEnabled === false) return;
       event.preventDefault();
       event.stopPropagation();
       const startMs = this.gapRangePointerTime(event, row);
@@ -24268,7 +24437,8 @@ function getExtensionTrack(trackId = null) {
 }
 
 function getActiveExtensionTrack() {
-  return getExtensionTrack();
+  // Legacy extension data remains serializable, but this edition edits one track.
+  return null;
 }
 
 function multiSubtitleVisible() {
@@ -24277,10 +24447,7 @@ function multiSubtitleVisible() {
 
 // 多重字幕关闭时轨道数据仍保留在工程里，但副字幕不参与 ASS 预览与导出；
 // 与 multiSubtitleVisible() 的开合语义保持一致。
-function activeExtensionSegments() {
-  if (getMultiSubtitleState().enabled !== true) return [];
-  return getActiveExtensionTrack()?.segments || [];
-}
+function activeExtensionSegments() { return []; }
 
 function isConfiguredSubtitleSplitMode(value) {
   return MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SPLIT_MODES.has(value);
@@ -25491,7 +25658,8 @@ function formatTimelineMilliseconds(ms) {
   return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(3).padStart(6, '0')}`;
 }
 
-syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase?.unit === 'frames' });
+window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
 
 // 标记颜色：5 种基础色，用于给字幕分组着色。
 // 数据模型与表情包同构：head 持完整 color {name, value, start, end}，后续 ref 持 color_ref {name, headIdx}
@@ -25935,7 +26103,7 @@ function historyGuarded() {
       || stickerPreviewModal.classList.contains('show')
       || projectMediaModal.classList.contains('show')
       || assStyleWindow?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show');
+      || document.getElementById('sticker-root-modal')?.classList.contains('show');
 }
 const undoBtn = document.getElementById('undo-btn');
 const redoBtn = document.getElementById('redo-btn');
@@ -25949,10 +26117,13 @@ updateUndoRedoButtons();
 const nowEl = document.getElementById('now');
 const searchEl = document.getElementById('search');
 const visibleCountEl = document.getElementById('visible-count');
-let proofreadFilterId = 'all';
+const proofreadFilterIds = new Set();
 const proofreadFilterDropdown = document.getElementById('proofread-filter-dropdown');
 const proofreadFilterButton = document.getElementById('proofread-filter-btn');
 const proofreadFilterMenu = document.getElementById('proofread-filter-menu');
+const listFilterControls = [document.getElementById('filter-over'),
+  document.getElementById('charcount-threshold')?.closest('label'),
+  document.getElementById('hide-disabled-toggle')?.closest('label')];
 
 let proofreadHoverAnchor = null;
 let proofreadHideTimer = null;
@@ -25993,7 +26164,8 @@ function renderProofreadPanel(segment, anchor = null) {
   anchor.setAttribute('aria-describedby', panel.id);
   document.body.appendChild(panel);
   panel.classList.add('proofread-hover-panel');
-  panel.setAttribute('role', 'tooltip');
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', '校对详情');
   const detail = window.MaweProofread.renderDetail(segment);
   const has = Boolean(segment && (detail.status || detail.scriptText || detail.asrOriginal
     || detail.secondaryAsr || detail.corrected || detail.reason));
@@ -26039,6 +26211,33 @@ function renderProofreadPanel(segment, anchor = null) {
       }
     }
   }
+  const actions = document.getElementById('proofread-suggestion-actions');
+  const row = window.MaweReview.rowsFromSegments(DATA.segments).find(item => DATA.segments[item.index] === segment);
+  if (actions) {
+    actions.hidden = !row;
+    if (row) {
+      document.getElementById('proofread-suggestion-state').textContent = row.locked ? '人工修改受保护'
+        : ({ accepted: '已采用建议', rejected: '已保留原文', pending: '待选择' }[row.state] || '待选择');
+      for (const [id, accepted] of [['proofread-suggestion-accept', true], ['proofread-suggestion-keep', false]]) {
+        const button = document.getElementById(id);
+        button.disabled = row.locked;
+        button.onclick = event => {
+          event.stopPropagation();
+          if (editingState) finishEdit(true);
+          commitCuePanelEdit();
+          const choices = [{ index: row.index, accepted }];
+          try {
+            window.MaweReview.validateDecisions(DATA.segments, [row], choices);
+            pushUndo('选择 LLM 校对建议', { captureView: true });
+            window.MaweReview.applyDecisions(DATA.segments, [row], choices);
+            hideProofreadHover();
+            scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
+            flashHint(accepted ? '已采用建议，可撤销' : '已保留原文，可撤销', 'success');
+          } catch (error) { flashHint(error.message, 'error'); }
+        };
+      }
+    }
+  }
   const rect = anchor.getBoundingClientRect();
   const size = panel.getBoundingClientRect();
   panel.style.left = `${Math.max(8, Math.min(innerWidth - size.width - 8, rect.left))}px`;
@@ -26046,33 +26245,15 @@ function renderProofreadPanel(segment, anchor = null) {
     ? rect.bottom + 6 : Math.max(8, rect.top - size.height - 6)}px`;
 }
 
-function openEditorProofreadReview() {
-  if (editingState) finishEdit(true);
-  commitCuePanelEdit();
-  const rows = window.MaweReview.rowsFromSegments(DATA.segments);
-  window.MaweReview.open({ rows, onLocate: row => {
-    selectOnly(row.index);
-    player.currentTime = row.start / 1000;
-    waveformEditor?.revealTime(row.start, true);
-  }, onApply: choices => {
-    window.MaweReview.validateDecisions(DATA.segments, rows, choices);
-    if (!choices.length) return;
-    pushUndo('审查 LLM 校对', { captureView: true });
-    window.MaweReview.applyDecisions(DATA.segments, rows, choices);
-    scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
-    flashHint('审查结果已应用，可撤销', 'success');
-  }});
-}
-document.getElementById('llm-review-btn')?.addEventListener('click', openEditorProofreadReview);
-
-let subtitleGapHighlightMs = 0;
+let subtitleGapHighlightMs = 200;
 try {
-  const saved = Number(localStorage.getItem('maw.subtitleGapHighlightMs'));
+  const raw = localStorage.getItem('maw.subtitleGapHighlightMs');
+  const saved = raw === null ? 200 : Number(raw);
   if (Number.isInteger(saved) && saved >= 0) subtitleGapHighlightMs = saved;
-} catch (_) { /* Settings unavailable: use visual highlighting disabled. */ }
+} catch (_) { /* Settings unavailable: keep the default visual threshold. */ }
 function openSubtitleGapHighlight() {
   const previous = document.getElementById('subtitle-gap-highlight-dialog');
-  if (previous?.open) return;
+  if (previous?.open) { previous.close(); return; }
   previous?.remove();
   const dialog = document.createElement('dialog'); dialog.id = 'subtitle-gap-highlight-dialog';
   dialog.className = 'mawe-dialog gap-dialog';
@@ -26104,27 +26285,79 @@ function openSubtitleGapHighlight() {
 }
 document.getElementById('subtitle-gap-highlight-btn')?.addEventListener('click', openSubtitleGapHighlight);
 
+// Button-anchored tools stay in the document layer and never dim the editor.
+let activeSubtitleToolPanel = null;
+function positionSubtitleToolPanel() {
+  if (!activeSubtitleToolPanel) return;
+  const { panel, anchor } = activeSubtitleToolPanel;
+  const rect = anchor.getBoundingClientRect();
+  const top = rect.bottom + 6;
+  panel.style.maxHeight = `${Math.max(64, innerHeight - top - 8)}px`;
+  panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - panel.offsetWidth - 8))}px`;
+  panel.style.top = `${top}px`;
+}
+function showSubtitleToolPanel(panel, anchor, close) {
+  const previous = activeSubtitleToolPanel;
+  previous?.close(); previous?.anchor.setAttribute('aria-expanded', 'false');
+  activeSubtitleToolPanel = { panel, anchor, close };
+  panel.classList.add('subtitle-tool-panel');
+  anchor.setAttribute('aria-expanded', 'true');
+  positionSubtitleToolPanel();
+}
+function clearSubtitleToolPanel(panel) {
+  if (activeSubtitleToolPanel?.panel !== panel) return;
+  activeSubtitleToolPanel.anchor.setAttribute('aria-expanded', 'false');
+  activeSubtitleToolPanel = null;
+}
+window.addEventListener('resize', positionSubtitleToolPanel);
+window.addEventListener('scroll', positionSubtitleToolPanel, true);
+document.addEventListener('pointerdown', event => {
+  const active = activeSubtitleToolPanel;
+  if (active && !active.panel.contains(event.target) && !active.anchor.contains(event.target)) active.close();
+}, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !activeSubtitleToolPanel) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  const active = activeSubtitleToolPanel; active.close(); active.anchor.focus();
+}, true);
+
+function subtitleGapPlan(indices, limit) {
+  if (!timelineIsFrameMode()) return window.MaweReview.gapPlan(DATA.segments, indices, limit);
+  const timing = timelineTimingAdapter();
+  const frameSegments = DATA.segments.map(segment => ({
+    ...segment, start: timing.getStart(segment), end: timing.getEnd(segment),
+  }));
+  return window.MaweReview.gapPlan(frameSegments, indices, limit).map(change => ({
+    ...change, gapFrames: change.gap,
+    oldEnd: DATA.segments[change.index].end,
+    end: DATA.segments[change.index + 1].start,
+    gap: DATA.segments[change.index + 1].start - DATA.segments[change.index].end,
+  }));
+}
+
 function openSubtitleGapClose() {
   const previous = document.getElementById('subtitle-gap-close-dialog');
-  if (previous?.open) return;
+  if (previous?.open) { previous.close(); return; }
   previous?.remove();
   if (editingState) finishEdit(true);
   commitCuePanelEdit();
   const dialog = document.createElement('dialog');
-  dialog.id = 'subtitle-gap-close-dialog'; dialog.className = 'mawe-dialog gap-dialog';
+  dialog.id = 'subtitle-gap-close-dialog'; dialog.className = 'mawe-dialog gap-dialog subtitle-tool-panel';
+  dialog.setAttribute('aria-modal', 'false');
   dialog.setAttribute('aria-labelledby', 'subtitle-gap-close-title');
-  dialog.innerHTML = `<header><h3 id="subtitle-gap-close-title">消除字幕空隙</h3></header><p class="dialog-description">只延长前一条字幕的结束时间到后一条开始。不合并文字，不移动音频，不删除时间线内容。</p>
-    <label>最大空隙（毫秒） <input id="subtitle-gap-max" type="number" min="0" step="1" value="200"></label>
+  dialog.innerHTML = `<header><h3 id="subtitle-gap-close-title">消除字幕空隙</h3><button type="button" id="subtitle-gap-dismiss" aria-label="关闭消除字幕空隙">×</button></header><p class="dialog-description">只延长前一条字幕的结束时间到后一条开始。不合并文字，不移动音频，不删除时间线内容。</p>
+    <label>最大空隙（${timelineIsFrameMode() ? '帧' : '毫秒'}） <input id="subtitle-gap-max" type="number" min="0" step="1" value="200"></label>
     <label>处理范围 <select id="subtitle-gap-scope"><option value="selected">选中的相邻字幕</option><option value="all">全部主字幕</option></select></label>
     <p id="subtitle-gap-summary" class="dialog-summary" role="status"></p><div id="subtitle-gap-preview" class="gap-preview"></div>
     <footer><button id="subtitle-gap-cancel">取消</button><button id="subtitle-gap-apply" class="primary">应用</button></footer>`;
   const limit = dialog.querySelector('#subtitle-gap-max'), scope = dialog.querySelector('#subtitle-gap-scope');
+  if (timelineIsFrameMode()) limit.value = String(frameNumberFromMilliseconds(200, projectTimebase().fps));
   scope.value = selectedIdxs.size >= 2 ? 'selected' : 'all';
   const summary = dialog.querySelector('#subtitle-gap-summary'), preview = dialog.querySelector('#subtitle-gap-preview');
   const apply = dialog.querySelector('#subtitle-gap-apply');
   function plan() {
     if (!limit.value.trim()) throw new Error('请输入最大空隙');
-    return window.MaweReview.gapPlan(DATA.segments, scope.value === 'selected' ? [...selectedIdxs] : null, Number(limit.value));
+    return subtitleGapPlan(scope.value === 'selected' ? [...selectedIdxs] : null, Number(limit.value));
   }
   function render() {
     preview.replaceChildren();
@@ -26151,46 +26384,68 @@ function openSubtitleGapClose() {
   });
   dialog.querySelector('#subtitle-gap-cancel').addEventListener('click', () => dialog.close());
   dialog.addEventListener('keydown', event => event.stopPropagation());
-  dialog.addEventListener('close', () => dialog.remove());
-  document.body.appendChild(dialog); render(); dialog.showModal();
+  dialog.querySelector('#subtitle-gap-dismiss').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => { clearSubtitleToolPanel(dialog); dialog.remove(); });
+  document.body.appendChild(dialog); render(); dialog.show();
+  showSubtitleToolPanel(dialog, document.getElementById('subtitle-gap-close-btn'), () => dialog.close());
 }
 document.getElementById('subtitle-gap-close-btn')?.addEventListener('click', openSubtitleGapClose);
 
 function buildProofreadFilterMenu() {
   if (!proofreadFilterMenu || !window.MaweProofread) return;
   proofreadFilterMenu.replaceChildren();
+  const heading = text => { const el=document.createElement('div'); el.className='menu-section-label'; el.textContent=text; el.setAttribute('role','presentation'); proofreadFilterMenu.appendChild(el); };
   window.MaweProofread.FILTERS.forEach((item) => {
+    if (item.id === 'verified') heading('校对状态');
+    if (item.id === 'digits') heading('字幕内容');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'dropdown-item proofread-filter-item' + (proofreadFilterId === item.id ? ' active' : '');
+    const selected = item.id === 'all' ? !proofreadFilterIds.size : proofreadFilterIds.has(item.id);
+    btn.className = 'dropdown-item proofread-filter-item' + (selected ? ' active' : '');
     btn.dataset.filter = item.id;
-    btn.setAttribute('role', 'menuitem');
+    btn.setAttribute('role', 'menuitemcheckbox');
+    btn.setAttribute('aria-checked', String(selected));
     btn.textContent = item.label;
-    btn.addEventListener('click', () => {
-      proofreadFilterId = item.id;
-      if (proofreadFilterButton) {
-        proofreadFilterButton.textContent = item.id === 'all' ? '校对' : `校对·${item.label}`;
-        proofreadFilterButton.classList.toggle('filter-active', item.id !== 'all');
-      }
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      cueFilterSnapshot.clear();
+      if (item.id === 'all') proofreadFilterIds.clear();
+      else if (proofreadFilterIds.has(item.id)) proofreadFilterIds.delete(item.id);
+      else proofreadFilterIds.add(item.id);
+      const labels = window.MaweProofread.FILTERS.filter(filter => proofreadFilterIds.has(filter.id)).map(filter => filter.label);
+      proofreadFilterButton.textContent = labels.length === 1 ? `审阅·${labels[0]}` : labels.length ? `审阅·${labels.length}项` : '审阅';
+      proofreadFilterButton.title = labels.length ? `已选：${labels.join('、')}` : '按校验状态和内容筛选字幕';
+      proofreadFilterButton.classList.toggle('filter-active', labels.length > 0);
       buildProofreadFilterMenu();
+      proofreadFilterMenu.querySelector(`[data-filter="${item.id}"]`)?.focus();
+      positionProofreadFilterMenu();
       applySearch(searchEl?.value || '');
     });
     proofreadFilterMenu.appendChild(btn);
   });
+  const hint = document.createElement('p'); hint.className = 'review-filter-hint'; hint.textContent = '状态任选其一；内容条件同时满足。全部清除条件。'; proofreadFilterMenu.appendChild(hint);
+  heading('长度与可见性');
+  listFilterControls.filter(Boolean).forEach(control=>proofreadFilterMenu.appendChild(control));
+  const longButton=listFilterControls[0];
+  longButton.classList.add('dropdown-item'); longButton.setAttribute('role','menuitemcheckbox');
+  longButton.setAttribute('aria-checked',String(longButton.classList.contains('active')));
 }
 
-if (proofreadFilterButton && proofreadFilterMenu) {
-  buildProofreadFilterMenu();
-  proofreadFilterButton.addEventListener('click', () => {
-    const open = proofreadFilterDropdown.classList.toggle('open');
-    proofreadFilterButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-  document.addEventListener('click', (event) => {
-    if (!proofreadFilterDropdown?.contains(event.target)) {
-      proofreadFilterDropdown.classList.remove('open');
-      proofreadFilterButton.setAttribute('aria-expanded', 'false');
-    }
-  });
+buildProofreadFilterMenu();
+proofreadFilterMenu?.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !event.target.closest('input')) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  proofreadFilterDropdown.classList.remove('open'); proofreadFilterButton.setAttribute('aria-expanded','false'); proofreadFilterButton.focus();
+}, true);
+function positionProofreadFilterMenu() {
+  if (!proofreadFilterDropdown?.classList.contains('open')) return;
+  const rect = proofreadFilterButton.getBoundingClientRect();
+  const menu = proofreadFilterMenu;
+  menu.style.maxHeight = `${Math.max(100, innerHeight - 16)}px`;
+  const width = menu.offsetWidth, height = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`;
+  const top = rect.bottom + height + 6 <= innerHeight - 8 ? rect.bottom + 6 : rect.top - height - 6;
+  menu.style.top = `${Math.max(8, top)}px`;
 }
 const totalCountEl = document.getElementById('total-count');
 const selCountEl = document.getElementById('sel-count');
@@ -26617,9 +26872,6 @@ const autoMergeManageButton = document.getElementById('auto-merge-manage');
 const autoMergeRunButton = document.getElementById('auto-merge-run');
 const autoMergeGapMsInput = document.getElementById('auto-merge-gap-ms');
 const autoMergeSnapDirectionSelect = document.getElementById('auto-merge-snap-direction');
-const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-short');
-const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
-const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
 const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
@@ -26743,7 +26995,7 @@ document.addEventListener('keydown', event => {
   if (!action) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  if (action.startsWith('nav')) { handleSubtitleNavigationShortcut(event, action); return; }
+  if (action.startsWith('nav')) { handleSubtitleNavigationShortcut(event, action); window.MAWE_ONBOARDING?.afterNavigation(event, action); return; }
   if (event.repeat) return;
   if (action === 'start' || action === 'end') handlePointerBoundaryShortcut(event, action);
   else if (action === 'split') handleEditingSplitShortcut(event);
@@ -27758,14 +28010,7 @@ function applyCueListDisplaySettings({ preserveCueListScroll = true } = {}) {
   container.classList.toggle('hide-disabled', hideDisabled);
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
-  // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
-  // 分配首个表情包时由本函数根据最新数据直接恢复。
-  const overlaySegments = getOverlayTrack()?.segments || [];
-  const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref)
-    || overlaySegments.some(segment => segment.sticker || segment.sticker_ref);
-  container.classList.toggle('hide-cue-sticker',
-    !EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,
-  );
+  container.classList.add('hide-cue-sticker');
   container.classList.toggle('hide-cue-charcount', !EDITOR_SETTINGS.cueListShowCharcount);
   restoreCueListRenderAnchor(cueListAnchor);
 }
@@ -27927,7 +28172,7 @@ function applyCueEditorDisplaySettings() {
   cueEditorShowStickerToggle.checked = EDITOR_SETTINGS.cueEditorShowSticker;
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
   cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
-  cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
+  cuePanel.classList.add('hide-cue-editor-sticker');
 }
 
 const EDITOR_DISPLAY_KEYS = [
@@ -27964,6 +28209,7 @@ function modKeyLabel() {
 }
 
 function splitKeyLabel() {
+  if (splitKeySel.value === 'none') return '按钮';
   return splitKeySel.value === 'enter' ? 'Enter' : `${modKeyLabel()}+Enter`;
 }
 
@@ -27984,6 +28230,9 @@ function applyPlatformKeyLabels() {
 }
 
 function refreshSplitKeyHelp() {
+  const disabled=splitKeySel.value === 'none';
+  const toggle=document.getElementById('cue-editor-disable-enter-split'); if(toggle) toggle.checked=disabled;
+  if(cueEditorSplitKey) cueEditorSplitKey.closest('.cue-editor-key-hint').hidden=disabled;
   const label = splitKeyLabel();
   if (helpSplitKey) helpSplitKey.textContent = label;
   if (cuePanelSplitKey) cuePanelSplitKey.textContent = label;
@@ -28671,21 +28920,6 @@ autoMergeSnapDirectionSelect?.addEventListener('change', () => {
     autoMergeSnapDirection: autoMergeSnapDirectionSelect.value === 'forward' ? 'forward' : 'backward',
   });
 });
-autoMergeAbsorbShortToggle?.addEventListener('change', () => {
-  updateEditorSettings({ autoMergeAbsorbShort: autoMergeAbsorbShortToggle.checked });
-  syncAutoMergeAbsorbFields();
-});
-autoMergeShortCountInput?.addEventListener('input', () => {
-  updateEditorSettings({ autoMergeShortCount: clampAutoMergeShortCount(autoMergeShortCountInput.value) });
-});
-autoMergeShortCountInput?.addEventListener('change', () => {
-  autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
-});
-autoMergeAbsorbDirectionSelect?.addEventListener('change', () => {
-  updateEditorSettings({
-    autoMergeAbsorbDirection: autoMergeAbsorbDirectionSelect.value === 'next' ? 'next' : 'previous',
-  });
-});
 autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
   input.addEventListener('wheel', (event) => {
     if (!event.deltaY) return;
@@ -28921,6 +29155,24 @@ function refreshTimelineSettingsUi() {
       `Frame timecode example: HH:MM:SS${separator}FF; only the separator between seconds and frames changes.`,
     );
   }
+  const gapInput = document.getElementById('list-gap-highlight-ms');
+  if (gapInput) {
+    gapInput.value = String(frameMode ? Math.max(1,frameNumberFromMilliseconds(subtitleGapHighlightMs || 200,timebase.fps)) : subtitleGapHighlightMs || 200);
+    document.getElementById('list-gap-highlight-unit').textContent = frameMode ? '帧' : 'ms';
+  }
+  [subtitleExtendForwardInput, subtitleExtendBackwardInput].forEach(input => {
+    if (!input) return;
+    const previous = input.dataset.timeUnit || 'milliseconds';
+    if (previous !== timebase.unit) {
+      const raw = Number(input.value) || 0;
+      input.value = String(frameMode ? frameNumberFromMilliseconds(raw, timebase.fps)
+        : millisecondsFromFrameNumber(raw, timebase.fps));
+    }
+    input.dataset.timeUnit = timebase.unit;
+    input.step = frameMode ? '1' : '50';
+    input.max = frameMode ? String(Math.round(60*timebase.fps)) : '60000';
+    input.parentElement.querySelector('.gap-remove-unit').textContent = frameMode ? '帧' : 'ms';
+  });
   mediaSeekInputLastValue = timelineMediaSeekStepValue();
   refreshMediaSeekStepHelp();
   refreshMediaSeekControlLabels();
@@ -30558,16 +30810,13 @@ function groupMemberIdxs(idx) {
   const seg = DATA.segments[idx];
   if (!seg) return [idx];
   const heads = new Set();
-  if (seg.sticker) heads.add(idx);
-  else if (seg.sticker_ref) heads.add(seg.sticker_ref.headIdx);
   if (seg.color) heads.add(idx);
   else if (seg.color_ref) heads.add(seg.color_ref.headIdx);
   if (!heads.size) return [idx];
   const members = [];
   DATA.segments.forEach((s, i) => {
-    const sHead = s.sticker ? i : (s.sticker_ref ? s.sticker_ref.headIdx : null);
     const cHead = s.color ? i : (s.color_ref ? s.color_ref.headIdx : null);
-    if ((sHead !== null && heads.has(sHead)) || (cHead !== null && heads.has(cHead))) {
+    if (cHead !== null && heads.has(cHead)) {
       members.push(i);
     }
   });
@@ -31740,6 +31989,9 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   }
   if (seg._dirty) el.classList.add('dirty');
   if (seg.disabled) el.classList.add('disabled');
+  const proofreadSlot = document.createElement('span');
+  proofreadSlot.className = 'cue-proofread-slot';
+  el.appendChild(proofreadSlot);
   if (window.MaweProofread) {
     window.MaweProofread.applyCueClass(el, seg);
     const prBadge = window.MaweProofread.createBadge(seg);
@@ -31751,7 +32003,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
       prBadge.addEventListener('blur', scheduleProofreadHide);
       prBadge.addEventListener('pointerdown', event => event.stopPropagation());
       prBadge.addEventListener('click', event => event.stopPropagation());
-      el.appendChild(prBadge);
+      proofreadSlot.appendChild(prBadge);
     }
   }
 
@@ -31780,7 +32032,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   // 表情包槽位
   const slotEl = document.createElement('span');
   slotEl.className = 'sticker-slot';
-  updateCueStickerPresentation(el, slotEl, seg, idx, { extensionTrack, overlayTrack });
+
 
   const textEl = document.createElement('span');
   textEl.className = 'text';
@@ -31797,7 +32049,7 @@ function buildCueEl(seg, idx, { extensionTrack = null, overlayTrack = false } = 
   el.appendChild(colorBar);
   el.appendChild(indexEl);
   el.appendChild(timeEl);
-  el.appendChild(slotEl);
+
   el.appendChild(textEl);
   el.appendChild(cntEl);
 
@@ -32426,6 +32678,11 @@ bindToolbarExportDropdown(
   positionColorFilterMenu,
 );
 
+// Keep a review cohort stable while its text is edited. Changing criteria or
+// loading a different project starts a fresh cohort; IDs survive undo/reordering.
+let cueFilterSnapshot = new Map();
+let cueFilterSnapshotCriteria = '';
+let cueFilterSnapshotProject = null;
 // === 搜索 ===
 function applySearch(query, { refreshText = true, preserveCueListScroll = true } = {}) {
   const cueListAnchor = preserveCueListScroll ? captureCueListRenderAnchor() : null;
@@ -32436,6 +32693,15 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
     const filterOver = document.getElementById('filter-over').classList.contains('active');
     const threshold = getCharCountThreshold();
     const extensionTrack = getActiveExtensionTrack();
+    const criteria = JSON.stringify([trimmed, [...proofreadFilterIds].sort(),
+      colorFilterSelection ? [...colorFilterSelection].sort() : null,
+      colorFilterSuspended(), filterOver, threshold, extensionTrack?.id]);
+    if (criteria !== cueFilterSnapshotCriteria || DATA !== cueFilterSnapshotProject) {
+      cueFilterSnapshot.clear();
+      cueFilterSnapshotCriteria = criteria;
+      cueFilterSnapshotProject = DATA;
+    }
+    const freezeFilter = !!(trimmed || proofreadFilterIds.size || colorFilterSelection || filterOver);
     // 容器内还有布局拖拽栏和“加载工程后显示字幕列表”占位层；过滤只作用于真实字幕行。
     const cueElements = container.querySelectorAll(':scope > .cue');
     cueElements.forEach(el => {
@@ -32451,18 +32717,14 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
         ? getOverlayTrack()?.segments?.[overlayIdx] : null;
       const searchableText = [mainSeg?.text, extensionSeg?.text, overlaySeg?.text]
         .filter(Boolean).join('\n');
-      if (!searchableText) {
-        el.classList.add('hidden');
-        return;
-      }
-      let matched = !re || re.test(searchableText);
+      let matched = !!searchableText && (!re || re.test(searchableText));
       if (re) re.lastIndex = 0;
       if (matched && colorFilterSelection && !colorFilterSuspended()) {
         matched = colorFilterSelection.has(effectiveCueColorKey(mainSeg || extensionSeg || overlaySeg));
       }
-      if (matched && window.MaweProofread && proofreadFilterId && proofreadFilterId !== 'all') {
+      if (matched && window.MaweProofread && proofreadFilterIds.size) {
         const prSeg = mainSeg || extensionSeg || overlaySeg;
-        matched = window.MaweProofread.filterPass(prSeg || {}, proofreadFilterId);
+        matched = window.MaweProofread.filterPassMany(prSeg || {}, proofreadFilterIds);
       }
       const keepTemporaryVisible = filterOver
         && EDITOR_SETTINGS.cueListKeepSplitVisible
@@ -32474,6 +32736,13 @@ function applySearch(query, { refreshText = true, preserveCueListScroll = true }
             : 0)
           + (overlaySeg ? calcCharWidth(overlaySeg.text, getMainSubtitleSplitMode(overlaySeg)) : 0);
         matched = count > threshold;
+      }
+      if (freezeFilter) {
+        const rowKey = JSON.stringify([mainSeg?.id ?? (mainSeg ? mainIdx : null),
+          extensionTrack?.id, extensionSeg?.id ?? (extensionSeg ? extIdx : null),
+          overlaySeg?.id ?? (overlaySeg ? overlayIdx : null)]);
+        if (cueFilterSnapshot.has(rowKey)) matched = cueFilterSnapshot.get(rowKey);
+        else cueFilterSnapshot.set(rowKey, matched);
       }
       el.classList.toggle('hidden', !matched);
       if (matched) visible++;
@@ -34924,8 +35193,8 @@ function extendSubtitleRanges() {
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
   const plan = window.AsrEditorUtils.planSubtitleExtension(DATA.segments, indices, {
-    forwardMs,
-    backwardMs,
+    forwardMs: timelineValueToMilliseconds(forwardMs),
+    backwardMs: timelineValueToMilliseconds(backwardMs),
     durationMs: getSubtitleTimelineDuration(),
   });
   if (plan.changedIndices.length) {
@@ -34959,53 +35228,28 @@ function extendSubtitleRanges() {
 }
 
 // === 拼合字幕 ===
-// 把工具窗参数同步到控件；「吸收过短字幕」关闭时禁用短句相关参数。
+// 拼接字幕只贴合间隔，不合并字幕或修改文字。
 function syncAutoMergePanelInputs() {
   if (autoMergeGapMsInput) autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
   if (autoMergeSnapDirectionSelect) autoMergeSnapDirectionSelect.value = EDITOR_SETTINGS.autoMergeSnapDirection;
-  if (autoMergeAbsorbShortToggle) autoMergeAbsorbShortToggle.checked = EDITOR_SETTINGS.autoMergeAbsorbShort;
-  if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
-  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.value = EDITOR_SETTINGS.autoMergeAbsorbDirection;
-  syncAutoMergeAbsorbFields();
 }
-
-function syncAutoMergeAbsorbFields() {
-  const enabled = EDITOR_SETTINGS.autoMergeAbsorbShort;
-  if (autoMergeShortCountInput) autoMergeShortCountInput.disabled = !enabled;
-  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.disabled = !enabled;
-  autoMergePanel?.classList.toggle('absorb-disabled', !enabled);
-}
-
-// 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按吸附方向拼接；
-// 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
+  if (editingState) finishEdit(false);
+  commitCuePanelEdit();
   const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
     gapMs: EDITOR_SETTINGS.autoMergeGapMs,
     snapDirection: EDITOR_SETTINGS.autoMergeSnapDirection,
-    absorbShort: EDITOR_SETTINGS.autoMergeAbsorbShort,
-    shortCount: EDITOR_SETTINGS.autoMergeShortCount,
-    absorbDirection: EDITOR_SETTINGS.autoMergeAbsorbDirection,
+    absorbShort: false,
   });
-  if (!plan.snaps.length && !plan.groups.length) {
-    flashHint('没有需要拼接/合并的间隔或过短字幕', 'invalid');
+  if (!plan.snaps.length) {
+    flashHint('没有需要拼接的字幕间隔', 'invalid');
     return;
   }
-  if (editingState) finishEdit(false);
-  commitCuePanelEdit();
-  clearSelection({ silent: true });
-  pushUndo('拼接/合并字幕');
+  pushUndo('拼接字幕');
   const snappedCount = applyAutoMergeSnapsWithBindings(plan.snaps);
-  // 合并从后往前进行，保持靠前组的下标仍然有效
-  for (let i = plan.groups.length - 1; i >= 0; i--) {
-    mergeContiguousIndices(plan.groups[i]);
-  }
-  renderAll();
-  updateWithoutCueListAutoScroll();
-  const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
-  const parts = [];
-  if (snappedCount) parts.push(`吸附 ${snappedCount} 处间隔`);
-  if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
-  flashHint(`已拼接/合并字幕：${parts.join('，')}`, 'success');
+  syncTimelineGroupRanges(); scheduleAutoSaveFlush();
+  renderAll(); updateWithoutCueListAutoScroll();
+  flashHint(`已拼接 ${snappedCount} 处字幕间隔，可撤销`, 'success');
 }
 
 // 「拼合字幕」的自动延展直接修改主轨边界，不能绕过普通时间编辑使用的
@@ -35803,7 +36047,7 @@ function handlePointerBoundaryShortcut(event, edge) {
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
       || multiSubtitleImportModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
 
   const reference = keyboardOperationReference();
@@ -36052,7 +36296,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (waveformEditor?.hasCueDrag?.()) {
     // 拖动中的 Esc 不取消拖动，也不清空选区；拖动仍由 pointerup 正常完成。
@@ -36360,7 +36604,13 @@ function bindPlayerEvents(mediaElement) {
 function seekMediaBy(deltaSeconds) {
   if (!hasLoadedMedia()) return;
   const duration = Number.isFinite(player.duration) ? player.duration : Infinity;
-  player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
+  if (timelineIsFrameMode()) {
+    const fps = projectTimebase().fps;
+    const currentFrame = Math.round(player.currentTime * fps);
+    const deltaFrames = Math.round(deltaSeconds * fps);
+    const lastFrame = Number.isFinite(duration) ? Math.floor(duration * fps) : Infinity;
+    player.currentTime = Math.max(0, Math.min(lastFrame, currentFrame + deltaFrames)) / fps;
+  } else player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
   update();
   syncMediaControls();
 }
@@ -36523,7 +36773,7 @@ document.addEventListener('keydown', (e) => {
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
       || multiSubtitleImportModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   if (navigationOwner === 'cue-list' && navigateCueListBoundary(e.key)) {
     e.preventDefault();
@@ -36659,7 +36909,7 @@ document.addEventListener('keydown', (e) => {
   if (replaceModal.classList.contains('show') || stickerModal.classList.contains('show')
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
       || multiSubtitleSplitModal?.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   if (!switchMultiSubtitleTrack(e.key === 'ArrowUp' ? -1 : 1)) return;
   e.preventDefault();
@@ -36747,7 +36997,7 @@ document.addEventListener('keydown', (e) => {
   if (replaceModal.classList.contains('show')) return;
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   const a = document.activeElement;
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
   // Ctrl/Alt/Meta 别误触发（让浏览器自己处理 Ctrl+L 等）
@@ -36811,7 +37061,7 @@ function handleSubtitleNavigationShortcut(e, action) {
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
   if (multiSubtitleSplitModal?.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   const direction = (key === 'a' || key === 'w') ? -1 : 1;
   const panelTarget = getCurrentCuePanelTarget();
@@ -36926,7 +37176,7 @@ document.addEventListener('keydown', (e) => {
   )) return;
   if (replaceModal.classList.contains('show') || stickerModal.classList.contains('show')
       || stickerPreviewModal.classList.contains('show') || projectMediaModal.classList.contains('show')
-      || document.getElementById('sticker-root-modal').classList.contains('show')
+      || document.getElementById('sticker-root-modal')?.classList.contains('show')
       || ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   e.stopPropagation();
@@ -36952,7 +37202,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   selectAll();
@@ -36977,7 +37227,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
   e.preventDefault();
@@ -36999,7 +37249,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (selectedIdxs.size === 0 && selectedOverlayIdxs.size === 0) return;
@@ -37042,7 +37292,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (!getCurrentCuePanelTarget()) {
     e.preventDefault();
@@ -37065,7 +37315,7 @@ function handleEditingMergeShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   e.stopPropagation();
@@ -37117,7 +37367,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (selectedIdxs.size === 0 && selectedExtensionIdxs.size > 0) {
@@ -37151,7 +37401,7 @@ document.addEventListener('keydown', (e) => {
     if (stickerModal.classList.contains('show')) return;
     if (stickerPreviewModal.classList.contains('show')) return;
     if (projectMediaModal.classList.contains('show')) return;
-    if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+    if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
     if (waveformEditor.getTool() !== 'razor') return;
     e.preventDefault();
     waveformEditor.setTool('select');
@@ -37164,7 +37414,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const tool = (e.key === 'v' || e.key === 'V') ? 'select' : 'razor';
@@ -37184,7 +37434,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const target = getCurrentCuePanelTarget();
@@ -37220,7 +37470,7 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (multiSubtitleSplitModal?.classList.contains('show')) return;
   if (multiSubtitleImportModal?.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   const boundary = e.key.toLowerCase() === 'i' ? 'start' : 'end';
@@ -37240,7 +37490,7 @@ function handleEditingCreateShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   const reference = keyboardOperationReference();
   if (!reference) {
@@ -37261,7 +37511,7 @@ document.addEventListener('keydown', handleEditingCreateShortcut);
 // G：绑定当前单选的副字幕。若同时选中一条主字幕则直接绑定，否则沿用
 // 右键「绑定到主字幕」的自动匹配/等待选择流程。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'g' && e.key !== 'G') return;
+  if (!multiSubtitleVisible() || (e.key !== 'g' && e.key !== 'G')) return;
   if (editingState || extensionEditingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (
@@ -37274,7 +37524,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (!multiSubtitleVisible()) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -37328,7 +37578,7 @@ document.addEventListener('keydown', (e) => {
 
 // H：把当前选中的副字幕批量对齐到各自绑定的主字幕时间轴。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'h' && e.key !== 'H') return;
+  if (!multiSubtitleVisible() || (e.key !== 'h' && e.key !== 'H')) return;
   if (editingState || extensionEditingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (
@@ -37341,7 +37591,7 @@ document.addEventListener('keydown', (e) => {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
   if (!multiSubtitleVisible()) return;
@@ -37395,7 +37645,7 @@ function handleEditingSplitShortcut(e) {
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal')?.classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
   if (forceMainEdit) {
     e.preventDefault();
@@ -39174,7 +39424,7 @@ stickerOverlayLayer.appendChild(stickerOverlayContent);
   handle.dataset.handle = h;
   stickerOverlayLayer.appendChild(handle);
 });
-playerStage.appendChild(stickerOverlayLayer);
+// Legacy sticker geometry stays detached for old project serialization.
 bindPreviewBoxPointerEvents(stickerOverlayLayer, 'sticker');
 stickerOverlayLayer.addEventListener('keydown', (event) => handlePreviewBoxKeydown(event, 'sticker'));
 
@@ -41448,7 +41698,7 @@ function configureServerWorkspaceLibrary() {
   const initialPreset = typeof savedSelection === 'string' && !savedSelection.startsWith('saved:')
     ? savedSelection : DATA.workspace?.preset;
   currentBuiltinWorkspaceName = currentServerWorkspaceName ? ''
-    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'wave-right';
+    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'classic';
   if (!savedSelection && currentBuiltinWorkspaceName && presetWorkspaceHasLayout(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName])) {
     waveformEditor.setLayoutData(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]);
     if (workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
@@ -41522,7 +41772,7 @@ function configureWorkspaceTransfer() {
   });
   if (SERVER_CONFIG?.settingsUrl) return;  // 服务器版的下拉选择由工作区库接管
   // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
-  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
+  let selectedWorkspaceId = workspacePresetSelect?.value || 'classic';
   workspacePresetSelect?.addEventListener('change', () => {
     selectedWorkspaceId = workspacePresetSelect.value;
     if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) {
@@ -42543,6 +42793,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
       setSubmenuOpen(wrapper, !wrapper.classList.contains('open'));
       return;
     }
+    if (menu === proofreadFilterMenu) return;
     setOpen(false);
   });
   menu.addEventListener('keydown', (e) => {
@@ -42580,7 +42831,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       item.click();
-      if (!item.classList.contains('dropdown-submenu-toggle')) btn.focus();
+      if (menu !== proofreadFilterMenu && !item.classList.contains('dropdown-submenu-toggle')) btn.focus();
     }
   });
   document.addEventListener('click', (e) => {
@@ -42598,6 +42849,7 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId, positioner = nu
     dd.closest('.cue-list-toolbar, .toolbar')?.addEventListener('scroll', positioner);
   }
 }
+bindToolbarExportDropdown('proofread-filter-dropdown', 'proofread-filter-btn', 'proofread-filter-menu', positionProofreadFilterMenu);
 bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
 bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
 bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
@@ -42771,7 +43023,8 @@ function applyCanonicalProject(data, filename) {
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(data.overlay_track);
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase.unit === 'frames' });
+  window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   editorHistory.clear();
   updateUndoRedoButtons();
   clearSelection();
@@ -43129,42 +43382,13 @@ function renderProjectImportPreview(pending) {
 }
 
 async function showMultiSubtitleImportChoice(file, segments, options = {}) {
-  const existingTrack = getActiveExtensionTrack();
-  const projectFile = options.projectFile || null;
-  const projectImport = Boolean(projectFile);
-  pendingMultiImport = {
-    file,
-    segments,
-    existingTrackId: existingTrack?.id || null,
-    match: null,
-    choice: null,
-    projectFile,
-    projectMediaFile: options.projectMediaFile || null,
-    projectImport,
-  };
-  if (multiSubtitleImportDescription) multiSubtitleImportDescription.textContent = '请选择你要执行的行为：';
-  if (multiSubtitleImportReplace) {
-    multiSubtitleImportReplace.textContent = projectImport
-      ? '打开工程' : (existingTrack ? '替换副轨' : '替换当前字幕');
+  // Use normal import/checkpoint behavior; no second-track choice.
+  if (options.projectFile) {
+    const opened = await openProjectFile(options.projectFile, { suppressMediaPrompt: Boolean(options.projectMediaFile) });
+    if (opened && options.projectMediaFile) await loadMediaFile(options.projectMediaFile);
+    return;
   }
-  if (multiSubtitleImportExtension) {
-    multiSubtitleImportExtension.hidden = projectImport ? false : Boolean(existingTrack);
-    multiSubtitleImportExtension.textContent = projectImport
-      ? '使用工程字幕作为副字幕' : '作为副字幕';
-  }
-  if (multiSubtitleImportChoiceActions) multiSubtitleImportChoiceActions.hidden = false;
-  if (multiSubtitleImportResultActions) multiSubtitleImportResultActions.hidden = false;
-  if (multiSubtitleImportResultConfirm) multiSubtitleImportResultConfirm.disabled = true;
-  [multiSubtitleImportReplace, multiSubtitleImportExtension].forEach((button) => {
-    button?.setAttribute('aria-pressed', 'false');
-  });
-  if (projectImport) renderProjectImportPreview(pendingMultiImport);
-  else renderMultiImportPreview(null, segments);
-  multiSubtitleImportModal?.classList.add('show');
-  // 工程文件必须明确选择“打开”或“作为副字幕”；SRT 保持原有默认导入路径。
-  if (!projectImport) prepareMultiSubtitleImport();
-  (projectImport ? multiSubtitleImportReplace
-    : (existingTrack ? multiSubtitleImportReplace : multiSubtitleImportExtension))?.focus();
+  await openSrtFile(file);
 }
 
 function prepareMultiSubtitleImport() {
@@ -43611,8 +43835,31 @@ async function loadMediaFile(file) {
     return false;
   }
 
-  if (isVideo) captureProjectVideoDimensions(candidatePlayer);
-  else clearProjectVideoDimensions();
+  // A new file must not inherit the old video's FPS or frame count.
+  const nextMetadata = { ...(normalizeMediaMetadata(DATA.media_metadata) || {}) };
+  delete nextMetadata.video_fps; delete nextMetadata.video_fps_ratio; delete nextMetadata.video_frame_count;
+  delete nextMetadata.video_width; delete nextMetadata.video_height;
+  DATA.media_metadata = Object.keys(nextMetadata).length ? nextMetadata : null;
+  if (isVideo) {
+    captureProjectVideoDimensions(candidatePlayer);
+    updateEditorLoading(55, '正在检查视频帧率与帧数…');
+    const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
+    if (measured) {
+      DATA.media_metadata = { ...DATA.media_metadata, ...measured };
+      window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+      projectImportDirty = true;
+    } else {
+      DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
+      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+      flashHint('未读取到视频帧率，暂用毫秒；可在工程设置中指定帧率', 'warning');
+    }
+  } else {
+    DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
+    syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+  }
+  refreshTimelineSettingsUi();
+  renderAll({ waveform: 'full' });
 
   let mediaTimeReference = null;
   try {
@@ -44021,6 +44268,8 @@ const textProcessSelectedOnlyHint = document.getElementById('text-process-select
 const textProcessScopeInfo = document.getElementById('text-process-scope-info');
 const textProcessPreview = document.getElementById('text-process-preview');
 const textProcessConfirm = document.getElementById('text-process-confirm');
+const textProcessNumbers = document.getElementById('text-process-numbers');
+const textProcessEnglishCase = document.getElementById('text-process-english-case');
 const textProcessTrim = document.getElementById('text-process-trim');
 const textProcessCapitalize = document.getElementById('text-process-capitalize');
 const textProcessPrefix = document.getElementById('text-process-prefix');
@@ -44030,6 +44279,8 @@ const textProcessSuffixInput = document.getElementById('text-process-suffix-inpu
 const textProcessStripMarkdown = document.getElementById('text-process-strip-markdown');
 let textProcessSelectionSnapshot = [];
 let textProcessScope = null;
+let textProcessRemoveSpaces = false;
+let textProcessRemovePunctuation = false;
 
 function textProcessSelectionTargets() {
   const targets = [...selectedIdxs]
@@ -44074,13 +44325,17 @@ function buildTextProcessPreview(targets, options) {
     const segment = segments[target.index];
     if (!segment) return [];
     const before = String(segment.text == null ? '' : segment.text);
-    const after = window.AsrEditorUtils.applyTextProcessing(before, options);
+    const after = window.AsrEditorUtils.applyTextProcessing(before, { ...options, originalNumberText: segment.proofread?.review_original ?? segment.proofread?.asr_original ?? '' });
     return [{ ...target, before, after, changed: before !== after }];
   });
 }
 
 function getTextProcessOptions() {
   return {
+    removeSpaces: textProcessRemoveSpaces,
+    removePunctuation: textProcessRemovePunctuation,
+    numbers: textProcessNumbers.value,
+    englishCase: textProcessEnglishCase.value,
     trim: textProcessTrim.checked,
     capitalize: textProcessCapitalize.checked,
     addPrefix: textProcessPrefix.checked,
@@ -44101,17 +44356,19 @@ function refreshTextProcessScopeInfo() {
 
 function refreshTextProcessSelectionControl() {
   const available = textProcessSelectionSnapshot.length > 0;
-  textProcessSelectedOnlyCb.disabled = !available;
+  textProcessSelectedOnlyCb.closest('label').hidden = true;
+  textProcessSelectedOnlyCb.disabled = true;
+  textProcessSelectedOnlyCb.checked = available;
   if (!available) textProcessSelectedOnlyCb.checked = false;
   if (textProcessSelectedOnlyHint) textProcessSelectedOnlyHint.hidden = available;
-  textProcessScope = textProcessSelectedOnlyCb.checked
+  textProcessScope = textProcessSelectionSnapshot.length
     ? [...textProcessSelectionSnapshot] : null;
   refreshTextProcessScopeInfo();
 }
 
 function renderTextProcessPreview() {
   const options = getTextProcessOptions();
-  const hasOperation = textProcessTrim.checked || textProcessCapitalize.checked
+  const hasOperation = options.removeSpaces || options.removePunctuation || textProcessNumbers.value || textProcessEnglishCase.value || textProcessTrim.checked || textProcessCapitalize.checked
     || textProcessPrefix.checked || textProcessSuffix.checked || textProcessStripMarkdown.checked;
   const targets = textProcessTargets();
   textProcessPreview.replaceChildren();
@@ -44159,9 +44416,11 @@ function refreshTextProcessInputState() {
 
 function closeTextProcessModal() {
   textProcessModal.classList.remove('show');
+  clearSubtitleToolPanel(textProcessModal);
 }
 
 function openTextProcessModal() {
+  if (textProcessModal.classList.contains('show')) { closeTextProcessModal(); return; }
   if (!DATA.segments.length && !getActiveExtensionTrack()?.segments?.length) {
     flashHint('当前没有可处理的字幕', 'invalid');
     return;
@@ -44172,22 +44431,27 @@ function openTextProcessModal() {
   refreshTextProcessSelectionControl();
   [textProcessTrim, textProcessCapitalize, textProcessPrefix,
     textProcessSuffix, textProcessStripMarkdown].forEach((input) => { input.checked = false; });
+  textProcessRemoveSpaces = false;
+  textProcessRemovePunctuation = false;
+  textProcessNumbers.value = '';
+  textProcessEnglishCase.value = '';
   textProcessPrefixInput.value = '';
   textProcessSuffixInput.value = '';
   refreshTextProcessInputState();
   textProcessModal.classList.add('show');
   renderTextProcessPreview();
-  setTimeout(() => textProcessTrim.focus(), 50);
+  showSubtitleToolPanel(textProcessModal, textProcessButton, closeTextProcessModal);
+  setTimeout(() => { if (textProcessModal.classList.contains('show')) textProcessNumbers.focus(); }, 50);
 }
 
 textProcessButton?.addEventListener('click', openTextProcessModal);
 textProcessSelectedOnlyCb?.addEventListener('change', () => {
-  textProcessScope = textProcessSelectedOnlyCb.checked
+  textProcessScope = textProcessSelectionSnapshot.length
     ? [...textProcessSelectionSnapshot] : null;
   refreshTextProcessScopeInfo();
   renderTextProcessPreview();
 });
-[textProcessTrim, textProcessCapitalize, textProcessPrefix,
+[textProcessNumbers, textProcessEnglishCase, textProcessTrim, textProcessCapitalize, textProcessPrefix,
   textProcessSuffix, textProcessStripMarkdown].forEach((input) => {
   input?.addEventListener('change', () => {
     refreshTextProcessInputState();
@@ -44198,6 +44462,7 @@ textProcessSelectedOnlyCb?.addEventListener('change', () => {
   input?.addEventListener('input', renderTextProcessPreview);
 });
 document.getElementById('text-process-cancel')?.addEventListener('click', closeTextProcessModal);
+document.getElementById('text-process-close')?.addEventListener('click', closeTextProcessModal);
 textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
@@ -44246,6 +44511,17 @@ textProcessConfirm?.addEventListener('click', () => {
     flashHint('无法应用文本处理：字幕行结构发生了变化', 'warning');
     return;
   }
+  // Text-only operations never move subtitle timing; record manual changes.
+  result.rows.filter(row => row.changed).forEach(row => {
+    const next = row.kind === 'main' ? nextMainSegments?.[row.index]
+      : nextExtensionSegments.find(draft => draft.track.id === row.trackId)?.segments[row.index];
+    const original = textProcessTargetSegments(row)[row.index];
+    if (!next || !original) return;
+    next.start = original.start; next.end = original.end;
+    if (original.start_frame !== undefined) next.start_frame = original.start_frame;
+    if (original.end_frame !== undefined) next.end_frame = original.end_frame;
+    window.MaweProofread?.markManual(next);
+  });
   pushUndo('文本处理');
   if (nextMainSegments) {
     DATA.segments.splice(0, DATA.segments.length, ...nextMainSegments);
@@ -46079,11 +46355,6 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
       extensionIdx < 0,
     );
   }
-  addSep();
-  addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));
-  if (getGapRemoveGaps().some((gap) => gap.removed !== false)) {
-    addItem('填充区间空隙', '', () => fillGapRangeAtWaveformTime(timeMs));
-  }
 
   ctxmenu.classList.add('show');
   const rect = ctxmenu.getBoundingClientRect();
@@ -46093,6 +46364,22 @@ function showWaveformBlankMenu(timeMs, clickX, clickY, track = 'main') {
   ctxmenu.style.left = nx + 'px';
   ctxmenu.style.top = ny + 'px';
 }
+
+function positionContextSubmenu(group) {
+  const submenu = group.querySelector('.ctx-submenu');
+  if (submenu.hidden) return;
+  const anchor = group.querySelector('.ctx-submenu-trigger').getBoundingClientRect();
+  const width = submenu.offsetWidth, height = submenu.offsetHeight;
+  const left = anchor.right + width <= innerWidth - 4 ? anchor.right - 1 : anchor.left - width + 1;
+  submenu.style.left = `${Math.max(4, Math.min(left, innerWidth - width - 4))}px`;
+  submenu.style.top = `${Math.max(4, Math.min(anchor.top, innerHeight - height - 4))}px`;
+}
+function repositionContextSubmenus() {
+  if (!ctxmenu.classList.contains('show')) return;
+  ctxmenu.querySelectorAll('.ctx-text-transform').forEach(positionContextSubmenu);
+}
+ctxmenu.addEventListener('scroll', repositionContextSubmenus);
+window.addEventListener('resize', repositionContextSubmenus);
 
 // === 右键菜单 ===
 let ctxLastClickX = 0, ctxLastClickY = 0;
@@ -46220,6 +46507,61 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }, { danger: true });
     addItem('取消选择', `${modKeyLabel()}+D`, () => clearSelection());
   }
+
+  addSep();
+  const transforms = [
+    ['数字转换', 'numbers', [['233→二三三', 'toChinese'], ['二三三→233', 'toArabic']]],
+    ['英文大小写', 'englishCase', [['每个单词首字母大写', 'initial'], ['全大写', 'upper'], ['全小写', 'lower']]],
+  ];
+  function applyTransform(key, value) {
+    ctxmenu.classList.remove('show');
+    if (textProcessModal.classList.contains('show')) closeTextProcessModal();
+    openTextProcessModal();
+    if (key === 'removeSpaces') textProcessRemoveSpaces = true;
+    else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
+    else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
+    renderTextProcessPreview();
+    if (!textProcessConfirm.disabled) textProcessConfirm.click();
+    else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
+  }
+  addItem('删除空格', '', () => applyTransform('removeSpaces', true));
+  addItem('删除标点符号', '', () => applyTransform('removePunctuation', true));
+  transforms.forEach(([title, key, options], groupIndex) => {
+    const group = document.createElement('div'); group.className = 'ctx-text-transform';
+    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'item ctx-submenu-trigger'; trigger.textContent = title;
+    trigger.setAttribute('role', 'menuitem'); trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false');
+    const submenu = document.createElement('div'); submenu.className = 'ctx-submenu'; submenu.hidden = true;
+    submenu.id = `ctx-transform-${groupIndex}`; submenu.setAttribute('role', 'menu'); submenu.setAttribute('aria-label', title); trigger.setAttribute('aria-controls', submenu.id);
+    group.append(trigger, submenu);
+    let closeTimer;
+    function close() { clearTimeout(closeTimer); submenu.hidden = true; trigger.setAttribute('aria-expanded', 'false'); }
+    function open() {
+      clearTimeout(closeTimer);
+      ctxmenu.querySelectorAll('.ctx-text-transform').forEach(other => {
+        if (other === group) return;
+        other.querySelector('.ctx-submenu').hidden = true;
+        other.querySelector('.ctx-submenu-trigger').setAttribute('aria-expanded', 'false');
+      });
+      submenu.hidden = false; trigger.setAttribute('aria-expanded', 'true'); positionContextSubmenu(group);
+    }
+    options.forEach(([label, value]) => {
+      const button = document.createElement('button'); button.className = 'item'; button.type = 'button'; button.textContent = label; button.setAttribute('role','menuitem');
+      button.addEventListener('click', () => applyTransform(key, value)); submenu.appendChild(button);
+    });
+    group.addEventListener('pointerenter', open);
+    group.addEventListener('pointerleave', () => { closeTimer = setTimeout(close, 180); });
+    group.addEventListener('focusout', event => { if (!group.contains(event.relatedTarget)) close(); });
+    trigger.addEventListener('click', open);
+    group.addEventListener('keydown', event => {
+      const buttons = [...submenu.querySelectorAll('button')];
+      if (event.key === 'ArrowRight') { event.preventDefault(); open(); buttons[0]?.focus(); }
+      else if (event.key === 'ArrowLeft' || event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); trigger.focus(); }
+      else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && submenu.contains(event.target)) {
+        event.preventDefault(); const offset=event.key==='ArrowDown'?1:-1; buttons[(buttons.indexOf(event.target)+offset+buttons.length)%buttons.length]?.focus();
+      }
+    });
+    ctxmenu.appendChild(group);
+  });
 
   // 调整 ctxmenu 位置（避免溢出）
   ctxmenu.classList.add('show');
@@ -46593,6 +46935,10 @@ function initWaveformEditor() {
   }
   waveformEditor = window.AsrWaveform.create({
     getSubtitleGapHighlightMs: () => subtitleGapHighlightMs,
+    getSubtitleGapHighlights: () => {
+      const threshold = timelineIsFrameMode() ? frameNumberFromMilliseconds(subtitleGapHighlightMs, projectTimebase().fps) : subtitleGapHighlightMs;
+      return subtitleGapPlan(null, threshold).filter(gap => (gap.gapFrames ?? gap.gap) < threshold);
+    },
     getSegments: (track = 'main') => track === 'extension'
       ? (getActiveExtensionTrack()?.segments || [])
       : track === 'overlay'
@@ -46712,7 +47058,8 @@ function initWaveformEditor() {
     togglePlayback,
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
     getHideDisabled: () => hideDisabled,
-    getGapRemoveGaps,
+    silenceGapEditingEnabled: false,
+    getGapRemoveGaps: () => [],
     getGapOperationMode: getGapRemoveOperationMode,
     toggleGapRemoved,
     applyGapRange: applyManualGapRange,
@@ -47179,6 +47526,7 @@ if (SERVER_CONFIG?.startupStatus !== 'loading') void loadDeferredReapeaks();
 
 document.getElementById('filter-over')?.addEventListener('click', (e) => {
   e.currentTarget.classList.toggle('active');
+  e.currentTarget.setAttribute('aria-checked',String(e.currentTarget.classList.contains('active')));
   if (!e.currentTarget.classList.contains('active')) {
     clearTemporaryVisibleSplitCues();
   }
@@ -47258,6 +47606,163 @@ document.getElementById('fcpxml-export-confirm')?.addEventListener('click', asyn
     flashHint(String(e && e.message ? e.message : e), 'error');
   }
 });
+
+// Remove the unused sticker surfaces after legacy listeners have captured their
+// nodes. Detached references keep old-project geometry/history compatible.
+function removeUnusedStickerControls() {
+  document.querySelectorAll('[id*="sticker"], [data-otio-export-option="stickers"]').forEach(node => {
+    const surface = node.closest('.cue-panel-sticker-wrap, #editor-settings-page-sticker, #sticker-modal, #sticker-preview-modal, #sticker-root-modal');
+    (surface || node.closest('label') || node).remove();
+  });
+  stickerOverlayLayer.remove();
+  if (stickerOverlayToggle) stickerOverlayToggle.checked = false;
+  EDITOR_SETTINGS.stickerOverlayEnabled = false;
+  EDITOR_SETTINGS.cueListShowSticker = false;
+  EDITOR_SETTINGS.cueEditorShowSticker = false;
+}
+removeUnusedStickerControls();
+
+// List marquee starts only after a drag threshold, preserving click, double
+// click, inline text editing and toolbar controls. Visible rows are the scope.
+(function bindCueListMarquee() {
+  let gesture = null, suppressClick = false, frame = 0;
+  const box = document.createElement('div');
+  box.className = 'cue-list-marquee'; box.hidden = true;
+  document.body.appendChild(box);
+  function draw() {
+    if (!gesture?.dragging) return;
+    const g=gesture, bounds=container.getBoundingClientRect();
+    const x=Math.max(bounds.left, Math.min(g.x, g.startX));
+    const y=Math.max(bounds.top, Math.min(g.y, g.startY-container.scrollTop+g.scroll));
+    const right=Math.min(bounds.right, Math.max(g.x,g.startX));
+    const bottom=Math.min(bounds.bottom, Math.max(g.y,g.startY-container.scrollTop+g.scroll));
+    Object.assign(box.style,{left:x+'px',top:y+'px',width:Math.max(0,right-x)+'px',height:Math.max(0,bottom-y)+'px'});
+    selectedIdxs.clear(); selectedExtensionIdxs.clear();
+    for(const i of g.main) selectedIdxs.add(i);
+    for(const i of g.extension) selectedExtensionIdxs.add(i);
+    container.querySelectorAll('.cue').forEach(row=>{
+      const initial=g.rows.get(row);
+      const delta=container.scrollTop-g.scroll;
+      const rect=initial?{...initial,top:initial.top-delta,bottom:initial.bottom-delta}:row.getBoundingClientRect();
+      const extension=row.dataset.extIdx != null && row.dataset.idx == null;
+      const index=Number(extension?row.dataset.extIdx:row.dataset.idx);
+      const selected=extension?selectedExtensionIdxs:selectedIdxs;
+      if(Number.isInteger(index) && row.getClientRects().length && right>x && bottom>y
+          && rect.left<right && rect.right>x && rect.top<bottom && rect.bottom>y
+          && !isHiddenDisabled(index,extension?'extension':'main')) selected.add(index);
+      row.classList.toggle('selected',selected.has(index));
+    });
+    updateSelectionCountText();
+  }
+  function tick() {
+    if(!gesture?.dragging) return;
+    const bounds=container.getBoundingClientRect();
+    if(gesture.y<bounds.top+24) container.scrollTop-=12;
+    else if(gesture.y>bounds.bottom-24) container.scrollTop+=12;
+    draw(); frame=requestAnimationFrame(tick);
+  }
+  container.addEventListener('pointerdown', event=>{
+    if(event.button!==0 || editingState || extensionEditingState || event.target.closest('button,input,textarea,select,a,[contenteditable],.cue-list-toolbar,.proofread-badge')) return;
+    const bounds=container.getBoundingClientRect();
+    if(event.clientX>=bounds.right-14) return;
+    gesture={id:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,scroll:container.scrollTop, rows:new Map([...container.querySelectorAll('.cue')].map(row=>{const r=row.getBoundingClientRect();return [row,{left:r.left,right:r.right,top:r.top,bottom:r.bottom}];})),
+      main:event.shiftKey?[...selectedIdxs]:[], extension:event.shiftKey?[...selectedExtensionIdxs]:[], dragging:false};
+    // Defer row selection to its existing click fallback so panel/layout changes
+    // cannot move rows underneath a new marquee.
+    event.stopImmediatePropagation();
+  },true);
+  document.addEventListener('pointermove',event=>{
+    if(!gesture || event.pointerId!==gesture.id) return;
+    gesture.x=event.clientX;gesture.y=event.clientY;
+    if(!gesture.dragging && Math.hypot(gesture.x-gesture.startX,gesture.y-gesture.startY)<6) return;
+    if(!gesture.dragging) {
+      gesture.dragging=true;box.hidden=false;container.classList.add('marquee-selecting');
+      setCueListFollowing(false);hideCueSplitPreview();frame=requestAnimationFrame(tick);
+    }
+    event.preventDefault();event.stopImmediatePropagation();window.getSelection()?.removeAllRanges();draw();
+  },true);
+  function finish(event) {
+    if(!gesture || (event.pointerId!==undefined && event.pointerId!==gesture.id)) return;
+    const dragged=gesture.dragging;
+    if(event.type==='pointercancel' || event.key==='Escape') {
+      selectedIdxs.clear();selectedExtensionIdxs.clear();
+      container.querySelectorAll('.cue').forEach(row=>row.classList.remove('selected'));updateSelectionCountText();
+    }
+    gesture=null;cancelAnimationFrame(frame);box.hidden=true;container.classList.remove('marquee-selecting');
+    if(dragged) {suppressClick=true;setTimeout(()=>{suppressClick=false;},0);event.preventDefault();event.stopImmediatePropagation();}
+  }
+  document.addEventListener('pointerup',finish,true);
+  document.addEventListener('pointercancel',finish,true);
+  document.addEventListener('keydown',event=>{if(event.key==='Escape') finish(event);},true);
+  container.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}},true);
+})();
+
+// Detach retired bilingual controls after legacy listeners capture their refs.
+(function removeBilingualControls() {
+  ['multi-subtitle-controls','multi-subtitle-waveform-controls','download-multi-srt',
+   'extension-overlay-toggle-wrap','extension-subtitle-preview-title','extension-subtitle-preview-settings',
+   'split-multi-subtitle-settings-enabled','split-multi-subtitle-settings-disabled',
+   'multi-subtitle-import-modal','multi-subtitle-split-modal'].forEach(id=>document.getElementById(id)?.remove());
+  document.querySelectorAll('option[value="extension"], option[value="main_and_extension"]').forEach(option=>option.remove());
+})();
+
+// Retired joining tool: ordinary merge and batch gap closing remain available.
+document.getElementById('auto-merge-panel')?.remove();
+document.getElementById('auto-merge-manage')?.remove();
+
+document.getElementById('cue-editor-disable-enter-split')?.addEventListener('change',event=>{
+  splitKeySel.value=event.target.checked?'none':'enter';
+  updateEditorSettings({splitKey:splitKeySel.value});refreshSplitKeyHelp();
+});
+
+// Task-specific actions are direct; only replacement and long-form editing stay
+// in the batch menu. Reuse the same nodes/listeners and selection snapshots.
+(function arrangeSubtitleActions() {
+  const toolbar=document.querySelector('.cue-list-toolbar');
+  const batch=document.getElementById('batch-operations-dropdown');
+  const actions=document.createElement('div');actions.className='subtitle-task-actions';toolbar.insertBefore(actions,batch);
+  for(const id of ['text-process-btn','subtitle-gap-close-btn']) {
+    const button=document.getElementById(id);button.classList.remove('dropdown-item');button.removeAttribute('role');actions.appendChild(button);
+  }
+  document.getElementById('text-process-btn').replaceChildren(document.createTextNode('文本处理'));
+  document.getElementById('subtitle-gap-highlight-btn')?.remove();
+  const gapSettings=document.createElement('section'); gapSettings.className='cue-list-settings-section';
+  gapSettings.innerHTML='<span class="settings-panel-title">字幕空隙</span><label><input type="checkbox" id="list-gap-highlight-enabled">高亮短空隙</label><label class="list-gap-highlight-limit">空隙阈值<input type="number" id="list-gap-highlight-ms" min="1" step="1" value="200"><span id="list-gap-highlight-unit">ms</span></label>';
+  document.getElementById('cue-list-settings-panel').appendChild(gapSettings);
+  const enabled=gapSettings.querySelector('#list-gap-highlight-enabled'), threshold=gapSettings.querySelector('#list-gap-highlight-ms');
+  enabled.checked=subtitleGapHighlightMs>0; threshold.value=timelineIsFrameMode() ? frameNumberFromMilliseconds(subtitleGapHighlightMs || 200, projectTimebase().fps) : subtitleGapHighlightMs || 200;
+  gapSettings.querySelector('#list-gap-highlight-unit').textContent=timelineIsFrameMode() ? '帧' : 'ms';
+  threshold.disabled=!enabled.checked;
+  function applyHighlightSetting() {
+    const value=Number(threshold.value);
+    if (!Number.isInteger(value) || value<1) { threshold.setCustomValidity(`请输入大于0的整数${timelineIsFrameMode() ? '帧' : '毫秒'}`); threshold.reportValidity(); return; }
+    threshold.setCustomValidity(''); threshold.disabled=!enabled.checked;
+    subtitleGapHighlightMs=enabled.checked ? timelineValueToMilliseconds(value) : 0;
+    try { localStorage.setItem('maw.subtitleGapHighlightMs',String(subtitleGapHighlightMs)); } catch (_) {}
+    waveformEditor?.refreshSubtitleGapHighlights();
+  }
+  enabled.addEventListener('change',applyHighlightSetting);
+  threshold.addEventListener('input',()=>threshold.setCustomValidity(''));
+  threshold.addEventListener('change',applyHighlightSetting);
+  toolbar.insertBefore(actions,batch);
+  document.querySelector('#batch-operations-menu .menu-section-label:last-of-type')?.remove();
+  const follow=document.getElementById('cue-list-follow');
+  document.querySelector('#cue-list-settings-panel .cue-list-settings-section').prepend(follow);
+  document.getElementById('proofread-filter-btn').textContent='审阅';
+  for(const id of ['text-process-trim','text-process-capitalize','text-process-prefix','text-process-suffix','text-process-strip-markdown']) {
+    document.getElementById(id)?.closest('label')?.remove();
+  }
+})();
+
+// Retired audio-silence removal UI. Preserve old project metadata on save.
+(function removeSilenceGapControls() {
+  document.getElementById('gap-operation-mode-settings-title')?.remove();
+  document.querySelector('[aria-labelledby="gap-operation-mode-settings-title"]')?.remove();
+  for (const id of ['gap-remove-manage','gap-remove-panel','gap-removed-export-dropdown','help-tab-gap','help-tab-panel-gap']) document.getElementById(id)?.remove();
+  document.getElementById('gap-remove-operation-mode')?.closest('label')?.remove();
+  document.getElementById('gap-skip-playback')?.closest('label')?.remove();
+  for (const id of ['lottie-export-gap-removed','ograf-export-gap-removed']) document.getElementById(id)?.closest('label')?.remove();
+})();
 
 (() => {
 const helpOnboardingButton = document.getElementById('help-onboarding');
@@ -47876,11 +48381,15 @@ document.addEventListener('keydown', (event) => {
     finishOnboarding('skipped');
     return;
   }
+});
+
+function onboardingAfterNavigation(event, action) {
+  if (!onboardingIsOpen()) return;
   if (onboardingState.mode !== 'tour' || !onboardingState.started) return;
   const key = event.key.toLowerCase();
-  const wasd = key === 'w' || key === 'a' || key === 's' || key === 'd';
+  const wasd = action.startsWith('nav');
   if (onboardingState.step === 0 && onboardingState.phase === 'navigation'
-      && wasd && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat) {
+      && wasd && !event.shiftKey && !event.repeat) {
     const nextIdx = editor.currentCuePanelIdx;
     if (nextIdx >= 0 && nextIdx !== onboardingState.lastCueIdx) {
       onboardingState.lastCueIdx = nextIdx;
@@ -47900,7 +48409,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (onboardingState.step === 1 && onboardingState.phase === 'merge-armed'
-      && wasd && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat) {
+      && wasd && event.shiftKey && !event.repeat) {
     if (selectedIdxs.size > 1) {
       onboardingState.shiftUsed = true;
       onboardingState.mergeSelectedCount = selectedIdxs.size;
@@ -47908,9 +48417,10 @@ document.addEventListener('keydown', (event) => {
       renderOnboarding();
     }
   }
-});
+}
 
   window.MAWE_ONBOARDING = Object.freeze({
+    afterNavigation: onboardingAfterNavigation,
     afterRender: scheduleOnboardingAfterRender,
     scheduleStart: scheduleOnboardingAfterRender,
     beginRealSplit: beginOnboardingRealSplit,

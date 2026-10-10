@@ -16,6 +16,7 @@ from maw.bdversion.deepseek import (
     _default_complete,
     _parse_results,
 )
+from maw.bdversion.text_format import preserve_subtitle_spacing
 from maw.bdversion.manuscript import ManuscriptError, load_manuscript, manuscript_from_paste
 from maw.postprocess_llm import LlmDelta, LlmSettings, complete_subtitle_groups
 from maw.project import normalize_project
@@ -134,7 +135,7 @@ def _apply_groups_to_segments(
         # attempt to merge cues so timing, item ranges, and cue count stay fixed.
         if len(idxs) != 1:
             continue
-        out[idxs[0]]["text"] = text
+        out[idxs[0]]["text"] = preserve_subtitle_spacing(str(segments[idxs[0]].get("text") or ""), text)
     return out
 
 
@@ -292,7 +293,7 @@ def revise_project(
                 original, suggestion = str(old.get("text") or ""), str(new["text"])
                 pr = dict(old.get("proofread") or {})
                 pr.update(asr_original=pr.get("asr_original", original), corrected=suggestion,
-                          review_original=original, review_text=suggestion, review_state="pending",
+                          review_original=original, review_text=suggestion, review_state="accepted" if apply_to_text else "pending",
                           reason="自定义 LLM 修订", status="uncertain")
                 new["proofread"] = pr
                 if not apply_to_text:
@@ -345,7 +346,7 @@ def revise_project(
         if seg_idx is None:
             continue
         original = str(new_segments[seg_idx].get("text") or "")
-        corrected = result.corrected_text
+        corrected = preserve_subtitle_spacing(original, result.corrected_text)
         if not corrected or corrected == original:
             continue
         if apply_to_text:
@@ -359,7 +360,7 @@ def revise_project(
                 "corrected": corrected,
                 "review_original": original,
                 "review_text": corrected,
-                "review_state": "pending",
+                "review_state": "accepted" if apply_to_text else "pending",
                 "reason": result.reason or "deepseek revise",
                 "script_text": (script_map.get(result.cue_id) or (None, 0))[0],
             }

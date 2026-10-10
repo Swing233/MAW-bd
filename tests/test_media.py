@@ -108,7 +108,7 @@ class MediaResolutionTests(unittest.TestCase):
         completed = type(
             "Completed",
             (),
-            {"stdout": '{"streams":[{"width":3840,"height":2160,"avg_frame_rate":"30000/1001","r_frame_rate":"30/1"}]}'}
+            {"stdout": '{"streams":[{"width":3840,"height":2160,"avg_frame_rate":"30000/1001","r_frame_rate":"30/1","nb_frames":"300"}]}'}
         )()
 
         with mock.patch("maw.media.find_ffprobe", return_value=ffprobe):
@@ -118,12 +118,13 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertIsNotNone(metadata)
         self.assertAlmostEqual(metadata["video_fps"], 30000 / 1001)
         self.assertEqual(metadata["video_fps_ratio"], "30000/1001")
+        self.assertEqual(metadata["video_frame_count"], 300)
         self.assertEqual(metadata["video_width"], 3840)
         self.assertEqual(metadata["video_height"], 2160)
         command = process.call_args.args[0]
         self.assertIn("-select_streams", command)
         self.assertIn("v:0", command)
-        self.assertIn("stream=width,height,avg_frame_rate,r_frame_rate", command)
+        self.assertIn("stream=width,height,avg_frame_rate,r_frame_rate,nb_frames", command)
         self.assertIn("-of", command)
         self.assertIn("json", command)
 

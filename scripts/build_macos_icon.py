@@ -1,9 +1,10 @@
-"""Build the PNG-based ICNS asset used by the macOS PyInstaller bundle."""
+"""Build the macOS ICNS asset using native IconServices-compatible encoding."""
 
 from __future__ import annotations
 
 import argparse
-import struct
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -12,15 +13,10 @@ SOURCE = ROOT / "assets" / "maw.ico"
 TARGET = ROOT / "assets" / "maw.icns"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
-# These are the PNG-backed ICNS types supported by current macOS icon tooling.
-# The ICO already contains the required pixel sizes, so no resampling is needed.
-ICNS_TYPES = {
-    16: b"icp4",
-    32: b"icp5",
-    64: b"icp6",
-    128: b"ic07",
-    256: b"ic08",
-}
+# PNG payloads copied directly into small ICNS tags decode incorrectly in
+# IconServices. Let iconutil choose the native encoding for every representation.
+SOURCE_SIZES = (16, 32, 64, 128, 256)
+ICONSET_SIZES = (16, 32, 128, 256, 512)
 
 
 def read_png_frames(path: Path) -> dict[int, bytes]:
@@ -41,10 +37,10 @@ def read_png_frames(path: Path) -> dict[int, bytes]:
         payload = data[offset : offset + size]
         if width != height or len(payload) != size or not payload.startswith(PNG_SIGNATURE):
             raise ValueError(f"ICO frame {width}x{height} is not a complete PNG payload")
-        if width in ICNS_TYPES:
+        if width in SOURCE_SIZES:
             frames[width] = payload
 
-    missing = sorted(set(ICNS_TYPES) - set(frames))
+    missing = sorted(set(SOURCE_SIZES) - set(frames))
     if missing:
         sizes = ", ".join(f"{size}x{size}" for size in missing)
         raise ValueError(f"{path} is missing required icon sizes: {sizes}")
@@ -52,12 +48,29 @@ def read_png_frames(path: Path) -> dict[int, bytes]:
 
 
 def build_icns(frames: dict[int, bytes]) -> bytes:
-    entries = []
-    for size, icon_type in ICNS_TYPES.items():
-        payload = frames[size]
-        entries.append(icon_type + struct.pack(">I", len(payload) + 8) + payload)
-    body = b"".join(entries)
-    return b"icns" + struct.pack(">I", len(body) + 8) + body
+    with tempfile.TemporaryDirectory(prefix="maw-icon-") as directory:
+        root = Path(directory)
+        iconset = root / "maw.iconset"
+        iconset.mkdir()
+        for size, payload in frames.items():
+            (root / f"source-{size}.png").write_bytes(payload)
+        for size in ICONSET_SIZES:
+            for scale in (1, 2):
+                pixels = size * scale
+                source_size = pixels if pixels in frames else max(frames)
+                source = root / f"source-{source_size}.png"
+                suffix = "@2x" if scale == 2 else ""
+                target = iconset / f"icon_{size}x{size}{suffix}.png"
+                subprocess.run(
+                    ["/usr/bin/sips", "-z", str(pixels), str(pixels), str(source), "--out", str(target)],
+                    check=True, capture_output=True,
+                )
+        result = root / "maw.icns"
+        subprocess.run(
+            ["/usr/bin/iconutil", "-c", "icns", str(iconset), "-o", str(result)],
+            check=True, capture_output=True,
+        )
+        return result.read_bytes()
 
 
 def main() -> int:

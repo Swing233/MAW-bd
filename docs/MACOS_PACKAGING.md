@@ -96,7 +96,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 | `Resources/ocr-runtime` / `moss-runtime` / `server-align` | 有 | **无**（产品收窄，预期） |
 | `Resources/web/srt2fcpxml-page/` | 无 | **有**（本地 SRT→FCPXML 页） |
 | `Info.plist` BundleId / Executable / Icon | `com.moy.maw.bdversion` / `MAW` / `maw.icns` | Bundle 名/Id 已区分官方 MAW.app |
-| `CFBundleShortVersionString` | `0.0.0` | `1.7.0`（跟 `pyproject.toml`） |
+| `CFBundleShortVersionString` | `0.0.0` | `1.8.0`（跟 `pyproject.toml`） |
 | Python 运行时 | `Frameworks/Python.framework` | `Frameworks/libpython3.11.dylib`（PyInstaller 6） |
 
 结论：封装格式与官方 **同为 PyInstaller macOS BUNDLE**；差异主要来自精简范围与 PyInstaller 版本，而非另一套打包体系。
@@ -134,3 +134,7 @@ codesign --force --deep --sign - dist/MAW-bd.app
 完整应用内置原生 uv 与 MIT 许可，以及单独解析的带哈希 macOS 本地依赖清单（assets/runtime/requirements-local.in → requirements-local.txt）。首次下载模型或本地识别自动创建应用专用 Python 3.11 并安装依赖，无需系统 Python、Homebrew 或其他 MAW。数据位于 `~/Library/Application Support/MAW-bd`，签名应用本身不会被写入。安装失败可重试，取消保留已下载缓存，验证通过后才标记就绪。已有 MAW 环境保持不变。首次需要联网下载运行环境和模型，后续复用本地缓存。
 
 更新安装包下载可选国内镜像优先、GHFast、GH-Proxy 或 GitHub 直连，镜像失败或摘要不符自动换线。镜像仅传输公开资产，不发送授权或 API Key。版本和摘要仍从 GitHub 官方 API 查询；若官方 API 无法访问，仍无法检查更新。
+
+## 应用图标
+
+`assets/maw.ico` 保留原图；修改后在 macOS 执行 `python scripts/build_macos_icon.py`，由 `sips` 和 `iconutil` 生成 `assets/maw.icns`。不要手工将 PNG 填入小尺寸 ICNS 类型，否则 Finder 列表视图可能解码为乱码。`--check` 可检查生成物是否一致。图标包含 16、32、128、256、512 点的普通及 Retina 表示；测试通过原生解码验证 16/32 像素内容。

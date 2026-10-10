@@ -132,7 +132,7 @@ test('A/D at the outer cue boundaries still seeks the boundary cue', async ({ pa
   await expect.poll(() => page.evaluate(() => player.currentTime)).toBeGreaterThan(24);
 });
 
-test('F seeks and plays a selected extension cue', async ({ page }) => {
+test('retired extension track stays hidden while its text remains in old projects', async ({ page }) => {
   await loadAttachedCues(page);
   await page.evaluate(() => {
     DATA.multi_subtitle = {
@@ -152,15 +152,8 @@ test('F seeks and plays a selected extension cue', async ({ page }) => {
     renderAll({ waveform: 'full' });
   });
 
-  const extensionBlock = page.locator('.waveform-cue-block[data-track="extension"]').first();
-  await expect(extensionBlock).toBeVisible();
-  await extensionBlock.click();
-  await page.evaluate(() => { player.currentTime = 1; });
-  await page.keyboard.press('f');
-  await page.waitForFunction(() => {
-    const media = document.getElementById('player');
-    return media.currentTime >= 12 && media.currentTime < 13 && !media.paused;
-  });
+  await expect(page.locator('.waveform-cue-block[data-track="extension"]')).toHaveCount(0);
+  expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments[0].text)).toBe('Extension');
 });
 
 test('I/O seeks the current cue boundaries and stays paused', async ({ page }) => {
@@ -364,7 +357,7 @@ test('dual mode links both edges via the seam zone while side handles trim indep
   ]);
 });
 
-test('dual-mode extension seam replaces the existing selection with both adjacent cues', async ({ page }) => {
+test('retired extension seams stay hidden without deleting old track segments', async ({ page }) => {
   await loadAttachedCues(page);
   await page.evaluate(() => {
     DATA.multi_subtitle = {
@@ -388,15 +381,8 @@ test('dual-mode extension seam replaces the existing selection with both adjacen
     renderAll({ waveform: 'full' });
   });
 
-  await page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="2"]').first()
-    .click({ modifiers: ['Control'] });
-  const zone = page.locator('.waveform-cue-boundary[data-track="extension"][data-left-idx="0"]');
-  await expect(zone).toBeVisible();
-  await zone.click();
-  await expect.poll(() => page.evaluate(() => [
-    ...new Set([...document.querySelectorAll('.waveform-cue-block.selected[data-track="extension"]')]
-      .map((block) => block.dataset.extIdx)),
-  ].sort())).toEqual(['0', '1']);
+  await expect(page.locator('.waveform-cue-boundary[data-track="extension"]')).toHaveCount(0);
+  expect(await page.evaluate(() => DATA.multi_subtitle.tracks[0].segments.length)).toBe(3);
 });
 
 test('an independent shared-boundary drag can reverse before release', async ({ page }) => {

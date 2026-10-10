@@ -777,14 +777,7 @@ class EditorAssetTests(unittest.TestCase):
             '          <span class="help-important"><kbd>拖拽空白处</kbd> 框选字幕（Shift 追加）</span>',
             page,
         )
-        self.assertIn('<span class="help-important"><kbd>G</kbd> 绑定到主副字幕（自动匹配）</span>', page)
-        self.assertIn('<span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>', page)
-        self.assertIn(
-            '<span><kbd>Shift+G</kbd> 解绑当前副字幕</span>\n'
-            '          <span class="help-break" aria-hidden="true"></span>\n'
-            '          <span class="help-important"><kbd>H</kbd> 将选中的副字幕的时长对齐到绑定主字幕</span>',
-            page,
-        )
+        self.assertNotIn('<h4 class="help-title">双语字幕</h4>', page)
         self.assertIn('<button type="button" class="help-inline-action" id="help-open-waveform-settings"', page)
         self.assertIn('data-help-open-waveform-settings', page)
         self.assertIn('⚙️设置按钮', page)
@@ -883,7 +876,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="help-open-gap-remove-panel"', page)
         self.assertIn('在「', page)
         self.assertIn('」中点击「全部清理」 清除所有空隙', page)
-        self.assertEqual(page.count('<section class="help-subgroup">'), 20)
+        self.assertEqual(page.count('<section class="help-subgroup">'), 19)
         self.assertNotIn('确定删除第 ${idx + 1} 条字幕', page)
         self.assertNotIn('确定删除选中的 ${targetIdxs.length} 条字幕', page)
         self.assertIn('id="export-start-at-zero"', page)
@@ -933,7 +926,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertNotIn('cancelSubtitleDragOnEscape', page)
         self.assertIn('if (EDITOR_SETTINGS.cueEditorCancelOnEscape) cancelCuePanelTextEdit();', page)
         self.assertIn("cuePanel.classList.toggle('hide-cue-editor-navigation'", page)
-        self.assertIn("cuePanel.classList.toggle('hide-cue-editor-sticker'", page)
+        self.assertIn("cuePanel.classList.add('hide-cue-editor-sticker')", page)
         self.assertIn('class="toolbar main-toolbar"', page)
         self.assertNotIn('class="toolbar player-toolbar"', page)
         self.assertIn('class="toolbar cue-list-toolbar"', page)
@@ -1083,7 +1076,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn("schema: 'moy.asr.gap_removed_keep_regions.v1'", page)
         self.assertIn('waveform-gap-block', page)
         self.assertIn('waveform-gap-handle', page)
-        self.assertIn("addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));", page)
+        self.assertNotIn("addItem('添加空隙', '', () => addGapAtWaveformTime(timeMs));", page)
         self.assertIn('function addGapAtWaveformTime(timeMs)', page)
         self.assertIn('moveGapRemoveRange', page)
         self.assertIn('copyGapRemoveRange', page)

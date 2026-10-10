@@ -60,7 +60,7 @@
 | `split_mode` | `string` | 否 | 切句计量方式：`continuous`（字符型，如中文）或 `word`（单词型，如英文） |
 | `timestamp_granularity` | `string` | 否 | 时间码粒度：`char`、`word`、`segment` 或 `unknown`。只有整段 start/end 的模型使用 `segment`；这类工程的字幕段可以没有 `items`，超长段可能已按标点（连续语言）或单词数（单词型）二次拆分，段内时间是插值近似值（不携带 `items` 冒充词级精度） |
 | `model` | `string` | 否 | ASR 模型名，如 `qwen3-asr`。仅用于显示 |
-| `media_metadata` | `object` | 否 | 源媒体元数据。可包含视频 `video_fps`（1–240 的数字）、`video_fps_ratio`（FFprobe 原始帧率比例字符串）、成对的正整数 `video_width` / `video_height`、非负整数 `selected_audio_track` 和 `audio_tracks` 音轨清单；缺失时按旧工程处理 |
+| `media_metadata` | `object` | 否 | 源媒体元数据。可选 `video_frame_count` 保存读取到的正整数视频帧数（未知时不估算）；可包含视频 `video_fps`（1–240 的数字）、`video_fps_ratio`（FFprobe 原始帧率比例字符串）、成对的正整数 `video_width` / `video_height`、非负整数 `selected_audio_track` 和 `audio_tracks` 音轨清单；缺失时按旧工程处理 |
 | `timebase` | `object` | 否 | 字幕编辑时间基准：`unit` 为 `milliseconds` 或 `frames`，`fps` 范围为 1–240。缺失时按毫秒模式兼容读取 |
 | `sticker_root` | `string` | 否 | 表情包根目录绝对路径。打开工程时会覆盖编辑器内的 `STICKER_ROOT` |
 | `waveform` | `object` | 否 | 可丢弃的紧凑波形缓存。由 `edit.py` 或浏览器自动生成；不影响字幕语义 |
@@ -70,7 +70,7 @@
 | `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（主字幕预览框与样式）、可选的 `preview.extension_subtitle`（副字幕样式）和 `preview.sticker`（表情包预览层）。不影响字幕时间与文本 |
 | `overlay_track` | `object` | 否 | 独立的叠加字幕轨。它的段可以与主轨重叠，但轨内保持时间顺序；用于保存导入 SRT 时出现的双层字幕 |
 
-`media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，仅作为编辑器切入帧模式时的默认值；它不替代编辑器自己的 `timebase.fps`，用户仍可在全局设置中修改。旧工程没有 `media_metadata` 时继续使用编辑器原有默认值。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
+`media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，导入视频或打开带源视频元数据的工程时，编辑器默认采用帧模式及该帧率；用户仍可在工程设置中修改时间基准和 FPS。未读取到实际帧率时保留毫秒模式，不把默认值当作源参数。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
 
 `media_metadata.video_width` / `video_height` 是源视频的实际像素尺寸，由生成工程时的 FFprobe 或浏览器加载视频后的 `HTMLVideoElement.videoWidth` / `videoHeight` 补齐；两个字段必须同时存在。ASS 导出会优先使用这组尺寸作为 `PlayResX` / `PlayResY`，缺失时使用当前浏览器视频尺寸，仍不可用则回退到 1920×1080。旧工程缺少这些字段时不影响读取。
 

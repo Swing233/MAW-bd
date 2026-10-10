@@ -128,6 +128,8 @@
       setMsg(message || '更新状态未知', kind !== 'ok');
     }
     $('media-path').textContent = result.mediaPath || '（未选择）';
+    const mediaInfo = result.mediaMetadata || {};
+    $('media-frame-info').textContent = mediaInfo.video_fps ? `${Number(mediaInfo.video_fps.toFixed(3))} fps${mediaInfo.video_frame_count ? ' · '+mediaInfo.video_frame_count+' 帧' : ''}` : '';
     const ms = result.manuscriptText || '';
     const msPath = result.manuscriptPath || '';
     if (ms.trim()) {

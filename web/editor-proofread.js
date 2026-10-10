@@ -19,7 +19,7 @@
     { id: 'improvised', label: '现场发挥' },
     { id: 'uncertain', label: '待确认' },
     { id: 'manual', label: '人工修改' },
-    { id: 'llm_edited', label: 'LLM 校对修改' },
+    { id: 'llm_edited', label: 'LLM 修改' },
     { id: 'digits', label: '含阿拉伯数字' },
     { id: 'english', label: '含英文' },
     { id: 'punctuation', label: '含标点符号' },
@@ -54,10 +54,22 @@
     if (filterId === 'spaces') return /\p{Zs}/u.test(String(segment?.text || ''));
     const pr = getProofread(segment);
     if (filterId === 'llm_edited') {
-      return Boolean(pr && (pr.review_text || (pr.status !== 'manual' && pr.corrected
-        && pr.corrected !== pr.asr_original)));
+      const original = pr?.review_original ?? pr?.asr_original;
+      const suggestion = pr?.review_text ?? pr?.corrected;
+      return typeof original === 'string' && typeof suggestion === 'string'
+        && Boolean(suggestion) && suggestion !== original
+        && (pr.status !== 'manual' || pr.review_text != null);
     }
     return getStatus(segment) === filterId;
+  }
+
+  // Alternative statuses form a union; content requirements intersect.
+  function filterPassMany(segment, filterIds) {
+    const ids = Array.from(filterIds || []).filter(id => id !== 'all');
+    const statuses = ids.filter(id => Object.hasOwn(STATUS_META, id));
+    const contents = ids.filter(id => !Object.hasOwn(STATUS_META, id));
+    return (!statuses.length || statuses.some(id => filterPass(segment, id)))
+      && contents.every(id => filterPass(segment, id));
   }
 
   /**
@@ -99,9 +111,9 @@
       statusLabel: meta ? meta.label : '—',
       matchScore: pr && typeof pr.match_score === 'number' ? pr.match_score : null,
       scriptText: pr && pr.script_text != null ? String(pr.script_text) : '',
-      asrOriginal: pr && pr.asr_original != null ? String(pr.asr_original) : '',
+      asrOriginal: pr && (pr.review_original ?? pr.asr_original) != null ? String(pr.review_original ?? pr.asr_original) : '',
       secondaryAsr: pr && pr.secondary_asr != null ? String(pr.secondary_asr) : '',
-      corrected: pr && pr.corrected != null ? String(pr.corrected) : '',
+      corrected: pr && (pr.review_text ?? pr.corrected) != null ? String(pr.review_text ?? pr.corrected) : '',
       reason: pr && pr.reason != null ? String(pr.reason) : '',
       disagreement: pr && pr.disagreement && typeof pr.disagreement === 'object'
         ? pr.disagreement
@@ -175,6 +187,7 @@
     statusMeta,
     statusLabel,
     filterPass,
+    filterPassMany,
     markManual,
     renderDetail,
     applyCueClass,

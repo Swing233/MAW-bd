@@ -35,7 +35,7 @@ test('markManual sets status and clears auto color', () => {
 test('filterPass by status and llm_edited', () => {
   const P = loadProofread();
   const verified = { proofread: { status: 'verified' } };
-  const corrected = { proofread: { status: 'uncertain', corrected: '新的' } };
+  const corrected = { proofread: { status: 'uncertain', asr_original: '原文', corrected: '新的' } };
   assert.equal(P.filterPass(verified, 'verified'), true);
   assert.equal(P.filterPass(verified, 'uncertain'), false);
   assert.equal(P.filterPass(corrected, 'llm_edited'), true);
@@ -72,4 +72,28 @@ test('proofread diff isolates edits and preserves Unicode, inserts and deletes',
   const diff = P.diffText('辣椒曲水', '辣椒驱水');
   assert.equal(diff.left.filter(p => p.changed).map(p => p.text).join(''), '曲');
   assert.equal(diff.right.filter(p => p.changed).map(p => p.text).join(''), '驱');
+});
+
+ test('LLM filter excludes unchanged suggestions and manual edits without LLM history', () => {
+  const P = loadProofread();
+  for (const proofread of [{review_original:'原文',review_text:'原文'}, {corrected:'建议'},
+    {status:'manual',asr_original:'原文',corrected:'人工改动'}]) {
+    assert.equal(P.filterPass({proofread}, 'llm_edited'), false);
+  }
+  const proofread = {status:'manual',review_original:'原文',review_text:'建议',asr_original:'首次ASR',corrected:'人工修改'};
+  assert.equal(P.filterPass({proofread}, 'llm_edited'), true);
+  assert.equal(P.renderDetail({proofread}).corrected, '建议');
+  assert.equal(P.renderDetail({proofread}).asrOriginal, '原文');
+ });
+
+test('multiple review filters union statuses and intersect content requirements', () => {
+  const P = loadProofread();
+  const seg = { text: '2个Hello，', proofread: { status: 'verified', asr_original: '两个hello', corrected: '2个Hello，' } };
+  assert.equal(P.filterPassMany(seg, new Set()), true);
+  assert.equal(P.filterPassMany(seg, ['verified', 'uncertain']), true);
+  assert.equal(P.filterPassMany(seg, ['manual', 'uncertain']), false);
+  assert.equal(P.filterPassMany(seg, ['verified', 'llm_edited', 'digits', 'english', 'punctuation']), true);
+  assert.equal(P.filterPassMany(seg, ['digits', 'spaces']), false);
+  assert.equal(P.filterPassMany({ text: '2个' }, ['digits', 'english']), false);
+  assert.equal(P.filterPassMany(seg, ['all']), true);
 });

@@ -25,6 +25,7 @@ from maw.app_update import (
 )
 from maw.bdversion.revise import _load_project, _write_outputs, revise_project
 from maw.bdversion.review import apply_review_decisions, project_token, review_rows
+from maw.bdversion.text_format import normalize_asr_spacing
 from maw.ffmpeg import bundled_ffmpeg_directory
 from maw.gui_config import DEFAULT_MODEL_ID, QWEN3_ASR_MODEL_ID, QWEN_AUDIO_MODEL_ID, load_env
 from maw.gui_web import (
@@ -41,7 +42,8 @@ from maw.gui_workflow import (
 )
 from maw.local_bootstrap import ensure_runtime, runtime_python, runtime_ready
 from maw.local_log import redact_sensitive_text
-from maw.postprocess_io import read_srt
+from maw.media import probe_video_fps
+from maw.postprocess_io import read_srt, render_srt
 from maw.project_io import write_mosp
 
 MEDIA_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
@@ -239,6 +241,7 @@ class FocusedLauncherApi:
         if Path(path).suffix.lower() not in MEDIA_EXTS:
             return {"ok": False, "error": "不支持的媒体类型"}
         self._result["mediaPath"] = path
+        self._result["mediaMetadata"] = probe_video_fps(Path(path)) or {}
         self._set_status(step="ready", message="已选择媒体", error="")
         return {"ok": True, "path": path}
 
@@ -548,6 +551,7 @@ class FocusedLauncherApi:
         )
         self._set_status(progress=30, message="调用云端 Qwen ASR…")
         result = run_transcription(request, cancel_event=self.cancel_event)
+        self._normalize_asr_outputs(Path(result.json_path), Path(result.srt_path))
         self._result["srtPath"] = str(result.srt_path)
         self._result["projectPath"] = str(result.json_path)
         self._set_status(step="asr_done", message="ASR 完成（仅识别，未额外断句）", progress=100, busy=False, error="")
@@ -625,9 +629,19 @@ class FocusedLauncherApi:
         if not actual_srt.exists():
             cands = sorted(srt_path.parent.glob(srt_path.stem + "*.srt"))
             actual_srt = cands[0] if cands else actual_srt
+        self._normalize_asr_outputs(project, actual_srt)
         self._result["srtPath"] = str(actual_srt)
         self._result["projectPath"] = str(project)
         self._set_status(step="asr_done", message="ASR 完成（仅识别，未额外断句）", progress=100, busy=False, error="")
+
+    @staticmethod
+    def _normalize_asr_outputs(project_path: Path, srt_path: Path) -> None:
+        if not project_path.is_file():
+            return
+        project = _load_project(project_path)
+        normalize_asr_spacing(project)
+        write_mosp(project_path, project)
+        srt_path.write_text("\ufeff" + render_srt(project), encoding="utf-8")
 
     # ---------- revise ----------
     def start_revise(self, payload: Mapping[str, object]) -> dict[str, object]:
@@ -681,7 +695,7 @@ class FocusedLauncherApi:
                 api_key=api_key,
                 model=model,
                 custom_prompt=custom_prompt,
-                apply_to_text=False,
+                apply_to_text=True,
                 manuscript=manuscript or None,
                 on_llm_delta=self._emit_llm_delta,
             )
@@ -862,6 +876,7 @@ class FocusedLauncherApi:
                 return {"ok": False, "error": f"无法创建编辑工程：{error}"}
 
         self._result["mediaPath"] = str(media_path)
+        self._result["mediaMetadata"] = probe_video_fps(media_path) or {}
         self._result["projectPath"] = str(project_path)
         self._result["revisedProjectPath"] = ""
         self._result["srtPath"] = str(srt_path) if srt_path.is_file() else ""

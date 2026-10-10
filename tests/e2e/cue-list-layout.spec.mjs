@@ -29,21 +29,22 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
-test('checked sticker column stays collapsed until the project contains a sticker', async ({ page }) => {
+test('legacy sticker metadata never reintroduces the removed sticker column', async ({ page }) => {
   await page.addInitScript((settingsKey) => {
     localStorage.setItem(settingsKey, JSON.stringify({ cueListShowSticker: true }));
   }, EDITOR_SETTINGS_KEY);
   await page.goto(server.url);
 
   const cueList = page.locator('#cues-container');
-  await expect(page.locator('#cue-list-show-sticker')).toBeChecked();
+  await expect(page.locator('#cue-list-show-sticker')).toHaveCount(0);
   await expect(cueList).toHaveClass(/hide-cue-sticker/);
 
   await page.evaluate(() => {
     DATA.segments[0].sticker = { name: 'test', filename: 'test.png' };
     renderAll();
   });
-  await expect(cueList).not.toHaveClass(/hide-cue-sticker/);
+  await expect(cueList).toHaveClass(/hide-cue-sticker/);
+  expect(await page.evaluate(() => DATA.segments[0].sticker.filename)).toBe('test.png');
 
   await page.evaluate(() => {
     DATA.segments[0].sticker = null;

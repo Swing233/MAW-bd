@@ -47,11 +47,11 @@ class ProofreadReviewTests(unittest.TestCase):
             srt=Path(out["srtPath"]).read_text();self.assertIn("驱水",srt);self.assertIn("二个",srt);self.assertNotIn("proofread",srt)
             self.assertEqual(json.loads(source.read_text()),project())
 
-    def test_launcher_requests_suggestions_without_applying_text(self):
+    def test_launcher_applies_corrections_by_default(self):
         api=FocusedLauncherApi()
         with patch("maw.focus_launcher.revise_project",return_value={"ok":True,"projectPath":"suggestions.mosp","changedCues":1}) as revise:
             api._revise_worker("original.mosp","deepseek","test-placeholder","deepseek-flash","","")
-        self.assertFalse(revise.call_args.kwargs["apply_to_text"])
+        self.assertTrue(revise.call_args.kwargs["apply_to_text"])
         self.assertTrue(api._result["reviewRun"])
 
     def test_deepseek_suggestions_preserve_timeline_and_manual_cues(self):
@@ -79,3 +79,37 @@ class ProofreadReviewTests(unittest.TestCase):
             p=json.loads(Path(out["projectPath"]).read_text())
             self.assertEqual(p["segments"][0]["text"],"曲水")
             self.assertEqual(p["segments"][0]["proofread"]["review_text"],"驱水")
+
+class AutoProofreadTests(unittest.TestCase):
+    def test_default_applies_text_preserves_original_and_timing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = project(); p["segments"][1]["proofread"]["status"] = "manual"
+            source = Path(tmp) / "clip.mosp"; source.write_text(json.dumps(p), encoding="utf8")
+            def complete(settings, prompt, payload):
+                return {"results":[{"id":payload[0]["cue_id"],"corrected_text":"驱 水","status":"verified","changed":True,"reason":"同音"}]}
+            result = revise_project(source, api_key="test-placeholder", complete=complete)
+            self.assertTrue(result["ok"], result)
+            saved = json.loads(Path(result["projectPath"]).read_text())
+            self.assertEqual([s["text"] for s in saved["segments"]], ["驱水", "二个"])
+            self.assertEqual(saved["segments"][0]["proofread"]["review_state"], "accepted")
+            self.assertEqual(saved["segments"][0]["proofread"]["asr_original"], "曲水")
+            self.assertEqual(saved["segments"][0]["proofread"]["review_original"], "曲水")
+            self.assertEqual(saved["segments"][0]["proofread"]["review_text"], "驱水")
+            for old, new in zip(p["segments"], saved["segments"]):
+                for key in ("start", "end", "items", "speaker", "color", "color_ref"):
+                    self.assertEqual(old.get(key), new.get(key))
+            self.assertIn("驱水", Path(result["srtPath"]).read_text())
+            self.assertEqual(json.loads(source.read_text()), p)
+
+    def test_spacing_tracks_original_with_chinese_and_english(self):
+        from maw.bdversion.text_format import preserve_subtitle_spacing
+        for before, after, expected in [
+            ("一秒钟告诉我这个量筒", "一秒钟告诉我 这个量筒", "一秒钟告诉我这个量筒"),
+            ("哦它读数确实是十毫升", "哦 它读数确实是10毫升", "哦它读数确实是10毫升"),
+            ("曲水 试验", "驱水试验", "驱水 试验"),
+            ("使用 Qwen ASR 1.7B", "使用Qwen ASR 1.7B", "使用 Qwen ASR 1.7B"),
+            ("hello world", "hello brave world", "hello brave world"),
+            ("字幕一行", "字幕<br>一\n行", "字幕一行"),
+        ]:
+            with self.subTest(before=before):
+                self.assertEqual(preserve_subtitle_spacing(before, after), expected)

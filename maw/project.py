@@ -350,6 +350,10 @@ def _validate_media_metadata(project: JsonDict, errors: list[ProjectValidationEr
                     "must be a positive integer",
                 )
             )
+    if "video_frame_count" in metadata:
+        count = metadata.get("video_frame_count")
+        if type(count) is not int or count <= 0:
+            errors.append(ProjectValidationError("$.media_metadata.video_frame_count", "must be a positive integer"))
     if "video_fps" in metadata:
         fps = metadata.get("video_fps")
         if type(fps) not in (int, float) or not math.isfinite(float(fps)):

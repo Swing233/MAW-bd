@@ -63,4 +63,4 @@
 
 ### 人工审查
 
-GUI 校对只写入建议，`text` 保留原文，新增可选 `review_original/review_text/review_state`。用户勾选后才采用建议；未勾选保留原文，`review_state` 分别为 accepted/rejected。首次 ASR 文字保留在 asr_original。手动字幕跳过 LLM 并锁定审查；后端校验工程摘要，前端校验审查快照，工程已变化则拒绝旧选择。审查不改时间、items、顺序、数量或颜色。
+GUI 校对默认直接写入修正后的 `text`，保留校对前原文，新增可选 `review_original/review_text/review_state`。默认采用建议，`review_state=accepted`；用户可在编辑器校验徽标详情选择保留原文恢复本次校对前文字，`review_state` 分别为 accepted/rejected。首次 ASR 文字保留在 asr_original。手动字幕跳过 LLM 并锁定审查；后端校验工程摘要，前端校验建议快照，工程已变化则拒绝旧选择。审查不改时间、items、顺序、数量或颜色。
