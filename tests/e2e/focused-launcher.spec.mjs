@@ -173,3 +173,47 @@ test('local model button prepares selected engine and recovers after cancel', as
   await page.locator('#asr-mode').selectOption('cloud');
   await expect(page.locator('#btn-model-download')).toBeHidden();
 });
+
+
+test('LLM completion keeps review exclusively in the editor', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.reviewRequests = 0;
+    window.pywebview = {api: {
+      get_state: async () => ({status: {step: 'revise_done', message: '修订完成', stepProgress: {}},
+        result: {reviewRun: 'run-one', revisedProjectPath: 'suggestions.mosp'}, config: {}}),
+      get_proofread_review: async () => {window.reviewRequests++; return {ok: true, rows: []};},
+    }};
+  });
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(() => window.dispatchEvent(new Event('pywebviewready')));
+  await expect(page.locator('#msg')).toContainText('修订完成');
+  await expect(page.locator('#btn-review')).toHaveCount(0);
+  await expect(page.locator('#llm-review-dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => window.reviewRequests)).toBe(0);
+});
+
+
+test('logs show milestones and errors, suppress verbose model and LLM output, and show truthful progress', async ({page}) => {
+ await page.goto(pathToFileURL(launcherPath).href);
+ const emit=async detail=>page.evaluate(d=>window.dispatchEvent(new CustomEvent('focusStatus',{detail:d})),detail);
+ await emit({step:'asr',busy:true,message:'[local] loading QwenASR: test (mps)',stepProgress:{asr:40}});
+ await expect(page.locator('#pct-asr')).toHaveText('进行中');await expect(page.locator('#prog-asr')).not.toHaveAttribute('value',/.+/);
+ await emit({step:'asr',busy:true,message:'Retrying in 1s [Retry 1/5]',stepProgress:{asr:40}});
+ await page.evaluate(()=>{for(const kind of ['content','reasoning']) window.dispatchEvent(new CustomEvent('focusLlmDelta',{detail:{kind,text:'完整模型输出不要展示'}}));});
+ await expect(page.locator('#log-scroll')).not.toContainText('Retrying');await expect(page.locator('#log-scroll')).not.toContainText('完整模型输出');
+ await expect(page.locator('#log-scroll')).toContainText('正在加载本地识别模型');
+ await emit({step:'asr',busy:true,message:'正在识别：第 2/4 段',progressKnown:true,progressLabel:'2/4 段',stepProgress:{asr:25}});
+ await expect(page.locator('#pct-asr')).toHaveText('2/4 段');await expect(page.locator('#prog-asr')).toHaveAttribute('value','25');
+ await emit({step:'error',busy:false,message:'ASR 失败',error:'模型读取失败',stepProgress:{asr:25}});
+ await expect(page.locator('#pct-asr')).toHaveText('失败');await expect(page.locator('#log-scroll')).toContainText('模型读取失败');
+});
+
+
+test('launcher compact progress labels fit without overflowing', async ({page}) => {
+  await page.setViewportSize({width:1120,height:800});
+  await page.goto(pathToFileURL(launcherPath).href);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('focusStatus',{detail:{step:'asr',busy:true,message:'正在识别第 2/8 段',progressKnown:true,progressLabel:'2/8 段',stepProgress:{asr:12.5}}})));
+  const layout = await page.locator('.step-progress').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+  expect(layout.scroll).toBeLessThanOrEqual(layout.width);
+  await page.screenshot({path:'/private/tmp/maw-launcher-polished.png'});
+});

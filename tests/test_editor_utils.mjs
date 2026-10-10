@@ -5706,3 +5706,12 @@ test('source video format displays actual dimensions and rate without export def
   assert.equal(helpers.sourceVideoFormat(null).frameRate, '未读取到帧率');
   assert.equal(helpers.sourceVideoFormat(null).resolution, '未读取到分辨率');
 });
+
+
+test('navigation shortcut defaults support legacy preferences and custom combos', () => {
+  const defaults=helpers.normalizeEditingShortcuts({split:'F2'});
+  assert.equal(defaults.navUp,'w');assert.equal(defaults.navLeft,'a');assert.equal(defaults.navDown,'s');assert.equal(defaults.navRight,'d');
+  const custom=helpers.normalizeEditingShortcuts({navUp:{key:'ArrowUp',ctrlKey:true}});
+  assert.equal(helpers.matchesEditingShortcut({key:'ArrowUp',ctrlKey:true},'navUp',custom),true);
+  assert.equal(helpers.matchesEditingShortcut({key:'w'},'navUp',custom),false);
+});

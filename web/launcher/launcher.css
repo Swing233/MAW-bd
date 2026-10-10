@@ -246,3 +246,27 @@ code {
 .modal h3 { margin: 0 0 8px; font-size: 15px; }
 .modal .hint { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .modal .actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+
+.bar-row .pct { min-width: 80px; white-space: nowrap; }
+
+/* Match the original editor's restrained surfaces and compact controls. */
+:root { --bg:#eef0f4; --card:#fff; --ink:#252a34; --muted:#737d8d; --accent:#3874c9; --accent-soft:#e8eff9; --border:#dce1e8; }
+.wrap { padding:28px 24px 36px; }
+header h1 { font-size:21px; font-weight:650; letter-spacing:-.4px; }
+.card { border-radius:8px; padding:16px 18px; margin-bottom:14px; box-shadow:0 1px 2px #18203004; }
+.card h2 { font-size:13px; margin-bottom:12px; }
+button { padding:7px 12px; border-radius:5px; font-size:12px; transition:background 130ms ease-out; }
+button:not(.primary):hover { background:#f0f3f8; border-color:#c7d0dd; }
+input,select,textarea { background:#f8f9fb; border-radius:5px; padding:8px 10px; font-family:var(--sans); font-size:12px; }
+input:focus,select:focus,textarea:focus { outline:2px solid var(--accent-soft); border-color:var(--accent); }
+input[type="checkbox"] { width:auto; accent-color:var(--accent); }
+.log-rail { background:#f6f7f9; padding:24px 16px 18px; }
+.log-scroll { border-radius:6px; font-size:11px; line-height:1.7; padding:12px; }
+.step-progress .bar-row { grid-template-columns:60px minmax(0,1fr) 80px; }
+.step-progress { gap:12px; }
+.update-banner { background:var(--accent-soft); border-color:#c7d8ee; border-radius:6px; }
+.log-show-btn { background:#fff; color:var(--ink); border:1px solid var(--border); border-radius:5px; box-shadow:0 2px 8px #18203010; }
+@media(max-width:720px) { .wrap { padding:20px 14px; } .grid { grid-template-columns:minmax(0,1fr); } }
+
+.grid { align-items:end; }
+.grid > button { align-self:end; height:36px; }

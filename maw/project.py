@@ -791,9 +791,11 @@ def _validate_proofread(proofread: object, segment_path: str, errors: list[Proje
             errors.append(ProjectValidationError(f"{path}.match_score", "must be a number"))
         elif not 0.0 <= float(score) <= 1.0:
             errors.append(ProjectValidationError(f"{path}.match_score", "must be between 0 and 1"))
-    for key in ("script_text", "asr_original", "secondary_asr", "corrected", "reason"):
+    for key in ("script_text", "asr_original", "secondary_asr", "corrected", "reason", "review_original", "review_text"):
         if key in proofread and proofread[key] is not None and not isinstance(proofread[key], str):
             errors.append(ProjectValidationError(f"{path}.{key}", "must be a string or null"))
+    if proofread.get("review_state") is not None and proofread["review_state"] not in ("pending", "accepted", "rejected"):
+        errors.append(ProjectValidationError(f"{path}.review_state", "must be pending, accepted or rejected"))
     if "match_range" in proofread and proofread["match_range"] is not None and not isinstance(proofread["match_range"], dict):
         errors.append(ProjectValidationError(f"{path}.match_range", "must be an object"))
 

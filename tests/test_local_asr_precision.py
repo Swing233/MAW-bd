@@ -6,14 +6,14 @@ from maw.local_asr import QwenAsrEngine
 
 
 class QwenPrecisionTests(unittest.TestCase):
-    def test_mps_uses_bfloat16_for_asr_and_aligner(self):
+    def test_mps_uses_float32_for_asr_and_aligner(self):
         torch = types.SimpleNamespace(float16="fp16", bfloat16="bf16", float32="fp32")
         model = Mock()
         with patch.dict("sys.modules", {"torch": torch, "qwen_asr": types.SimpleNamespace(Qwen3ASRModel=model)}), patch("maw.local_asr.resolve_device", return_value="mps"):
             QwenAsrEngine()._load()
         kwargs = model.from_pretrained.call_args.kwargs
-        self.assertEqual(kwargs["dtype"], "bf16")
-        self.assertEqual(kwargs["forced_aligner_kwargs"]["dtype"], "bf16")
+        self.assertEqual(kwargs["dtype"], "fp32")
+        self.assertEqual(kwargs["forced_aligner_kwargs"]["dtype"], "fp32")
 
     def test_cpu_remains_float32_and_mps_load_failure_falls_back(self):
         torch = types.SimpleNamespace(float16="fp16", bfloat16="bf16", float32="fp32", mps=types.SimpleNamespace(empty_cache=lambda: None))
@@ -46,3 +46,12 @@ class QwenPrecisionTests(unittest.TestCase):
             engine._transcribe_once = Mock(return_value=types.SimpleNamespace(text=text))
             engine.transcribe("audio.wav")
             engine._transcribe_once.assert_called_once()
+
+    def test_cuda_keeps_float16_for_both_models(self):
+        torch = types.SimpleNamespace(float16="fp16", bfloat16="bf16", float32="fp32")
+        model = Mock()
+        with patch.dict("sys.modules", {"torch": torch, "qwen_asr": types.SimpleNamespace(Qwen3ASRModel=model)}), patch("maw.local_asr.resolve_device", return_value="cuda"):
+            QwenAsrEngine()._load()
+        kwargs = model.from_pretrained.call_args.kwargs
+        self.assertEqual(kwargs["dtype"], "fp16")
+        self.assertEqual(kwargs["forced_aligner_kwargs"]["dtype"], "fp16")

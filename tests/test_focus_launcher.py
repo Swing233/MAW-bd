@@ -130,7 +130,8 @@ class FocusedGuiContractTests(unittest.TestCase):
         self.assertIn("setLogCollapsed(true)", js)
         self.assertIn("setLogCollapsed(false)", js)
         self.assertIn("focusLlmDelta", js)
-        self.assertIn("LLM 输出", js)
+        self.assertIn("function appendLlmDelta(detail)", js)
+        self.assertIn("importantMessage", js)
         self.assertIn('width=1120,', gui)
         self.assertIn('min_size=(800, 640),', gui)
 

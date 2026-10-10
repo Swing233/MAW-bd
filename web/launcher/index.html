@@ -136,22 +136,22 @@
       </section>
 
       <section class="card">
-        <h2>各步骤进度</h2>
+        <h2>任务进度</h2>
         <div class="step-progress">
           <div class="bar-row">
-            <span>ASR</span>
+            <span>语音识别</span>
             <progress id="prog-asr" max="100" value="0"></progress>
-            <span class="pct" id="pct-asr">0%</span>
+            <span class="pct" id="pct-asr">未开始</span>
           </div>
           <div class="bar-row">
-            <span>修订</span>
+            <span>文字校对</span>
             <progress id="prog-revise" max="100" value="0"></progress>
-            <span class="pct" id="pct-revise">0%</span>
+            <span class="pct" id="pct-revise">未开始</span>
           </div>
           <div class="bar-row">
             <span>编辑器</span>
             <progress id="prog-editor" max="100" value="0"></progress>
-            <span class="pct" id="pct-editor">0%</span>
+            <span class="pct" id="pct-editor">未开始</span>
           </div>
         </div>
         <div class="row status-row">
@@ -201,6 +201,7 @@
     </div>
   </div>
 
+  <script src="../editor-proofread.js"></script>
   <script src="launcher.js"></script>
 </body>
 </html>

@@ -2060,13 +2060,7 @@ test('colored subtitles export per-color SRT files including the uncolored defau
     return Buffer.concat(chunks).toString('utf8');
   })).toContain('Alpha');
 
-  await page.locator('#extra-export-btn').click();
-  await page.locator('#extra-export-menu > .dropdown-submenu').nth(2)
-    .locator('.dropdown-submenu-toggle').click();
-  await expect(page.locator('#extra-data-menu')).toBeVisible();
-  const textDownload = page.waitForEvent('download');
-  await page.locator('#download-plain-text').click();
-  expect((await textDownload).suggestedFilename()).toBe('project.txt');
+
 });
 
 test('subtitle export keeps a stable menu and hides colors without enabled colored subtitles', async ({ page }) => {
@@ -2109,68 +2103,23 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
   await expect(page.locator('#gap-removed-subtitle-export-separator')).toBeHidden();
 });
 
-test('nested export menus preserve pointer reachability and keyboard focus', async ({ page }) => {
+test('focused editor keeps removed extra exports out of the toolbar', async ({page}) => {
   await page.goto(server.url);
-  const exportButton = page.locator('#extra-export-btn');
-  const otioToggle = page.locator('#extra-export-menu > .dropdown-submenu').first()
-    .locator(':scope > .dropdown-submenu-toggle');
-
-  await exportButton.click();
-  await otioToggle.hover();
-  await expect(page.locator('#extra-otio-menu')).toBeVisible();
-  const submenuBox = await page.locator('#extra-otio-menu').boundingBox();
-  expect(submenuBox).not.toBeNull();
-  await page.mouse.move(
-    submenuBox.x + submenuBox.width / 2,
-    submenuBox.y + submenuBox.height / 2,
-  );
-  await expect(page.locator('#download-otio')).toBeVisible();
-
-  await exportButton.focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(page.locator('#download-fcp7-export')).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(otioToggle).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.locator('#download-otio')).toBeFocused();
-  await page.keyboard.press('ArrowLeft');
-  await expect(otioToggle).toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(exportButton).toBeFocused();
-  await expect(page.locator('#extra-export-dropdown')).not.toHaveClass(/open/);
+  await expect(page.locator('#extra-export-btn')).toHaveCount(0);
+  await expect(page.locator('#extra-export-menu')).toHaveCount(0);
+  await expect(page.locator('#subtitle-export-btn')).toBeVisible();
+  await page.locator('#subtitle-export-btn').click();
+  await expect(page.locator('#download-full-srt')).toBeVisible();
 });
 
-test('nested export menus keep the current submenu while the pointer crosses its aim corridor', async ({ page }) => {
+test('new gap actions use the existing batch menu', async ({page}) => {
   await page.goto(server.url);
-  const exportButton = page.locator('#extra-export-btn');
-  const otioWrapper = page.locator('#extra-export-menu > .dropdown-submenu').first();
-  const dynamicWrapper = page.locator('#extra-export-menu > .dropdown-submenu').nth(1);
-  const otioToggle = otioWrapper.locator(':scope > .dropdown-submenu-toggle');
-  const dynamicToggle = dynamicWrapper.locator(':scope > .dropdown-submenu-toggle');
-
-  await exportButton.click();
-  await otioToggle.hover();
-  await expect(page.locator('#extra-otio-menu')).toBeVisible();
-
-  const otioToggleBox = await otioToggle.boundingBox();
-  const dynamicToggleBox = await dynamicToggle.boundingBox();
-  expect(otioToggleBox).not.toBeNull();
-  expect(dynamicToggleBox).not.toBeNull();
-
-  await page.mouse.move(
-    otioToggleBox.x + otioToggleBox.width * 0.7,
-    otioToggleBox.y + otioToggleBox.height / 2,
-  );
-  await page.mouse.move(
-    dynamicToggleBox.x + dynamicToggleBox.width * 0.05,
-    dynamicToggleBox.y + dynamicToggleBox.height / 2,
-    { steps: 12 },
-  );
-  await page.waitForTimeout(40);
-  await expect(page.locator('#extra-otio-menu')).toBeVisible({ timeout: 100 });
-  await expect(page.locator('#extra-dynamic-menu')).toBeHidden();
-  await page.waitForTimeout(180);
-  await expect(page.locator('#extra-dynamic-menu')).toBeVisible();
+  await page.locator('#batch-operations-btn').click();
+  await expect(page.locator('#subtitle-gap-close-btn')).toBeVisible();
+  await expect(page.locator('#subtitle-gap-highlight-btn')).toHaveClass(/dropdown-item/);
+  await page.locator('#subtitle-gap-highlight-btn').click();
+  await expect(page.locator('#subtitle-gap-highlight-dialog')).toBeVisible();
+  await page.locator('#subtitle-gap-highlight-cancel').click();
 });
 
 test('sticker Resolve and OTIO exports expand references per enabled subtitle', async ({ page }) => {
@@ -2314,7 +2263,7 @@ test('gap-removed export includes color SRT and names OTIO as a timeline project
   }
 });
 
-test('server media loads from the resolved project path and OTIO keeps its absolute source URL', async ({ page }) => {
+test('server media loads from the resolved project path', async ({ page }) => {
   await page.goto(server.url);
   const state = await page.evaluate(() => ({
     media: DATA.media,
@@ -2323,90 +2272,7 @@ test('server media loads from the resolved project path and OTIO keeps its absol
   expect(state.media).toMatch(/synthetic\.wav$/);
   expect(state.media).toMatch(/^(?:[A-Za-z]:[\\/]|\/)/);
   expect(state.currentSrc).toBe(`${server.url}media`);
-
-  await page.evaluate(() => {
-    DATA.media_metadata = {
-      audio_tracks: [
-        { audio_index: 0, stream_index: 1, channels: 2, sample_rate: 48000 },
-        { audio_index: 1, stream_index: 2, channels: 2, sample_rate: 48000 },
-        { audio_index: 2, stream_index: 3, channels: 2, sample_rate: 48000 },
-      ],
-    };
-    DATA.gap_remove = {
-      schema: 'moy.asr.gap_remove.v1',
-      detector: 'audio_gate',
-      minimum_ms: 500,
-      threshold_db: -24,
-      hysteresis_db: 2,
-      lead_in_ms: 40,
-      lead_out_ms: 80,
-      skip_playback: true,
-      operation_mode: 'middle_drag',
-      manual_corrections: false,
-      gaps: [
-        { start: 0, end: 13890, removed: true },
-        { start: 15990, end: 18140, removed: true },
-        { start: 18870, end: 20570, removed: true },
-        { start: 21560, end: 21940, removed: true },
-      ],
-    };
-    updateGapRemoveUi();
-    renderAll();
-    window.showSaveFilePicker = undefined;
-  });
-  const downloadPromise = page.waitForEvent('download');
-  await page.locator('#gap-removed-export-btn').click();
-  await page.locator('#gap-removed-export-menu > .dropdown-submenu').first()
-    .locator(':scope > .dropdown-submenu-toggle').click();
-  await page.locator('#download-gap-removed-otio').click();
-  const download = await downloadPromise;
-  const payload = await download.createReadStream().then(async (stream) => {
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  });
-  const targetUrl = payload.tracks.children[0].children[0]
-    .media_references.DEFAULT_MEDIA.target_url;
-  expect(targetUrl).toMatch(/^file:\/\/\//);
-  expect(decodeURI(targetUrl)).toContain('synthetic.wav');
-
-  const clips = payload.tracks.children[0].children.filter((child) => child.OTIO_SCHEMA === 'Clip.2');
-  const mediaStart = 1234 / 8000 * 60;
-  let sequenceStart = 0;
-  const ranges = clips.map((clip) => {
-    const sourceRange = clip.source_range;
-    const availableRange = clip.media_references.DEFAULT_MEDIA.available_range;
-    const result = {
-      sequenceStart,
-      sourceStart: sourceRange.start_time.value,
-      sourceDuration: sourceRange.duration.value,
-      availableStart: availableRange.start_time.value,
-      availableDuration: availableRange.duration.value,
-    };
-    sequenceStart += sourceRange.duration.value;
-    return result;
-  });
-  expect(ranges).toEqual([
-    { sequenceStart: 0, sourceStart: mediaStart + 833, sourceDuration: 126, availableStart: mediaStart, availableDuration: 18000 },
-    { sequenceStart: 126, sourceStart: mediaStart + 1088, sourceDuration: 44, availableStart: mediaStart, availableDuration: 18000 },
-    { sequenceStart: 170, sourceStart: mediaStart + 1234, sourceDuration: 60, availableStart: mediaStart, availableDuration: 18000 },
-    { sequenceStart: 230, sourceStart: mediaStart + 1316, sourceDuration: 16684, availableStart: mediaStart, availableDuration: 18000 },
-  ]);
-
-  const resolveMappings = payload.tracks.children.map((track) => ({
-    kind: track.kind,
-    linkGroupIds: track.children.map((clip) => clip.metadata.Resolve_OTIO['Link Group ID']),
-    sourceTrackIds: track.kind === 'Audio'
-      ? track.children.map((clip) => clip.metadata.Resolve_OTIO.Channels.map(
-        (channel) => channel['Source Track ID'],
-      ))
-      : null,
-  }));
-  expect(resolveMappings).toEqual([
-    { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[0, 0], [0, 0], [0, 0], [0, 0]] },
-    { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[1, 1], [1, 1], [1, 1], [1, 1]] },
-    { kind: 'Audio', linkGroupIds: [1, 2, 3, 4], sourceTrackIds: [[2, 2], [2, 2], [2, 2], [2, 2]] },
-  ]);
+  await expect(page.locator('#download-gap-removed-otio')).toBeHidden();
 });
 
 test('OTIO exports every source audio stream as its own audio track', async ({ page }) => {
@@ -2745,4 +2611,79 @@ test('custom navigation key preserves native select controls and text input', as
   await page.locator('#search').press('ArrowDown');
   await expect(page.locator('#search')).toHaveValue('字幕');
   expect(await page.evaluate(() => DATA.segments.length)).toBe(6);
+});
+
+test('start Backspace merges panel cue with previous, keeps timestamps and supports undo', async ({ page }) => {
+  await page.goto(server.url);
+  const before = await page.evaluate(() => JSON.parse(JSON.stringify(DATA.segments)));
+  await page.locator('.cue[data-idx="1"]').click();
+  const text = page.locator('#cue-panel-text');
+  await text.focus();
+  await text.evaluate(el => el.setSelectionRange(0, 0));
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('.cue')).toHaveCount(5);
+  expect(await page.evaluate(() => [DATA.segments[0].text, DATA.segments[0].start, DATA.segments[0].end])).toEqual(['Alpha Bravo', 0, 58000]);
+  expect(await page.evaluate(() => DATA.segments[0].items)).toEqual([...before[0].items, ...before[1].items]);
+  await expect(text).toBeFocused();
+  expect(await text.evaluate(el => el.selectionStart)).toBe(5);
+  await page.getByRole('button', { name: /撤销/ }).click();
+  expect(await page.evaluate(() => DATA.segments)).toEqual(before);
+});
+
+test('start Backspace in popover keeps draft and continues editing at join', async ({ page }) => {
+  await page.goto(server.url);
+  const before = await page.evaluate(() => JSON.parse(JSON.stringify(DATA.segments)));
+  await page.evaluate(() => openWaveformCueEditDialog('main', 1, null, document.querySelector('.waveform-cue-block[data-idx="0"]')));
+  const text = page.locator('#waveform-cue-edit-text');
+  await text.fill('Changed Bravo');
+  await text.evaluate(el => el.setSelectionRange(0, 0));
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('.cue')).toHaveCount(5);
+  await expect(text).toHaveValue('Alpha Changed Bravo');
+  await expect(text).toBeFocused();
+  expect(await text.evaluate(el => el.selectionStart)).toBe(5);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /撤销/ }).click();
+  expect(await page.evaluate(() => DATA.segments[1].text)).toBe('Changed Bravo');
+  await page.getByRole('button', { name: /撤销/ }).click();
+  expect(await page.evaluate(() => DATA.segments)).toEqual(before);
+});
+
+test('start Backspace in inline editor merges then keeps caret in new text', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => { startEdit(document.querySelector('.cue[data-idx="1"]'), 1); setEditingCaretOffset(0); });
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('.cue')).toHaveCount(5);
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Alpha Bravo');
+  await expect.poll(() => page.evaluate(() => caretOffsetInText(editingState.textEl))).toBe(5);
+  await page.keyboard.type('!');
+  await page.locator('#search').click();
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Alpha! Bravo');
+});
+
+test('Backspace merge ignores first cue, selections, non-start caret, IME and modifiers', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('.cue[data-idx="0"]').click();
+  const text = page.locator('#cue-panel-text');
+  await text.focus();
+  await text.evaluate(el => el.setSelectionRange(0, 0));
+  await page.keyboard.press('Backspace');
+  expect(await page.evaluate(() => DATA.segments[0].text)).toBe('Alpha');
+  await page.locator('.cue[data-idx="1"]').click();
+  await text.focus();
+  await text.evaluate(el => el.setSelectionRange(0, 2));
+  await page.keyboard.press('Backspace');
+  await expect(text).toHaveValue('avo');
+  await text.evaluate(el => el.setSelectionRange(1, 1));
+  await page.keyboard.press('Backspace');
+  await expect(text).toHaveValue('vo');
+  const result = await text.evaluate(el => {
+    el.setSelectionRange(0, 0);
+    return [{isComposing:true}, {keyCode:229}, {ctrlKey:true}, {metaKey:true}, {altKey:true}, {shiftKey:true}, {repeat:true}, {key:'Delete'}].map(options => {
+      const event = new KeyboardEvent('keydown', {key:'Backspace', bubbles:true, cancelable:true, ...options});
+      el.dispatchEvent(event); return event.defaultPrevented;
+    });
+  });
+  expect(result).toEqual(Array(8).fill(false));
+  await expect(page.locator('.cue')).toHaveCount(6);
 });

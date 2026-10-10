@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections import deque
 from pathlib import Path
 from typing import Any, Mapping
@@ -21,7 +23,8 @@ from maw.app_update import (
     read_update_result,
     stage_update,
 )
-from maw.bdversion.revise import revise_project
+from maw.bdversion.revise import _load_project, _write_outputs, revise_project
+from maw.bdversion.review import apply_review_decisions, project_token, review_rows
 from maw.ffmpeg import bundled_ffmpeg_directory
 from maw.gui_config import DEFAULT_MODEL_ID, QWEN3_ASR_MODEL_ID, QWEN_AUDIO_MODEL_ID, load_env
 from maw.gui_web import (
@@ -51,6 +54,20 @@ def local_runtime_python() -> Path:
 
 def local_model_cache_root() -> Path:
     return Path.home() / "Library" / "Application Support" / "MAW" / "model-cache"
+
+
+def _local_progress(text: str) -> dict[str, object] | None:
+    text = redact_sensitive_text(text.strip())
+    chunk = re.search(r"正在识别第 (\d+)/(\d+) 段", text)
+    if chunk:
+        current, total = map(int, chunk.groups())
+        if total > 0 and 1 <= current <= total:
+            return {"message": f"正在识别：第 {current}/{total} 段", "progress": int((current - 1) / total * 100),
+                    "progressKnown": True, "progressLabel": f"{current}/{total} 段"}
+    if text.startswith(("[local]", "[ffmpeg]")) and any(word in text for word in
+            ("loading", "loaded", "transcribing", "完成", "正在提取", "准备加载", "缓存", "下载", "切换备用", "回退", "重新识别", "警告", "错误", "失败", "长音频")):
+        return {"message": text, "progressKnown": False, "progressLabel": ""}
+    return None
 
 
 class FocusedLauncherApi:
@@ -363,7 +380,7 @@ class FocusedLauncherApi:
             return {"ok": False, "error": "不支持的本地引擎"}
         self.cancel_event = threading.Event()
         self._model_preparation = {"engine": engine, "state": "downloading"}
-        self._set_status(step="model_download", busy=True, error="",
+        self._set_status(step="model_download", busy=True, progressKnown=False, progressLabel="", error="",
                          message="正在准备本地模型，首次下载可能需要数 GB；已有缓存会复用")
         self.pump.start()
         self.worker = threading.Thread(target=self._download_model_worker, args=(engine,), daemon=True)
@@ -418,7 +435,9 @@ class FocusedLauncherApi:
                     text = redact_sensitive_text(line.strip())
                     if text:
                         output.append(text)
-                        self._set_status(message=text)
+                        update = _local_progress(text)
+                        if update:
+                            self._set_status(**update)
 
             reader = threading.Thread(target=read_output, daemon=True)
             reader.start()
@@ -494,7 +513,7 @@ class FocusedLauncherApi:
         self.cancel_event = threading.Event()
         label = "本地模型" if asr_mode == "local" else "云端 Qwen"
         self._step_progress["asr"] = 0
-        self._set_status(step="asr", message=f"正在 ASR 识别（{label}）…", progress=0, busy=True, error="")
+        self._set_status(step="asr", message=f"正在 ASR 识别（{label}）…", progress=0, progressKnown=False, progressLabel="", busy=True, error="")
         self.pump.start()
         self.worker = threading.Thread(
             target=self._asr_worker,
@@ -578,14 +597,18 @@ class FocusedLauncherApi:
         self._local_process = process
         collected: list[str] = []
         assert process.stdout is not None
+        previous_line = None
         for line in process.stdout:
             collected.append(line)
             if self.cancel_event.is_set():
                 process.terminate()
                 raise TranscriptionCancelledError()
             text = line.strip()
-            if text:
-                self._set_status(progress=40, message=text[:180])
+            if text and text != previous_line:
+                update = _local_progress(text)
+                if update:
+                    self._set_status(**update)
+            previous_line = text
         code = process.wait()
         self._local_process = None
         if self.cancel_event.is_set():
@@ -639,7 +662,7 @@ class FocusedLauncherApi:
         if not manuscript.strip() and ms_path and ms_path not in {"(pasted)", "-"} and len(ms_path) < 512 and "\n" not in ms_path:
             manuscript = ms_path  # real short path to .txt/.md/.docx
         self._step_progress["revise"] = 0
-        self._set_status(step="revise", message="正在修订字幕…", progress=0, busy=True, error="")
+        self._set_status(step="revise", message="正在修订字幕…", progress=0, progressKnown=False, progressLabel="", busy=True, error="")
         self.pump.start()
         self.worker = threading.Thread(
             target=self._revise_worker,
@@ -658,7 +681,7 @@ class FocusedLauncherApi:
                 api_key=api_key,
                 model=model,
                 custom_prompt=custom_prompt,
-                apply_to_text=True,
+                apply_to_text=False,
                 manuscript=manuscript or None,
                 on_llm_delta=self._emit_llm_delta,
             )
@@ -666,6 +689,7 @@ class FocusedLauncherApi:
                 self._set_status(step="error", message="修订失败", busy=False, error=str(out.get("error") or "unknown"))
                 return
             self._result["projectPath"] = out.get("projectPath") or project
+            self._result["reviewRun"] = uuid.uuid4().hex
             self._result["revisedProjectPath"] = out.get("projectPath") or ""
             self._result["revisedSrtPath"] = out.get("srtPath") or ""
             self._result["srtPath"] = out.get("srtPath") or self._result.get("srtPath") or ""
@@ -676,6 +700,40 @@ class FocusedLauncherApi:
             self._set_status(step="revise_done", message=msg, progress=100, busy=False, error="")
         except Exception as error:  # noqa: BLE001
             self._set_status(step="error", message="修订失败", busy=False, error=str(error))
+
+    def get_proofread_review(self, _payload=None) -> dict[str, object]:
+        try:
+            path = Path(str(self._result.get("revisedProjectPath") or ""))
+            if not path.is_file():
+                return {"ok": False, "error": "没有可审查的校对工程"}
+            raw_token = project_token(path)
+            project = _load_project(path)
+            if project_token(path) != raw_token:
+                return {"ok": False, "error": "工程已变化，请重试"}
+            return {"ok": True, "token": raw_token, "rows": review_rows(project)}
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
+
+    def apply_proofread_review(self, payload: Mapping[str, object]) -> dict[str, object]:
+        if self._status.get("busy"):
+            return {"ok": False, "error": "任务进行中，请稍后审查"}
+        try:
+            path = Path(str(self._result.get("revisedProjectPath") or ""))
+            token = str(payload.get("token") or "")
+            if not path.is_file() or not token or token != project_token(path):
+                return {"ok": False, "error": "工程已变化，请重新打开审查"}
+            choices = payload.get("choices")
+            if not isinstance(choices, list):
+                return {"ok": False, "error": "审查选项无效"}
+            project = apply_review_decisions(_load_project(path), choices)
+            if token != project_token(path):
+                return {"ok": False, "error": "工程已变化，请重新打开审查"}
+            outputs = _write_outputs(project, path, "" if path.stem.endswith(".已审查") else ".已审查")
+            self._result.update(projectPath=outputs["projectPath"], revisedProjectPath=outputs["projectPath"],
+                                srtPath=outputs["srtPath"], revisedSrtPath=outputs["srtPath"])
+            return {"ok": True, **outputs}
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
 
     def stop_task(self, _payload=None) -> dict[str, object]:
         self.cancel_event.set()

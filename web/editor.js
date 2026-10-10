@@ -2204,6 +2204,116 @@ function renderProofreadPanel(segment, anchor = null) {
     ? rect.bottom + 6 : Math.max(8, rect.top - size.height - 6)}px`;
 }
 
+function openEditorProofreadReview() {
+  if (editingState) finishEdit(true);
+  commitCuePanelEdit();
+  const rows = window.MaweReview.rowsFromSegments(DATA.segments);
+  window.MaweReview.open({ rows, onLocate: row => {
+    selectOnly(row.index);
+    player.currentTime = row.start / 1000;
+    waveformEditor?.revealTime(row.start, true);
+  }, onApply: choices => {
+    window.MaweReview.validateDecisions(DATA.segments, rows, choices);
+    if (!choices.length) return;
+    pushUndo('审查 LLM 校对', { captureView: true });
+    window.MaweReview.applyDecisions(DATA.segments, rows, choices);
+    scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
+    flashHint('审查结果已应用，可撤销', 'success');
+  }});
+}
+document.getElementById('llm-review-btn')?.addEventListener('click', openEditorProofreadReview);
+
+let subtitleGapHighlightMs = 0;
+try {
+  const saved = Number(localStorage.getItem('maw.subtitleGapHighlightMs'));
+  if (Number.isInteger(saved) && saved >= 0) subtitleGapHighlightMs = saved;
+} catch (_) { /* Settings unavailable: use visual highlighting disabled. */ }
+function openSubtitleGapHighlight() {
+  const previous = document.getElementById('subtitle-gap-highlight-dialog');
+  if (previous?.open) return;
+  previous?.remove();
+  const dialog = document.createElement('dialog'); dialog.id = 'subtitle-gap-highlight-dialog';
+  dialog.className = 'mawe-dialog gap-dialog';
+  dialog.setAttribute('aria-labelledby', 'subtitle-gap-highlight-title');
+  dialog.innerHTML = `<header><h3 id="subtitle-gap-highlight-title">高亮短字幕空隙</h3></header><p class="dialog-description">仅标出大于 0 且小于指定长度的主字幕空隙，不修改字幕或媒体。</p>
+    <label>阈值（毫秒） <input id="subtitle-gap-highlight-max" type="number" min="0" step="1"></label>
+    <p id="subtitle-gap-highlight-summary" class="dialog-summary" role="status"></p><footer><button id="subtitle-gap-highlight-off">关闭高亮</button><span class="dialog-spacer"></span><button id="subtitle-gap-highlight-cancel">取消</button><button id="subtitle-gap-highlight-apply" class="primary">开启高亮</button></footer>`;
+  const input = dialog.querySelector('input'); input.value = subtitleGapHighlightMs || 200;
+  const apply = dialog.querySelector('#subtitle-gap-highlight-apply');
+  function render() {
+    const threshold = Number(input.value);
+    const valid = input.value.trim() && Number.isInteger(threshold) && threshold > 0;
+    apply.disabled = !valid;
+    dialog.querySelector('#subtitle-gap-highlight-summary').textContent = valid
+      ? `符合条件 ${window.MaweReview.gapPlan(DATA.segments, null, threshold).filter(g => g.gap < threshold).length} 处`
+      : '请输入正整数毫秒';
+  }
+  function save(value) {
+    subtitleGapHighlightMs = value;
+    try { localStorage.setItem('maw.subtitleGapHighlightMs', String(value)); } catch (_) {}
+    waveformEditor?.refreshSubtitleGapHighlights(); dialog.close();
+  }
+  input.addEventListener('input', render);
+  apply.addEventListener('click', () => { render(); if (!apply.disabled) save(Number(input.value)); });
+  dialog.querySelector('#subtitle-gap-highlight-off').addEventListener('click', () => save(0));
+  dialog.querySelector('#subtitle-gap-highlight-cancel').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('keydown', event => event.stopPropagation());
+  dialog.addEventListener('close', () => dialog.remove()); document.body.appendChild(dialog); render(); dialog.showModal();
+}
+document.getElementById('subtitle-gap-highlight-btn')?.addEventListener('click', openSubtitleGapHighlight);
+
+function openSubtitleGapClose() {
+  const previous = document.getElementById('subtitle-gap-close-dialog');
+  if (previous?.open) return;
+  previous?.remove();
+  if (editingState) finishEdit(true);
+  commitCuePanelEdit();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'subtitle-gap-close-dialog'; dialog.className = 'mawe-dialog gap-dialog';
+  dialog.setAttribute('aria-labelledby', 'subtitle-gap-close-title');
+  dialog.innerHTML = `<header><h3 id="subtitle-gap-close-title">消除字幕空隙</h3></header><p class="dialog-description">只延长前一条字幕的结束时间到后一条开始。不合并文字，不移动音频，不删除时间线内容。</p>
+    <label>最大空隙（毫秒） <input id="subtitle-gap-max" type="number" min="0" step="1" value="200"></label>
+    <label>处理范围 <select id="subtitle-gap-scope"><option value="selected">选中的相邻字幕</option><option value="all">全部主字幕</option></select></label>
+    <p id="subtitle-gap-summary" class="dialog-summary" role="status"></p><div id="subtitle-gap-preview" class="gap-preview"></div>
+    <footer><button id="subtitle-gap-cancel">取消</button><button id="subtitle-gap-apply" class="primary">应用</button></footer>`;
+  const limit = dialog.querySelector('#subtitle-gap-max'), scope = dialog.querySelector('#subtitle-gap-scope');
+  scope.value = selectedIdxs.size >= 2 ? 'selected' : 'all';
+  const summary = dialog.querySelector('#subtitle-gap-summary'), preview = dialog.querySelector('#subtitle-gap-preview');
+  const apply = dialog.querySelector('#subtitle-gap-apply');
+  function plan() {
+    if (!limit.value.trim()) throw new Error('请输入最大空隙');
+    return window.MaweReview.gapPlan(DATA.segments, scope.value === 'selected' ? [...selectedIdxs] : null, Number(limit.value));
+  }
+  function render() {
+    preview.replaceChildren();
+    try {
+      const changes = plan();
+      summary.textContent = `将消除 ${changes.length} 处空隙，共 ${changes.reduce((sum, c) => sum + c.gap, 0)} 毫秒；字词时间码保持不变`;
+      apply.disabled = !changes.length;
+      changes.slice(0, 100).forEach(change => {
+        const row = document.createElement('p');
+        row.textContent = `第 ${change.index + 1} → ${change.index + 2} 条：${change.gap}ms · 结束 ${fmtShort(change.oldEnd)} → ${fmtShort(change.end)}`;
+        preview.appendChild(row);
+      });
+      if (changes.length > 100) { const more = document.createElement('p'); more.textContent = '仅预览前 100 处，应用会处理全部符合条件的空隙'; preview.appendChild(more); }
+    } catch (error) { summary.textContent = error.message; apply.disabled = true; }
+  }
+  limit.addEventListener('input', render); scope.addEventListener('change', render);
+  apply.addEventListener('click', () => {
+    const changes = plan();
+    if (!changes.length) return;
+    pushUndo('消除字幕空隙', { captureView: true });
+    applyAutoMergeSnapsWithBindings(changes.map(c => ({ index: c.index, edge: 'end', time: c.end })));
+    syncTimelineGroupRanges(); scheduleAutoSaveFlush(); renderAll(); updateWithoutCueListAutoScroll();
+    dialog.close(); flashHint(`已消除 ${changes.length} 处字幕空隙，可撤销`, 'success');
+  });
+  dialog.querySelector('#subtitle-gap-cancel').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('keydown', event => event.stopPropagation());
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.appendChild(dialog); render(); dialog.showModal();
+}
+document.getElementById('subtitle-gap-close-btn')?.addEventListener('click', openSubtitleGapClose);
+
 function buildProofreadFilterMenu() {
   if (!proofreadFilterMenu || !window.MaweProofread) return;
   proofreadFilterMenu.replaceChildren();
@@ -2230,12 +2340,12 @@ function buildProofreadFilterMenu() {
 if (proofreadFilterButton && proofreadFilterMenu) {
   buildProofreadFilterMenu();
   proofreadFilterButton.addEventListener('click', () => {
-    const open = proofreadFilterMenu.classList.toggle('open');
+    const open = proofreadFilterDropdown.classList.toggle('open');
     proofreadFilterButton.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
   document.addEventListener('click', (event) => {
     if (!proofreadFilterDropdown?.contains(event.target)) {
-      proofreadFilterMenu.classList.remove('open');
+      proofreadFilterDropdown.classList.remove('open');
       proofreadFilterButton.setAttribute('aria-expanded', 'false');
     }
   });
@@ -2720,7 +2830,7 @@ function updateEditorSettings(patch) {
 }
 
 function editingShortcutMatches(event, action) {
-  if (editorSettingsPanel?.getAttribute('aria-hidden') === 'false') return false;
+  if (editorSettingsPanel?.getAttribute('aria-hidden') === 'false' || document.querySelector('dialog[open]')) return false;
   return EDITOR_SETTINGS_UTILS.matchesEditingShortcut(event, action, EDITOR_SETTINGS.editingShortcuts);
 }
 let capturingEditingShortcut = null;
@@ -2779,12 +2889,19 @@ document.addEventListener('keydown', event => {
   // Capture before built-in shortcuts so a custom combination performs one action.
   const active = document.activeElement;
   if (active?.matches('input, textarea, select') || isTextEditingTarget(event) || editingState || extensionEditingState
-      || document.querySelector('.modal-mask.show') || ctxmenu.classList.contains('show')
+      || document.querySelector('.modal-mask.show, dialog[open]') || ctxmenu.classList.contains('show')
       || editorSettingsPanel?.getAttribute('aria-hidden') === 'false') return;
-  const action = Object.keys(EDITOR_SETTINGS.editingShortcuts).find(key => editingShortcutMatches(event, key));
+  let action = Object.keys(EDITOR_SETTINGS.editingShortcuts).find(key => editingShortcutMatches(event, key));
+  // Shift extends selection; Alt retains held-block fine tuning for plain navigation bindings.
+  if (!action && (event.shiftKey || event.altKey) && !event.ctrlKey && !event.metaKey) {
+    action = ['navUp', 'navLeft', 'navDown', 'navRight'].find(key =>
+      typeof EDITOR_SETTINGS.editingShortcuts[key] === 'string'
+      && editingShortcutMatches({ key: event.key, code: event.code, isComposing: event.isComposing }, key));
+  }
   if (!action) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+  if (action.startsWith('nav')) { handleSubtitleNavigationShortcut(event, action); return; }
   if (event.repeat) return;
   if (action === 'start' || action === 'end') handlePointerBoundaryShortcut(event, action);
   else if (action === 'split') handleEditingSplitShortcut(event);
@@ -7362,6 +7479,62 @@ waveformCueEditText?.addEventListener('keydown', (event) => {
     saveWaveformCueEditDialog();
   }
 });
+
+// macOS Delete is reported as Backspace; forward Delete keeps its normal meaning.
+function handleCueStartBackspace(event) {
+  if (event.key !== 'Backspace' || event.isComposing || event.keyCode === 229
+      || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+  const input = event.target;
+  const popover = input === waveformCueEditText;
+  const panel = input === cuePanelText;
+  const inline = editingState && (input === editingState.textEl || editingState.textEl.contains(input));
+  if (!popover && !panel && !inline) return;
+  const selection = window.getSelection();
+  const atStart = inline
+    ? selection?.isCollapsed && caretOffsetInText(editingState.textEl) === 0
+    : input.selectionStart === 0 && input.selectionEnd === 0;
+  if (!atStart) return;
+  const target = inline
+    ? { kind: 'main', index: editingState.idx, segment: DATA.segments[editingState.idx] }
+    : getCurrentCuePanelTarget();
+  if (!target) return;
+  const segments = target.kind === 'main' ? DATA.segments : target.track?.segments;
+  if (target.index <= 0 || !segments?.[target.index - 1]) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const index = target.index - 1;
+  const joinOffset = String(segments[index].text || '').length;
+  // Commit the current draft before the existing merge machinery captures undo.
+  if (inline) finishEdit(true);
+  else if (popover) saveWaveformCueEditDialog();
+  else commitCuePanelEdit();
+  if (target.kind === 'extension') mergeExtensionSegments([index, index + 1], target.track);
+  else if (target.kind === 'overlay') mergeOverlaySegments([index, index + 1]);
+  else mergeSegments([index, index + 1]);
+  setCuePanelTarget(target.kind, index, target.trackId);
+  if (popover) {
+    const anchor = document.querySelector(`.waveform-cue-block[data-track="${target.kind}"][data-idx="${index}"]`);
+    openWaveformCueEditDialog(target.kind, index, target.track, anchor);
+    waveformCueEditText.setSelectionRange(joinOffset, joinOffset);
+  } else if (inline) {
+    const cue = container.querySelector(`.cue[data-idx="${index}"]`);
+    if (cue) {
+      startEdit(cue, index);
+      setEditingCaretOffset(joinOffset);
+      // The native key/focus processing can reset a newly focused editable.
+      const state = editingState;
+      setTimeout(() => {
+        if (editingState === state) setEditingCaretOffset(joinOffset);
+      }, 0);
+    }
+  } else {
+    cuePanelText.value = segments[index].text || '';
+    cuePanelText.focus();
+    cuePanelText.setSelectionRange(joinOffset, joinOffset);
+    captureCuePanelTextEditSnapshot();
+  }
+}
+document.addEventListener('keydown', handleCueStartBackspace, true);
 
 function dirtyFlagSnapshot(value) {
   return value && Object.prototype.hasOwnProperty.call(value, '_dirty') ? value._dirty : null;
@@ -12781,9 +12954,8 @@ document.addEventListener('keydown', (e) => {
 // Shift+A/D（或 Shift+W/S）：保留当前选择，并向前/后追加选择一条字幕。
 // 播放中以播放头所在字幕为基准；播放头处于空隙时，按方向选择其前方/后方字幕。
 // 暂停时仍以当前选中字幕为基准。跳转本身不改变播放状态。
-document.addEventListener('keydown', (e) => {
-  const key = e.key.toLowerCase();
-  if (key !== 'a' && key !== 'd' && key !== 'w' && key !== 's') return;
+function handleSubtitleNavigationShortcut(e, action) {
+  const key = { navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd' }[action];
   if (editingState) return;
   const a = document.activeElement;
   if (a && (
@@ -12799,7 +12971,6 @@ document.addEventListener('keydown', (e) => {
   if (multiSubtitleSplitModal?.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.metaKey) return;
   const direction = (key === 'a' || key === 'w') ? -1 : 1;
   const panelTarget = getCurrentCuePanelTarget();
   const extensionTarget = panelTarget?.kind === 'extension';
@@ -12817,7 +12988,7 @@ document.addEventListener('keydown', (e) => {
     e.stopPropagation();
     return;
   }
-  if (e.altKey) return;
+  if (e.altKey && typeof EDITOR_SETTINGS.editingShortcuts[action] === 'string') return;
   const navigationIndex = wasPlaying
     ? -1
     : (extensionTarget ? panelTarget?.index ?? -1 : currentCuePanelIdx);
@@ -12870,7 +13041,7 @@ document.addEventListener('keydown', (e) => {
     const promise = player.play();
     if (promise && promise.catch) promise.catch(() => {});
   }
-});
+}
 
 function mergeAdjacentSubtitle(direction) {
   const target = getCurrentCuePanelTarget();
@@ -22579,6 +22750,7 @@ function initWaveformEditor() {
     return;
   }
   waveformEditor = window.AsrWaveform.create({
+    getSubtitleGapHighlightMs: () => subtitleGapHighlightMs,
     getSegments: (track = 'main') => track === 'extension'
       ? (getActiveExtensionTrack()?.segments || [])
       : track === 'overlay'

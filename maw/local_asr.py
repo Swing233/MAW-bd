@@ -8,6 +8,7 @@ Torch, QwenASR, FunASR, or faster-whisper installed.
 from __future__ import annotations
 
 import inspect
+import json
 import math
 import os
 import re
@@ -619,6 +620,71 @@ _QWEN_LANGUAGE_NAMES = {
     "ko": "Korean", "fr": "French", "de": "German", "es": "Spanish",
 }
 
+def _complete_qwen_snapshot(path: Path) -> bool:
+    """Accept complete processor/weight snapshots only, never partial downloads."""
+    try:
+        for name in ("config.json", "preprocessor_config.json", "tokenizer_config.json"):
+            json.loads((path / name).read_text(encoding="utf-8"))
+        tokenizer = (path / "tokenizer.json").is_file() or all(
+            (path / name).is_file() and (path / name).stat().st_size > 0 for name in ("vocab.json", "merges.txt")
+        )
+        if not tokenizer:
+            return False
+        index = path / "model.safetensors.index.json"
+        if index.is_file():
+            weights = set(json.loads(index.read_text(encoding="utf-8"))["weight_map"].values())
+            if not weights or any(not isinstance(name, str) or Path(name).is_absolute() or ".." in Path(name).parts for name in weights):
+                return False
+        else:
+            weights = {"model.safetensors"}
+        return all((path / name).is_file() and (path / name).stat().st_size > 0 for name in weights)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def _qwen_model_location(model: str, on_event: ProgressCallback | None = None) -> str:
+    if Path(model).is_dir():
+        return model
+    cache = os.environ.get("HF_HUB_CACHE", "").strip()
+    if not cache:
+        root = os.environ.get("MAW_MODEL_CACHE_ROOT", "").strip()
+        cache = str(Path(root) / "huggingface" / "hub") if root else ""
+    # Keep source-mode callers' existing HF configuration when no managed cache is set.
+    if not cache:
+        return model
+    repository = Path(cache) / ("models--" + model.replace("/", "--"))
+    try:
+        revision = (repository / "refs" / "main").read_text(encoding="utf-8").strip()
+        if revision and "/" not in revision and "\\" not in revision and revision not in {".", ".."}:
+            snapshot = repository / "snapshots" / revision
+            if _complete_qwen_snapshot(snapshot):
+                if on_event:
+                    on_event(f"[local] 使用完整本地模型缓存（无需联网）：{model}")
+                return str(snapshot)
+    except OSError:
+        pass
+    from huggingface_hub import snapshot_download
+    endpoint = os.environ.get("HF_ENDPOINT", "").strip()
+    endpoints = [endpoint] if endpoint else ["https://hf-mirror.com", "https://huggingface.co"]
+    for index, source in enumerate(endpoints):
+        if on_event:
+            label = "国内镜像" if source == "https://hf-mirror.com" else ("Hugging Face" if source == "https://huggingface.co" else "自定义下载源")
+            on_event(f"[local] 模型缓存缺失或不完整，正在下载：{model} · {label}")
+        try:
+            snapshot = snapshot_download(model, cache_dir=cache, endpoint=source, token=False,
+                                         allow_patterns=["*.json", "*.txt", "*.safetensors", "*.model", "*.tiktoken"],
+                                         etag_timeout=8, max_workers=2)
+            if not _complete_qwen_snapshot(Path(snapshot)):
+                raise LocalAsrError("下载的模型文件不完整")
+            return str(snapshot)
+        except Exception as error:
+            if index + 1 == len(endpoints):
+                raise LocalAsrError(f"模型下载失败：{model}；请检查网络后重试下载本地模型") from error
+            if on_event:
+                on_event("[local] 当前模型下载源不可用，切换备用源；已下载缓存会保留")
+    return model
+
+
 class QwenAsrEngine:
     """Lazy Qwen3-ASR runtime adapter."""
 
@@ -651,15 +717,17 @@ class QwenAsrEngine:
         except ImportError as error:
             raise _missing_dependency("torch", cause=error) from error
 
+        model_location = _qwen_model_location(self.model_path, on_event)
+        aligner_location = _qwen_model_location(self.forced_aligner, on_event) if self.forced_aligner else None
         resolved_device = resolve_device(self.device, allow_mps=True)
 
         def load_runtime(target_device: str) -> Any:
             device_map = "cuda:0" if target_device == "cuda" else target_device
-            accelerated = target_device in {"cuda", "mps"}
             kwargs: dict[str, Any] = {
-                # Qwen3 weights are trained in BF16; FP16 on MPS can silently
-                # overflow and return an empty transcript despite successful loading.
-                "dtype": torch.bfloat16 if target_device == "mps" else (torch.float16 if accelerated else torch.float32),
+                # MPS low precision can return empty or unrelated multilingual
+                # text when ASR and the aligner are loaded together. Use FP32
+                # for both models; CUDA retains its existing precision.
+                "dtype": torch.float16 if target_device == "cuda" else torch.float32,
                 "device_map": device_map,
                 "max_inference_batch_size": 1,
                 # Keep each request bounded by the chunk size, while leaving enough
@@ -667,14 +735,14 @@ class QwenAsrEngine:
                 "max_new_tokens": QWEN_MAX_NEW_TOKENS,
             }
             if self.forced_aligner:
-                kwargs["forced_aligner"] = self.forced_aligner
+                kwargs["forced_aligner"] = aligner_location
                 kwargs["forced_aligner_kwargs"] = {
                     "dtype": kwargs["dtype"],
                     "device_map": device_map,
                 }
             if on_event:
                 on_event(f"[local] loading QwenASR: {self.model_path} ({target_device})")
-            loaded = Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+            loaded = Qwen3ASRModel.from_pretrained(model_location, **kwargs)
             self._active_device = target_device
             return loaded
 

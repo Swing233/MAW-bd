@@ -65,3 +65,40 @@ test('current media dimensions and reopened source rate refresh the display', as
   await openExport(page);
   await expect(page.locator('#fcpxml-source-fps')).toHaveText('50 fps');
 });
+
+test('each export resolution shows aspect ratio and exports correct dimensions', async ({ page }) => {
+  const options = [
+    ['1920x1080', '1920 × 1080（16:9 横屏）', 1920, 1080],
+    ['1080x1920', '1080 × 1920（9:16 竖屏）', 1080, 1920],
+    ['3840x2160', '3840 × 2160（16:9 横屏）', 3840, 2160],
+    ['2880x2160', '2880 × 2160（4:3）', 2880, 2160],
+  ];
+  for (const [value, label, width, height] of options) {
+    await openExport(page);
+    await expect(page.locator(`#fcpxml-export-resolution option[value="${value}"]`)).toHaveText(label);
+    await page.locator('#fcpxml-export-resolution').selectOption(value);
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#fcpxml-export-confirm').click();
+    const stream = await (await downloadPromise).createReadStream();
+    const chunks = []; for await (const chunk of stream) chunks.push(chunk);
+    const xml = Buffer.concat(chunks).toString();
+    expect(xml).toContain(`width="${width}" height="${height}"`);
+    expect(xml).toContain('Alpha');
+  }
+});
+
+test('standalone local converter supports portrait and labels all aspect ratios', async ({ page }) => {
+  const { resolve } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  await page.goto(pathToFileURL(resolve('web/srt2fcpxml-page/index.html')).href);
+  await expect(page.locator('#res option')).toHaveText([
+    '1920 × 1080（16:9 横屏）', '1080 × 1920（9:16 竖屏）',
+    '3840 × 2160（16:9 横屏）', '2880 × 2160（4:3）',
+  ]);
+  await page.locator('#res').selectOption('1080x1920');
+  await page.locator('#srtText').fill('1\n00:00:00,000 --> 00:00:01,500\n竖屏字幕\n');
+  await page.locator('#convertBtn').click();
+  await expect(page.locator('#preview')).toContainText('width="1080" height="1920"');
+  await expect(page.locator('#preview')).toContainText('竖屏字幕');
+  await expect(page.locator('#downloadBtn')).toBeEnabled();
+});

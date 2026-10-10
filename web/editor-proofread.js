@@ -19,7 +19,11 @@
     { id: 'improvised', label: '现场发挥' },
     { id: 'uncertain', label: '待确认' },
     { id: 'manual', label: '人工修改' },
-    { id: 'llm_edited', label: '含校对建议' },
+    { id: 'llm_edited', label: 'LLM 校对修改' },
+    { id: 'digits', label: '含阿拉伯数字' },
+    { id: 'english', label: '含英文' },
+    { id: 'punctuation', label: '含标点符号' },
+    { id: 'spaces', label: '含空格' },
   ];
 
   function getProofread(segment) {
@@ -44,9 +48,14 @@
 
   function filterPass(segment, filterId) {
     if (!filterId || filterId === 'all') return true;
+    if (filterId === 'digits') return /[0-9]/.test(String(segment?.text || ''));
+    if (filterId === 'english') return /[A-Za-z]/.test(String(segment?.text || ''));
+    if (filterId === 'punctuation') return /\p{P}/u.test(String(segment?.text || ''));
+    if (filterId === 'spaces') return /\p{Zs}/u.test(String(segment?.text || ''));
     const pr = getProofread(segment);
     if (filterId === 'llm_edited') {
-      return Boolean(pr && pr.corrected && String(pr.corrected).length);
+      return Boolean(pr && (pr.review_text || (pr.status !== 'manual' && pr.corrected
+        && pr.corrected !== pr.asr_original)));
     }
     return getStatus(segment) === filterId;
   }

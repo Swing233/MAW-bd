@@ -408,6 +408,9 @@
 | `asr_original` | string\|null | 主 ASR 原文 |
 | `corrected` | string\|null | 保守校对建议；**默认不自动覆盖 text** |
 | `reason` | string\|null | 修改/状态原因 |
+| `review_original` | string\|null | 本次 LLM 校对前文字；不覆盖首次 `asr_original` |
+| `review_text` | string\|null | 本次 LLM 建议文字 |
+| `review_state` | string\|null | `pending` 待审查 / `accepted` 采用 / `rejected` 保留原文；缺失按待审查处理 |
 
 顶层可选 `proofread_run`（`moy.asr.proofread.v1`）记录本次对齐运行摘要，不参与字幕真源。
 

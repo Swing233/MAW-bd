@@ -6,8 +6,8 @@
 
   const $ = (id) => document.getElementById(id);
   const api = () => window.pywebview?.api;
-  let llmStreamLine = null;
-  let llmStreamKind = '';
+  let lastLogText = '';
+  let activeProgressStage = '';
   let controlsBound = false;
   let updateChecked = false;
   let updateResultShown = false;
@@ -25,6 +25,8 @@
   function setMsg(text, isErr, options) {
     const el = $('msg');
     if (!el) return;
+    if (!isErr && !importantMessage(text)) return;
+    text = readableMessage(text);
     el.textContent = text || '';
     el.classList.toggle('err', !!isErr);
     if (options?.log !== false && text && String(text).trim()) {
@@ -32,9 +34,22 @@
     }
   }
 
+  function importantMessage(text) {
+    return !!text && !/(MaxRetryError|HTTPSConnectionPool|Retrying in|Loading checkpoint|Traceback|^\s*File |generation flags|detected language|转写开始:|^\s*(Collecting|Downloading|Using cached|Installing collected|Successfully installed|Requirement already|Resolved |Audited |Prepared |Installed )|^\s*[+~] |已用时 \d+ 秒|^LOCAL_RUNTIME_READY$)/i.test(text);
+  }
+  function readableMessage(text) {
+    return String(text || '').replace(/^\[(local|ffmpeg)\]\s*/, '')
+      .replace(/^loading QwenASR:.*/, '正在加载本地识别模型…')
+      .replace(/^QwenASR loaded$/, '本地模型已就绪')
+      .replace(/^transcribing:.*/, '正在识别语音…');
+  }
+
   function appendLog(text, kind) {
     const box = $('log-scroll');
-    if (!box || !text) return;
+    if (!box || !text || (kind !== 'err' && !importantMessage(text))) return;
+    text = readableMessage(text);
+    if (lastLogText === text) return;
+    lastLogText = text;
     const line = document.createElement('div');
     line.className = 'log-line' + (kind ? ' ' + kind : '');
     const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
@@ -48,36 +63,10 @@
   }
 
   function appendLlmDelta(detail) {
-    const box = $('log-scroll');
-    if (!box) return;
     const kind = String(detail?.kind || 'content');
-    const value = String(detail?.text || '');
-    if (kind === 'reset') {
-      llmStreamLine?.remove();
-      llmStreamLine = null;
-      llmStreamKind = '';
-      if (value) appendLog(value);
-      return;
-    }
-    if (kind === 'start' || kind === 'done' || kind === 'error') {
-      llmStreamLine = null;
-      llmStreamKind = '';
-      if (value) appendLog(value, kind === 'error' ? 'err' : (kind === 'done' ? 'ok' : ''));
-      return;
-    }
-    if (!value) return;
-    if (!llmStreamLine || !llmStreamLine.isConnected || llmStreamKind !== kind) {
-      llmStreamLine = document.createElement('div');
-      llmStreamLine.className = 'log-line llm-output';
-      const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-      const label = kind === 'reasoning' ? 'LLM 思考' : 'LLM 输出';
-      llmStreamLine.textContent = '[' + stamp + '] [' + label + '] ';
-      box.appendChild(llmStreamLine);
-      llmStreamKind = kind;
-    }
-    llmStreamLine.textContent += value;
-    while (box.childElementCount > 2000) box.removeChild(box.firstElementChild);
-    box.scrollTop = box.scrollHeight;
+    if (!['start', 'done', 'error'].includes(kind)) return;
+    const text = String(detail?.text || '');
+    if (text) appendLog(text, kind === 'error' ? 'err' : (kind === 'done' ? 'ok' : ''));
   }
 
   function logFromSetMsg() {
@@ -96,20 +85,34 @@
     });
   }
 
-  function setStepProgress(stepProgress) {
+  function setStepProgress(stepProgress, status = {}) {
     const map = {
       asr: ['prog-asr', 'pct-asr'],
       revise: ['prog-revise', 'pct-revise'],
       editor: ['prog-editor', 'pct-editor'],
     };
     const sp = stepProgress || {};
+    const step = status.step || '';
+    const stage = step.startsWith('asr') ? 'asr' : step.startsWith('revise') ? 'revise'
+      : step === 'editor' ? 'editor' : step === 'model_download' ? 'asr' : '';
+    if (status.busy && stage) activeProgressStage = stage;
     Object.keys(map).forEach((key) => {
       const value = Math.max(0, Math.min(100, Number(sp[key] || 0)));
       const [barId, pctId] = map[key];
       const bar = $(barId);
       const pct = $(pctId);
-      if (bar) bar.value = value;
-      if (pct) pct.textContent = value + '%';
+      if (status.busy && key === stage && !status.progressKnown) {
+        bar?.removeAttribute('value');
+        if (pct) pct.textContent = step === 'model_download' ? '准备模型' : '进行中';
+      } else {
+        if (bar) bar.value = value;
+        if (pct) pct.textContent = value >= 100 ? '已完成' : status.busy && key === stage
+          ? `${status.progressLabel || Math.round(value) + '%'}` : '未开始';
+      }
+      if (step === 'error' && key === activeProgressStage) {
+        if (pct) pct.textContent = '失败';
+        if (bar) bar.value = value;
+      }
     });
   }
 
@@ -142,7 +145,7 @@
     if (status.message) {
       setMsg(status.message + (status.error ? ' · ' + status.error : ''), !!status.error, { log: false });
     }
-    setStepProgress(status.stepProgress);
+    setStepProgress(status.stepProgress, status);
     $('cfg-deepseek').checked = !!(config.deepseekApiKey || localStorage.getItem('mawbd_ds'));
     if (config.deepseekModel) $('deepseek-model').value = config.deepseekModel;
     const hint = $('local-runtime-hint');
@@ -616,7 +619,7 @@
   window.addEventListener('focusStatus', (event) => {
     const detail = event.detail || {};
     if (detail.message) setMsg(detail.message + (detail.error ? ' · ' + detail.error : ''), !!detail.error);
-    if (detail.stepProgress) setStepProgress(detail.stepProgress);
+    if (detail.stepProgress) setStepProgress(detail.stepProgress, detail);
     if (detail.step === 'model_download' || detail.step === 'model_download_done' || !detail.busy) {
       $('btn-model-download').disabled = !!detail.busy;
       $('btn-model-download').textContent = detail.busy ? '模型下载 / 校验中…' : '下载 / 检查本地模型';

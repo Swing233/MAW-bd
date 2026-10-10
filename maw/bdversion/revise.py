@@ -103,7 +103,7 @@ def _write_outputs(project: Mapping[str, Any], source: Path, suffix: str) -> dic
 
 
 def _enabled_indices(segments: Sequence[Mapping[str, Any]]) -> list[int]:
-    return [i for i, seg in enumerate(segments) if seg.get("disabled") is not True]
+    return [i for i, seg in enumerate(segments) if seg.get("disabled") is not True and (seg.get("proofread") or {}).get("status") != "manual"]
 
 
 def _cues_from_segments(segments: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -287,8 +287,18 @@ def revise_project(
             for old, new in zip(segments, new_segments)
             if old.get("text") != new.get("text") and new.get("disabled") is not True
         )
+        for old, new in zip(segments, new_segments):
+            if old.get("text") != new.get("text") and new.get("disabled") is not True:
+                original, suggestion = str(old.get("text") or ""), str(new["text"])
+                pr = dict(old.get("proofread") or {})
+                pr.update(asr_original=pr.get("asr_original", original), corrected=suggestion,
+                          review_original=original, review_text=suggestion, review_state="pending",
+                          reason="自定义 LLM 修订", status="uncertain")
+                new["proofread"] = pr
+                if not apply_to_text:
+                    new["text"] = original
         out_project = normalize_project({**project, "segments": new_segments})
-        paths = _write_outputs(out_project, source, ".自定义修订")
+        paths = _write_outputs(out_project, source, ".自定义修订" if apply_to_text else ".自定义修订建议")
         return {"ok": True, "mode": "custom", "changedCues": changed, "manuscriptUsed": script_doc is not None, **paths}
 
     # deepseek conservative ± manuscript reference
@@ -345,8 +355,11 @@ def revise_project(
         pr.update(
             {
                 "status": result.status or "uncertain",
-                "asr_original": original,
+                "asr_original": pr.get("asr_original", original),
                 "corrected": corrected,
+                "review_original": original,
+                "review_text": corrected,
+                "review_state": "pending",
                 "reason": result.reason or "deepseek revise",
                 "script_text": (script_map.get(result.cue_id) or (None, 0))[0],
             }

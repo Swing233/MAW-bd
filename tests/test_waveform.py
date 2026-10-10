@@ -817,7 +817,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('<h5 class="help-subtitle">字幕操作</h5>', page)
         self.assertNotIn('<h5 class="help-subtitle">选择操作</h5>', page)
         self.assertNotIn('<h5 class="help-subtitle">通用操作</h5>', page)
-        self.assertIn('<span class="help-important"><kbd>WASD</kbd> 选择前/后字幕</span>', page)
+        self.assertIn('<kbd data-editing-shortcut-label="navUp">W</kbd>/<kbd data-editing-shortcut-label="navLeft">A</kbd>', page)
         self.assertIn('<span class="help-important"><kbd data-mod-key>Ctrl+Shift+A/D</kbd> 合并前/后字幕</span>', page)
         self.assertIn('<kbd>Home</kbd>/<kbd>End</kbd> 选择并显示当前轨道首/末条可见字幕', page)
         self.assertIn(

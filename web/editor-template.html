@@ -519,8 +519,8 @@ __WAVEFORM_CSS__
           <span><kbd data-mod-key>Ctrl+A</kbd> 选中所有字幕（非编辑状态）</span>
           <span><kbd data-mod-key>Ctrl+D</kbd> 取消选择</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span class="help-important"><kbd>WASD</kbd> 选择前/后字幕</span>
-          <span><kbd>Shift+WASD</kbd> 连选前/后字幕</span>
+          <span class="help-important"><kbd data-editing-shortcut-label="navUp">W</kbd>/<kbd data-editing-shortcut-label="navLeft">A</kbd>/<kbd data-editing-shortcut-label="navDown">S</kbd>/<kbd data-editing-shortcut-label="navRight">D</kbd> 选择前/后字幕</span>
+          <span>Shift + 上述导航键 连选前/后字幕</span>
           <span class="help-important"><kbd data-mod-key>Ctrl+Shift+A/D</kbd> 合并前/后字幕</span>
         </div>
         <aside class="help-tip-callout" role="note">
@@ -636,10 +636,10 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">按住字幕</h5>
         <div class="help-category">
-          <span><kbd>A</kbd>/<kbd>D</kbd> 向前/后微调移动字幕（按住 <kbd>Alt</kbd> 临时反转相邻字幕联动）</span>
+          <span><kbd data-editing-shortcut-label="navLeft">A</kbd>/<kbd data-editing-shortcut-label="navRight">D</kbd> 向前/后微调移动字幕（按住 <kbd>Alt</kbd> 临时反转相邻字幕联动）</span>
           <span class="help-break" aria-hidden="true"></span>
-          <span><kbd>Shift+A</kbd> 将字幕起点贴到前一条结尾</span>
-          <span><kbd>Shift+D</kbd> 将字幕终点贴到后一条开头</span>
+          <span>Shift + <kbd data-editing-shortcut-label="navLeft">A</kbd> 将字幕起点贴到前一条结尾</span>
+          <span>Shift + <kbd data-editing-shortcut-label="navRight">D</kbd> 将字幕终点贴到后一条开头</span>
         </div>
         <span class="help-note">注：微调幅度可在
           <button type="button" class="help-inline-action" id="help-open-keyboard-settings" data-help-open-editor-settings aria-controls="editor-settings-panel">⚙️全局设置</button>
@@ -895,6 +895,10 @@ __WAVEFORM_CSS__
     <div class="editor-settings-item">新建字幕<kbd data-editing-shortcut-label="create"></kbd><button type="button" data-editing-shortcut="create" aria-label="自定义新建字幕快捷键">自定义</button></div>
     <div class="editor-settings-item">设置起点<kbd data-editing-shortcut-label="start"></kbd><button type="button" data-editing-shortcut="start" aria-label="自定义设置起点快捷键">自定义</button></div>
     <div class="editor-settings-item">设置终点<kbd data-editing-shortcut-label="end"></kbd><button type="button" data-editing-shortcut="end" aria-label="自定义设置终点快捷键">自定义</button></div>
+    <div class="editor-settings-item">上一条（原 W）<kbd data-editing-shortcut-label="navUp"></kbd><button type="button" data-editing-shortcut="navUp" aria-label="自定义上一条（原 W）快捷键">自定义</button></div>
+    <div class="editor-settings-item">上一条 / 向左微调（原 A）<kbd data-editing-shortcut-label="navLeft"></kbd><button type="button" data-editing-shortcut="navLeft" aria-label="自定义上一条 / 向左微调（原 A）快捷键">自定义</button></div>
+    <div class="editor-settings-item">下一条（原 S）<kbd data-editing-shortcut-label="navDown"></kbd><button type="button" data-editing-shortcut="navDown" aria-label="自定义下一条（原 S）快捷键">自定义</button></div>
+    <div class="editor-settings-item">下一条 / 向右微调（原 D）<kbd data-editing-shortcut-label="navRight"></kbd><button type="button" data-editing-shortcut="navRight" aria-label="自定义下一条 / 向右微调（原 D）快捷键">自定义</button></div>
     <small id="editing-shortcut-status" role="status" aria-live="polite"></small>
     <button type="button" id="editing-shortcut-cancel" hidden>取消采集</button>
     <button type="button" id="editing-shortcuts-reset">恢复默认快捷键</button>
@@ -1852,6 +1856,7 @@ __WAVEFORM_CSS__
         <button type="button" id="color-filter-btn" hidden title="按颜色过滤显示的字幕" aria-expanded="false" aria-controls="color-filter-menu">🎨</button>
         <div class="dropdown-menu color-filter-menu" id="color-filter-menu" role="menu"></div>
       </div>
+      <button type="button" id="llm-review-btn" title="审查 LLM 校对建议">审查</button>
       <div class="dropdown proofread-filter-dropdown" id="proofread-filter-dropdown">
         <button type="button" id="proofread-filter-btn" title="按校对状态过滤字幕" aria-expanded="false" aria-controls="proofread-filter-menu">校对</button>
         <div class="dropdown-menu proofread-filter-menu" id="proofread-filter-menu" role="menu"></div>
@@ -1863,6 +1868,8 @@ __WAVEFORM_CSS__
         <div class="dropdown-menu" id="batch-operations-menu" role="menu">
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换</button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑</button>
+          <button id="subtitle-gap-highlight-btn" type="button" class="dropdown-item" role="menuitem">高亮短字幕空隙…</button>
+<button type="button" class="dropdown-item" id="subtitle-gap-close-btn" role="menuitem">消除字幕空隙</button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理</button>
         </div>
       </div>
@@ -2296,9 +2303,10 @@ __WAVEFORM_CSS__
       </select>
       <label for="fcpxml-export-resolution">分辨率</label>
       <select id="fcpxml-export-resolution">
-        <option value="1920x1080" selected>1920 × 1080</option>
-        <option value="3840x2160">3840 × 2160</option>
-        <option value="2880x2160">2880 × 2160</option>
+        <option value="1920x1080" selected>1920 × 1080（16:9 横屏）</option>
+        <option value="1080x1920">1080 × 1920（9:16 竖屏）</option>
+        <option value="3840x2160">3840 × 2160（16:9 横屏）</option>
+        <option value="2880x2160">2880 × 2160（4:3）</option>
       </select>
       <label for="fcpxml-export-project-name">工程名</label>
       <input type="text" id="fcpxml-export-project-name" />

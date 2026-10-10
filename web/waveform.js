@@ -3434,7 +3434,31 @@
       }
     }
 
+    appendSubtitleGapHighlights(row, startMs, endMs) {
+      const threshold = this.options.getSubtitleGapHighlightMs?.() || 0;
+      if (!threshold || !window.MaweReview) return;
+      const segments = this.options.getSegments('main');
+      for (const gap of window.MaweReview.gapPlan(segments, null, threshold)) {
+        if (gap.gap >= threshold || gap.end <= startMs || gap.oldEnd >= endMs) continue;
+        const marker = document.createElement('div');
+        marker.className = 'waveform-subtitle-gap-highlight';
+        marker.dataset.index = String(gap.index); marker.dataset.gapMs = String(gap.gap);
+        marker.setAttribute('aria-label', `字幕空隙 ${gap.gap} 毫秒`);
+        marker.style.cssText = 'position:absolute;background:rgba(255,190,40,.35);border:1px dashed #c48d12;box-sizing:border-box;pointer-events:none;z-index:1';
+        this.layoutGapBlock(marker, { start: gap.oldEnd, end: gap.end }, startMs, endMs);
+        row.appendChild(marker);
+      }
+    }
+
+    refreshSubtitleGapHighlights() {
+      this.content.querySelectorAll('.waveform-row').forEach(row => {
+        row.querySelectorAll('.waveform-subtitle-gap-highlight').forEach(el => el.remove());
+        this.appendSubtitleGapHighlights(row, Number(row.dataset.startMs), Number(row.dataset.endMs));
+      });
+    }
+
     appendCueBlocks(row, startMs, endMs, groupBadges = null) {
+      this.appendSubtitleGapHighlights(row, startMs, endMs);
       const multiLane = this.options.multiSubtitleVisible?.() === true;
       const segments = this.options.getSegments('main');
       const selected = this.options.getSelection('main');
@@ -3790,7 +3814,7 @@
       rows.forEach((row) => {
         // 绑定、解绑和字幕时间变化只影响覆盖层；保留已有行与 Canvas，
         // 避免重新采样/绘制波形导致操作出现一帧卡顿。
-        row.querySelectorAll('.waveform-cue-block, .waveform-cue-badge, .waveform-cue-boundary')
+        row.querySelectorAll('.waveform-cue-block, .waveform-cue-badge, .waveform-cue-boundary, .waveform-subtitle-gap-highlight')
           .forEach((element) => element.remove());
         this.appendCueBlocks(
           row,
@@ -3803,6 +3827,7 @@
     }
 
     refreshCueBlocks() {
+      this.refreshSubtitleGapHighlights();
       const segments = this.options.getSegments('main');
       const extensionSegments = this.options.getExtensionSegments?.() || [];
       const overlaySegments = this.options.getSegments('overlay') || [];

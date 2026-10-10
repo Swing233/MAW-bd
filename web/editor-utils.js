@@ -2967,7 +2967,7 @@
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
   }
 
-  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x' });
+  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x', navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd' });
   function normalizeEditingShortcut(value) {
     const raw = typeof value === 'string' ? { key: value } : value;
     if (!raw || typeof raw.key !== 'string' || !raw.key || raw.key.length > 64
