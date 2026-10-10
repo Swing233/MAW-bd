@@ -22,6 +22,7 @@ from maw.app_update import (
     stage_update,
 )
 from maw.bdversion.revise import revise_project
+from maw.ffmpeg import bundled_ffmpeg_directory
 from maw.gui_config import DEFAULT_MODEL_ID, QWEN3_ASR_MODEL_ID, QWEN_AUDIO_MODEL_ID, load_env
 from maw.gui_web import (
     EventPump,
@@ -374,6 +375,12 @@ class FocusedLauncherApi:
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         env["PYTHONUNBUFFERED"] = "1"
+        # The standalone Python child is not frozen and cannot discover the
+        # parent .app's binaries from its own sys.executable. Pass them explicitly.
+        tools_directory = bundled_ffmpeg_directory()
+        if tools_directory is not None:
+            env["FFMPEG_PATH"] = str(tools_directory)
+            env["PATH"] = str(tools_directory) + os.pathsep + env.get("PATH", "")
         env["MAW_MODEL_CACHE_ROOT"] = str(cache_root)
         env["HF_HOME"] = str(cache_root / "huggingface")
         env["HF_HUB_CACHE"] = str(cache_root / "huggingface" / "hub")

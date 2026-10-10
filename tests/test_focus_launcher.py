@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import json
 import socket
 import tempfile
@@ -219,6 +220,28 @@ class FocusedGuiContractTests(unittest.TestCase):
     def test_local_runtime_python_path(self) -> None:
         p = local_runtime_python()
         self.assertTrue(str(p).endswith("local-runtime/bin/python"))
+
+    def test_standalone_child_receives_parent_app_ffmpeg(self) -> None:
+        from maw.ffmpeg import resolve_ffmpeg_tools
+
+        with tempfile.TemporaryDirectory() as temp:
+            bundle = Path(temp) / "MAW-bd.app" / "Contents" / "MacOS"
+            tools = (bundle / "ffmpeg" / "bin").resolve()
+            tools.mkdir(parents=True)
+            for name in ("ffmpeg", "ffprobe"):
+                (tools / name).write_text("bundled binary")
+            with (
+                patch("sys.frozen", True, create=True),
+                patch("sys.executable", str(bundle / "MAW")),
+                patch.dict("os.environ", {"PATH": "/usr/bin:/bin", "FFMPEG_PATH": "/missing/old-setting"}),
+            ):
+                env = FocusedLauncherApi()._local_subprocess_environment(Path(temp))
+            self.assertEqual(env["FFMPEG_PATH"], str(tools))
+            self.assertEqual(env["PATH"].split(os.pathsep)[0], str(tools))
+            # Resolve as an ordinary Python child: no frozen bundle or Homebrew.
+            resolved = resolve_ffmpeg_tools(environment=env, include_bundled=False, include_macos=False)
+            self.assertEqual(resolved.ffmpeg, tools / "ffmpeg")
+            self.assertEqual(resolved.ffprobe, tools / "ffprobe")
 
     def test_local_asr_does_not_write_bytecode_into_signed_app(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
