@@ -16,6 +16,11 @@ from maw.app_update import _download_archive, check_latest_release, stage_update
 
 class DeltaTests(unittest.TestCase):
     def setUp(self):
+        native_platform = sys.platform
+        if native_platform != 'darwin':
+            attributes = patch('maw.app_delta.signing_attributes', return_value={})
+            attributes.start()
+            self.addCleanup(attributes.stop)
         platform = patch('maw.app_update.sys.platform', 'darwin')
         platform.start()
         self.addCleanup(platform.stop)
