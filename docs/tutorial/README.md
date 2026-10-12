@@ -76,7 +76,7 @@
 
 ## 05｜获取自己的 DeepSeek API Key
 
-API Key 相当于允许 MAW-bd 调用你 DeepSeek 账户的凭证。进入图中①“API 开放平台”，而不是只进入“和 DeepSeek 对话”。
+API Key 是 MAW-bd 调用 DeepSeek 校对服务的凭证。请在 DeepSeek API 开放平台创建密钥，具体步骤如下。
 
 1. 打开 https://www.deepseek.com/ ，点击“API 开放平台”。也可直接访问 https://platform.deepseek.com/ 。
 2. 未登录时，按官网提供的手机号验证码、密码或扫码方式登录。注册、验证码和协议确认由你在官网自行完成。
@@ -95,11 +95,7 @@ DeepSeek 官方使用 OpenAI 兼容接口。MAW-bd 默认地址为 https://api.d
 | 免费聊天可用，所以 API 一定可用 | 到开放平台检查 Key、余额及 API 服务状态 |
 | 截图能看到完整密钥 | 发布或反馈前遮住密钥；本教程不展示真实 Key |
 
-> 本节图片只截取官网公开入口。账户内创建密钥的步骤用文字说明，不展示私人账户、余额或真实密钥。
-
-![05｜获取自己的 DeepSeek API Key](images/11-deepseek-entry.svg)
-
-1：进入 API 开放平台
+> 请妥善保管密钥，避免在公开截图、群聊或 GitHub 中展示完整密钥。
 
 
 ## 06｜把 Key 填进软件，再进行文稿校对

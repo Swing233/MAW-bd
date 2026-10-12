@@ -154,7 +154,7 @@
     "blocks": [
       [
         "p",
-        "API Key 相当于允许 MAW-bd 调用你 DeepSeek 账户的凭证。进入图中①“API 开放平台”，而不是只进入“和 DeepSeek 对话”。"
+        "API Key 是 MAW-bd 调用 DeepSeek 校对服务的凭证。请在 DeepSeek API 开放平台创建密钥，具体步骤如下。"
       ],
       [
         "ol",
@@ -199,10 +199,10 @@
       ],
       [
         "tip",
-        "本节图片只截取官网公开入口。账户内创建密钥的步骤用文字说明，不展示私人账户、余额或真实密钥。"
+        "请妥善保管密钥，避免在公开截图、群聊或 GitHub 中展示完整密钥。"
       ]
     ],
-    "figure": "11-deepseek-entry"
+    "figure": null
   },
   {
     "title": "06｜把 Key 填进软件，再进行文稿校对",

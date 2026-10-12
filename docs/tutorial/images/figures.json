@@ -355,20 +355,5 @@
         "y": 538.0859375
       }
     ]
-  },
-  "11-deepseek-entry": {
-    "height": 1326,
-    "width": 1265,
-    "boxes": [
-      {
-        "height": 44,
-        "label": "进入 API 开放平台",
-        "number": 1,
-        "selector": "a.ds-btn-secondary[href=\"https://platform.deepseek.com/\"]",
-        "width": 152.5703125,
-        "x": 565.1875,
-        "y": 538.6484375
-      }
-    ]
   }
 }

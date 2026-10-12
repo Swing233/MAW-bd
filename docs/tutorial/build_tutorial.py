@@ -139,7 +139,7 @@ chapter(
     "05｜获取自己的 DeepSeek API Key",
     [
         p(
-            "API Key 相当于允许 MAW-bd 调用你 DeepSeek 账户的凭证。进入图中①“API 开放平台”，而不是只进入“和 DeepSeek 对话”。"
+            "API Key 是 MAW-bd 调用 DeepSeek 校对服务的凭证。请在 DeepSeek API 开放平台创建密钥，具体步骤如下。"
         ),
         steps(
             "打开 https://www.deepseek.com/ ，点击“API 开放平台”。也可直接访问 https://platform.deepseek.com/ 。",
@@ -169,10 +169,9 @@ chapter(
             ]
         ),
         tip(
-            "本节图片只截取官网公开入口。账户内创建密钥的步骤用文字说明，不展示私人账户、余额或真实密钥。"
+            "请妥善保管密钥，避免在公开截图、群聊或 GitHub 中展示完整密钥。"
         ),
     ],
-    "11-deepseek-entry",
 )
 chapter(
     "06｜把 Key 填进软件，再进行文稿校对",
@@ -506,8 +505,6 @@ def viewbox(name):
         return (100, 600, 740, 660)
     if name == "03-editor":
         return (0, 0, W, H)
-    if name == "11-deepseek-entry":
-        return (0, 0, W, min(H, 770))
     x = max(0, min(b["x"] for b in bs) - 40)
     y = max(0, min(b["y"] for b in bs) - 48)
     right = min(W, max(b["x"] + b["width"] for b in bs) + 40)
