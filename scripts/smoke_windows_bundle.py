@@ -44,8 +44,9 @@ def smoke(app: Path) -> None:
     if forbidden:
         raise RuntimeError("User data found in Windows package")
     with tempfile.TemporaryDirectory(prefix="maw-win-smoke-") as temp:
-        root = Path(temp)
-        media = root / "sample.mp4"
+        root = Path(temp) / "字幕 测试工程"
+        root.mkdir()
+        media = root / "演示视频.mp4"
         subprocess.run(
             [
                 str(app / "ffmpeg/bin/ffmpeg.exe"),
@@ -66,7 +67,7 @@ def smoke(app: Path) -> None:
             check=True,
             timeout=30,
         )
-        project = root / "sample.mosp"
+        project = root / "字幕工程.mosp"
         project.write_text(
             json.dumps(
                 {
@@ -120,10 +121,35 @@ def smoke(app: Path) -> None:
                             (root / "server.log").read_text(encoding="utf-8")
                         )
                     try:
-                        with urllib.request.urlopen(url, timeout=2) as response:
-                            page = response.read().decode("utf-8")
-                        if "Windows 字幕测试" in page and "editor-proofread" in page:
-                            print("Windows packaged editor and FFmpeg passed.")
+                        with urllib.request.urlopen(
+                            url + "api/startup-status", timeout=2
+                        ) as response:
+                            status = json.load(response)
+                        if status.get("status") == "error":
+                            raise RuntimeError(f"Packaged startup error: {status}")
+                        if status.get("status") == "ready":
+                            with urllib.request.urlopen(url, timeout=2) as response:
+                                page = response.read().decode("utf-8")
+                            if (
+                                "Windows 字幕测试" not in page
+                                or "MaweProofread" not in page
+                            ):
+                                raise RuntimeError(
+                                    "Packaged editor is missing project text or proofreader"
+                                )
+                            media_request = urllib.request.Request(
+                                url + "media", headers={"Range": "bytes=0-15"}
+                            )
+                            with urllib.request.urlopen(
+                                media_request, timeout=2
+                            ) as response:
+                                if response.status != 206 or len(response.read()) != 16:
+                                    raise RuntimeError(
+                                        "Packaged media seek did not return the requested range"
+                                    )
+                            print(
+                                "Windows packaged editor, Chinese paths, media seek and FFmpeg passed."
+                            )
                             return
                     except OSError:
                         pass
