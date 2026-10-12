@@ -22,6 +22,7 @@ from maw.app_update import (
     launch_install_helper,
     read_update_result,
     stage_update,
+    update_cache_root,
 )
 from maw.bdversion.revise import _load_project, _write_outputs, revise_project
 from maw.bdversion.review import apply_review_decisions, project_token, review_rows
@@ -41,6 +42,8 @@ from maw.gui_workflow import (
     run_transcription,
 )
 from maw.local_bootstrap import ensure_runtime, runtime_python, runtime_ready
+from maw.app_paths import default_app_data_root
+from maw.gui_platform import asset_path, process_group_kwargs
 from maw.local_log import redact_sensitive_text
 from maw.media import probe_video_fps
 from maw.postprocess_io import read_srt, render_srt
@@ -55,7 +58,7 @@ def local_runtime_python() -> Path:
 
 
 def local_model_cache_root() -> Path:
-    return Path.home() / "Library" / "Application Support" / "MAW" / "model-cache"
+    return default_app_data_root() / "model-cache"
 
 
 def _local_progress(text: str) -> dict[str, object] | None:
@@ -296,9 +299,10 @@ class FocusedLauncherApi:
 
         current_version = _app_version(self.paths)
         try:
-            result = check_latest_release(current_version)
+            result = check_latest_release(current_version, cache_path=update_cache_root() / "release-cache.json")
         except UpdateCheckError as error:
-            return {"ok": False, "currentVersion": current_version, "error": str(error)}
+            self._last_update = {}
+            return {"ok": False, "currentVersion": current_version, "error": str(error), "releaseUrl": LATEST_RELEASE_PAGE}
         self._last_update = dict(result)
         return result
 
@@ -395,6 +399,8 @@ class FocusedLauncherApi:
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         # The standalone Python child is not frozen and cannot discover the
         # parent .app's binaries from its own sys.executable. Pass them explicitly.
         tools_directory = bundled_ffmpeg_directory()
@@ -414,7 +420,7 @@ class FocusedLauncherApi:
         try:
             ensure_runtime(engine, self.cancel_event, lambda message: self._set_status(message=message))
             runtime_root = self.paths.root
-            bundled = Path(sys.executable).parent.parent / "Resources" / "local-runtime"
+            bundled = asset_path("local-runtime/generate_subtitle_local.py").parent
             if not (runtime_root / "generate_subtitle_local.py").is_file() and bundled.is_dir():
                 runtime_root = bundled
             # Like upstream prepare_local_model: load once in a managed subprocess.
@@ -426,8 +432,9 @@ class FocusedLauncherApi:
             )
             process = subprocess.Popen(
                 [str(local_runtime_python()), "-u", "-c", code, engine],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                 env=self._local_subprocess_environment(runtime_root),
+                **process_group_kwargs(),
             )
             self._local_process = process
             output: deque[str] = deque(maxlen=8)
@@ -561,8 +568,7 @@ class FocusedLauncherApi:
         runtime_py = ensure_runtime(engine, self.cancel_event, lambda message: self._set_status(message=message))
         script = self.paths.root / "generate_subtitle_local.py"
         if not script.is_file():
-            exe = Path(sys.executable)
-            alt = exe.parent.parent / "Resources" / "local-runtime" / "generate_subtitle_local.py"
+            alt = asset_path("local-runtime/generate_subtitle_local.py")
             script = alt if alt.is_file() else script
         if not script.is_file():
             raise RuntimeError("找不到 generate_subtitle_local.py")
@@ -596,7 +602,10 @@ class FocusedLauncherApi:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env=env,
+            **process_group_kwargs(),
         )
         self._local_process = process
         collected: list[str] = []
@@ -957,6 +966,8 @@ class FocusedLauncherApi:
         root = str(self.paths.root)
         env["PYTHONPATH"] = root + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         # Keep waveform generation enabled even for a blank editor.  A blank
         # server has no media to process at startup, but it can later take over
         # a .mosp opened from the editor.  That takeover must generate/reuse the
@@ -985,6 +996,7 @@ class FocusedLauncherApi:
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
+                **process_group_kwargs(),
             )
             if self.server_process.stdout is not None:
                 self._server_output_thread = threading.Thread(

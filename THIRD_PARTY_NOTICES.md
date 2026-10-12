@@ -39,3 +39,7 @@ MAW-bd 是 [Moyf/moys-asr-workflow](https://github.com/Moyf/moys-asr-workflow) �
 | [GanymedeNil/srt2fcpxml](https://github.com/GanymedeNil/srt2fcpxml) | Browser SRT → FCPXML conversion page (`web/srt2fcpxml-page/` / session `index.html`); FCP X 10.4.6-style FCPXML template logic ported to JavaScript | **MIT License** — Copyright (c) 2019 GanymedeNil. Full text in upstream [LICENSE](https://github.com/GanymedeNil/srt2fcpxml/blob/master/LICENSE). Product uses this local webpage path instead of maintaining a separate Python FCPXML exporter as the primary flow. |
 
 The `web/` editor, Python scripts, and documentation in this repository are distributed under the repository's `AGPL-3.0-only` license unless a file states otherwise.
+
+## Windows FFmpeg / FFprobe distribution
+
+The Windows portable build uses the release essentials binaries from Gyan Doshi, linked by the FFmpeg project's official download page. These builds are distributed under GPLv3. The package preserves the vendor LICENSE/COPYING and README files beside ffmpeg/bin. Source and build information: https://www.gyan.dev/ffmpeg/builds/ and https://ffmpeg.org/download.html . No FFmpeg source is modified by MAW-bd.

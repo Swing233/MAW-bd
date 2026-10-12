@@ -1,0 +1,37 @@
+name: Windows portable build
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/windows-port]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Download vendor FFmpeg and verify published hash
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP/ffmpeg.zip"
+          Invoke-WebRequest "$url.sha256" -OutFile "$env:RUNNER_TEMP/ffmpeg.sha256"
+          $digest = (Get-Content "$env:RUNNER_TEMP/ffmpeg.sha256" -Raw).Trim().Split()[0]
+          if ((Get-FileHash "$env:RUNNER_TEMP/ffmpeg.zip" -Algorithm SHA256).Hash -ne $digest) { throw 'FFmpeg checksum mismatch' }
+      - name: Build and test portable application
+        shell: pwsh
+        run: ./scripts/build_windows.ps1 -FFmpegZip "$env:RUNNER_TEMP/ffmpeg.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MAW-bd-Windows-x64
+          path: dist/releases/*Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14

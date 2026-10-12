@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import threading
@@ -14,15 +13,23 @@ from collections import deque
 from pathlib import Path
 
 from maw.gui_workflow import TranscriptionCancelledError
+from maw.gui_platform import popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
 from maw.local_log import redact_sensitive_text
 
 
 def data_root() -> Path:
-    return Path.home() / "Library" / "Application Support" / "MAW-bd"
+    override = os.environ.get("MAW_BD_DATA_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "MAW-bd"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "MAW-bd"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "MAW-bd"
 
 
 def runtime_python() -> Path:
-    return data_root() / "local-runtime" / "bin" / "python"
+    return data_root() / "local-runtime" / ("Scripts" if sys.platform == "win32" else "bin") / ("python.exe" if sys.platform == "win32" else "python")
 
 
 def resources() -> Path:
@@ -33,7 +40,7 @@ def resources() -> Path:
 
 def bootstrap_uv() -> Path:
     if getattr(sys, "frozen", False):
-        path = resources() / "uv"
+        path = resources() / ("uv.exe" if sys.platform == "win32" else "uv")
         if path.is_file() and os.access(path, os.X_OK):
             return path
         raise RuntimeError("应用缺少内置环境安装器，请使用完整安装包")
@@ -44,9 +51,15 @@ def bootstrap_uv() -> Path:
     return candidate
 
 
+def requirements_path() -> Path:
+    # Frozen packages rename their platform lock to the common runtime basename.
+    name = "requirements-local-windows.txt" if sys.platform == "win32" and not getattr(sys, "frozen", False) else "requirements-local.txt"
+    return resources() / name
+
+
 def runtime_ready() -> bool:
     try:
-        req = resources() / "requirements-local.txt"
+        req = requirements_path()
         marker = json.loads((runtime_python().parent.parent / "ready.json").read_text())
         return runtime_python().is_file() and marker.get("requirementsSha256") == hashlib.sha256(req.read_bytes()).hexdigest()
     except (OSError, ValueError):
@@ -56,8 +69,8 @@ def runtime_ready() -> bool:
 def run_command(command, env, cancel, emit):
     if cancel.is_set():
         raise TranscriptionCancelledError()
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               text=True, env=env, start_new_session=True)
+    process = popen_process_tree(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, encoding="utf-8", errors="replace", env=env, **process_group_kwargs())
     lines = deque(maxlen=8)
     def read():
         for line in process.stdout:
@@ -71,12 +84,7 @@ def run_command(command, env, cancel, emit):
     try:
         while process.poll() is None:
             if cancel.wait(0.2):
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=5)
+                terminate_process_tree(process)
                 raise TranscriptionCancelledError()
             now = time.monotonic()
             if now - last >= 5:
@@ -89,10 +97,10 @@ def run_command(command, env, cancel, emit):
             raise RuntimeError("运行环境安装失败：" + " · ".join(lines)[-1500:])
     finally:
         if process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=5)
+            terminate_process_tree(process)
         reader.join(timeout=2)
         process.stdout.close()
+        release_process_tree(process)
 
 
 def ensure_runtime(engine, cancel, emit, *, runner=run_command) -> Path:
@@ -105,13 +113,13 @@ def ensure_runtime(engine, cancel, emit, *, runner=run_command) -> Path:
         raise TranscriptionCancelledError()
     python = runtime_python()
     root = python.parent.parent
-    req = resources() / "requirements-local.txt"
+    req = requirements_path()
     digest = hashlib.sha256(req.read_bytes()).hexdigest()
     env = os.environ.copy()
     # Keep Python, caches and all changes outside the signed .app and system paths.
     for key in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
         env.pop(key, None)
-    env.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1",
+    env.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
                 "UV_PYTHON_INSTALL_DIR": str(data_root() / "python"),
                 "UV_CACHE_DIR": str(data_root() / "download-cache"),
                 "UV_PYTHON_DOWNLOADS": "automatic", "UV_NO_CONFIG": "1"})

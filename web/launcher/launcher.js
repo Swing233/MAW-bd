@@ -10,6 +10,7 @@
   let activeProgressStage = '';
   let controlsBound = false;
   let updateChecked = false;
+  let updateChecking = false;
   let updateResultShown = false;
   let updateInstalling = false;
 
@@ -467,21 +468,30 @@
   function renderUpdate(result, manual) {
     const banner = $('update-banner');
     if (!result || !result.ok) {
-      if (manual) setMsg((result && result.error) || '检查更新失败', true);
+      const message = (result && result.error) || '检查更新失败';
+      if (manual) setMsg(message, true);
+      updateRelease = null;
+      $('btn-update').classList.remove('update-available');
+      $('update-title').textContent = '暂时无法检查更新';
+      $('update-notes').textContent = message;
+      $('update-size').textContent = '';
+      $('update-transfer').textContent = '';
+      $('btn-update-download').textContent = '打开发布页面';
+      banner.hidden = false;
       return;
     }
     $('app-version').textContent = 'v' + (result.currentVersion || '—');
     if (!result.available) {
       banner.hidden = true;
-      if (manual) setMsg('当前已是最新版本 v' + result.currentVersion);
+      if (manual) setMsg(result.platformNotice || result.warning || (result.cached ? '最近检查未发现新版，可稍后再检查。' : '当前已是最新版本 v' + result.currentVersion));
       return;
     }
     updateRelease = result;
     renderUpdateSize();
     $('update-transfer').textContent = '';
     $('update-title').textContent = `发现新版本 v${result.latestVersion}`;
-    $('update-notes').textContent = result.notes || '新版本已经发布。';
-    $('btn-update-download').textContent = result.downloadUrl && result.assetDigest
+    $('update-notes').textContent = [result.warning, result.notes || '新版本已经发布。'].filter(Boolean).join('\n\n');
+    $('btn-update-download').textContent = result.downloadUrl && result.assetDigest && result.autoInstallSupported !== false
       ? `一键安装 v${result.latestVersion}` : '查看更新';
     banner.hidden = false;
     $('btn-update').textContent = `有新版本 v${result.latestVersion}`;
@@ -492,7 +502,8 @@
   async function checkForUpdates(options) {
     const a = api();
     const manual = !!options?.manual;
-    if (!a || !a.check_for_updates) return;
+    if (!a || !a.check_for_updates || updateChecking) return;
+    updateChecking = true;
     const button = $('btn-update');
     button.disabled = true;
     if (manual) button.textContent = '正在检查…';
@@ -503,6 +514,7 @@
     } catch (error) {
       if (manual) setMsg('检查更新失败：' + String(error), true);
     } finally {
+      updateChecking = false;
       button.disabled = false;
       if (!button.classList.contains('update-available')) button.textContent = '检查更新';
     }

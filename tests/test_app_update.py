@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import io
+import urllib.error
 import hashlib
 import plistlib
 import subprocess
@@ -39,6 +41,63 @@ class _Response:
 
 
 class AppUpdateTests(unittest.TestCase):
+    def setUp(self):
+        # These installer fixtures represent the macOS package on any test host.
+        platform = patch("maw.app_update.sys.platform", "darwin")
+        platform.start()
+        self.addCleanup(platform.stop)
+
+    def test_release_cache_reuses_metadata_across_installed_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "release.json"
+            with patch("maw.app_update.time.time", return_value=1000), patch(
+                "maw.app_update.urllib.request.urlopen", return_value=_Response({"tag_name": "v1.8.0", "assets": []})
+            ) as request:
+                self.assertTrue(check_latest_release("1.7.0", cache_path=cache)["available"])
+                result = check_latest_release("1.8.0", cache_path=cache)
+                self.assertFalse(result["available"])
+                self.assertTrue(result["cached"])
+                request.assert_called_once()
+
+    def test_rate_limit_cooldown_survives_restart_and_stops_requests(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "release.json"
+            error = urllib.error.HTTPError("https://api.github.com", 403, "rate limit exceeded",
+                                           {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1600"},
+                                           io.BytesIO(b'{"message":"API rate limit exceeded"}'))
+            with patch("maw.app_update.time.time", return_value=1000), patch(
+                "maw.app_update.urllib.request.urlopen", side_effect=error
+            ) as request:
+                for _ in range(2):
+                    with self.assertRaisesRegex(UpdateCheckError, "10 分钟"):
+                        check_latest_release("1.7.0", cache_path=cache)
+                request.assert_called_once()
+            with patch("maw.app_update.time.time", return_value=1601), patch(
+                "maw.app_update.urllib.request.urlopen", return_value=_Response({"tag_name":"v1.8.0"})
+            ) as request:
+                self.assertTrue(check_latest_release("1.7.0", cache_path=cache)["available"])
+                request.assert_called_once()
+
+    def test_secondary_rate_limit_reuses_cached_result_without_claiming_freshness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "release.json"
+            cache.write_text(json.dumps({"payload":{"tag_name":"v1.8.0"}, "fetchedAt":100}), encoding="utf-8")
+            error = urllib.error.HTTPError("https://api.github.com", 429, "slow down", {"Retry-After":"180"}, io.BytesIO(b''))
+            with patch("maw.app_update.time.time", return_value=1000), patch("maw.app_update.urllib.request.urlopen", side_effect=error):
+                result = check_latest_release("1.7.0", cache_path=cache)
+            self.assertTrue(result["cached"])
+            self.assertIn("3 分钟", result["warning"])
+            self.assertTrue(result["available"])
+
+    def test_unrelated_forbidden_error_does_not_start_rate_limit_cooldown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "release.json"
+            error = urllib.error.HTTPError("https://api.github.com", 403, "Forbidden", {}, io.BytesIO(b'Forbidden'))
+            with patch("maw.app_update.urllib.request.urlopen", side_effect=error):
+                with self.assertRaisesRegex(UpdateCheckError, "HTTP 403"):
+                    check_latest_release("1.7.0", cache_path=cache)
+            self.assertFalse(cache.exists())
+
     def test_numeric_version_comparison(self) -> None:
         self.assertEqual(version_key("v1.2.10"), (1, 2, 10, 0))
         self.assertTrue(is_newer_version("1.10.0", "1.9.9"))

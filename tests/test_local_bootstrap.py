@@ -1,5 +1,6 @@
 import hashlib
 import json
+import sys
 import tempfile
 import threading
 import unittest
@@ -15,6 +16,7 @@ class BootstrapTests(unittest.TestCase):
         res = root / "resources"
         res.mkdir()
         (res / "requirements-local.txt").write_text("fake==1.0 --hash=sha256:fixture")
+        (res / "requirements-local-windows.txt").write_text("fake==1.0 --hash=sha256:fixture")
         return res, root / "data/local-runtime/bin/python"
 
     def test_fresh_install_needs_no_system_python_and_checks_hashes(self):
@@ -84,7 +86,7 @@ class BootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch("maw.local_bootstrap.sys.frozen", True, create=True), patch("maw.local_bootstrap.resources", return_value=Path(temp)):
             with self.assertRaisesRegex(RuntimeError, "内置"):
                 bootstrap_uv()
-            uv = Path(temp) / "uv"
+            uv = Path(temp) / ("uv.exe" if sys.platform == "win32" else "uv")
             uv.touch()
             uv.chmod(0o755)
             self.assertEqual(bootstrap_uv(), uv)

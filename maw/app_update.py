@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 import uuid
 import zipfile
 from collections.abc import Callable, Mapping
@@ -22,6 +23,7 @@ import urllib.request
 from typing import Final
 
 from maw.app_delta import apply_delta
+from maw.app_paths import default_app_data_root
 
 REPOSITORY: Final = "Swing233/MAW-bd"
 LATEST_RELEASE_API: Final = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
@@ -33,6 +35,8 @@ MAX_ARCHIVE_BYTES: Final = 800 * 1024 * 1024
 MAX_UNPACKED_BYTES: Final = 3 * 1024 * 1024 * 1024
 EXPECTED_BUNDLE_ID: Final = "com.moy.maw.bdversion"
 APP_NAME: Final = "MAW-bd.app"
+RELEASE_CACHE_TTL: Final = 600
+_RELEASE_CHECK_LOCK = threading.Lock()
 _VERSION_RE: Final = re.compile(r"^v?(\d+)(?:\.(\d+))(?:\.(\d+))(?:\.(\d+))?$")
 _DIGEST_RE: Final = re.compile(r"^sha256:([0-9a-fA-F]{64})$")
 
@@ -59,28 +63,98 @@ def is_newer_version(candidate: str, current: str) -> bool:
     return version_key(candidate) > version_key(current)
 
 
-def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[str, object]:
+def _read_release_cache(path: Path | None) -> dict:
+    if path is None:
+        return {}
+    try:
+        if path.stat().st_size > MAX_RESPONSE_BYTES:
+            return {}
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, UnicodeError, ValueError):
+        return {}
+
+
+def _write_release_cache(path: Path | None, value: dict) -> None:
+    if path is None:
+        return
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(json.dumps(value), encoding="utf-8")
+        temporary.replace(path)
+    except OSError:
+        pass
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def check_latest_release(current_version: str, *, timeout: float = 6.0, cache_path: Path | None = None) -> dict[str, object]:
+    # Serialize bridge calls so repeated window-ready events cannot fan out.
+    with _RELEASE_CHECK_LOCK:
+        return _check_latest_release(current_version, timeout=timeout, cache_path=cache_path)
+
+
+def _check_latest_release(current_version: str, *, timeout: float, cache_path: Path | None) -> dict[str, object]:
     """Read the latest stable release and return a UI-safe update payload."""
 
-    request = urllib.request.Request(
-        LATEST_RELEASE_API,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": f"MAW-bd/{current_version}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed HTTPS API
-            raw = response.read(MAX_RESPONSE_BYTES + 1)
-    except (OSError, urllib.error.URLError, TimeoutError) as error:
-        raise UpdateCheckError(f"无法连接 GitHub：{error}") from error
-    if len(raw) > MAX_RESPONSE_BYTES:
-        raise UpdateCheckError("GitHub 更新响应过大")
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as error:
-        raise UpdateCheckError("GitHub 更新响应格式无效") from error
+    now = time.time()
+    cache = _read_release_cache(cache_path)
+    payload = cache.get("payload")
+    fetched = cache.get("fetchedAt", 0)
+    blocked = cache.get("retryAt", 0)
+    fresh = isinstance(fetched, (int, float)) and 0 <= now - fetched < RELEASE_CACHE_TTL
+    limited = isinstance(blocked, (int, float)) and blocked > now
+    warning = ""
+    if limited:
+        wait_minutes = max(1, int((blocked - now + 59) // 60))
+        warning = f"GitHub 更新接口暂时限流，约 {wait_minutes} 分钟后可重试；可直接打开发布页面下载。"
+        if not isinstance(payload, dict):
+            raise UpdateCheckError(warning)
+    if not (isinstance(payload, dict) and (fresh or limited)):
+        request = urllib.request.Request(
+            LATEST_RELEASE_API,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": f"MAW-bd/{current_version}",
+                     "X-GitHub-Api-Version": "2022-11-28"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed HTTPS API
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+        except urllib.error.HTTPError as error:
+            headers = error.headers or {}
+            body = error.read(4096).decode("utf-8", errors="replace").lower()
+            if error.code == 429 or (error.code == 403 and (headers.get("X-RateLimit-Remaining") == "0" or "rate limit" in body)):
+                retry_at = now + 60
+                for key, relative in (("Retry-After", True), ("X-RateLimit-Reset", False)):
+                    try:
+                        value = float(headers.get(key, ""))
+                        retry_at = max(retry_at, now + value if relative else value)
+                    except (TypeError, ValueError):
+                        pass
+                retry_at = min(retry_at, now + 86400)
+                cache["retryAt"] = retry_at
+                _write_release_cache(cache_path, cache)
+                wait_minutes = max(1, int((retry_at - now + 59) // 60))
+                warning = f"GitHub 更新接口暂时限流，约 {wait_minutes} 分钟后可重试；可直接打开发布页面下载。"
+                if not isinstance(payload, dict):
+                    raise UpdateCheckError(warning) from error
+            else:
+                raise UpdateCheckError(f"GitHub 更新检查失败（HTTP {error.code}），可打开发布页面下载。") from error
+        except (OSError, urllib.error.URLError, TimeoutError) as error:
+            raise UpdateCheckError("暂时无法连接 GitHub，请稍后重试或打开发布页面下载。") from error
+        else:
+            if len(raw) > MAX_RESPONSE_BYTES:
+                raise UpdateCheckError("GitHub 更新响应过大")
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as error:
+                raise UpdateCheckError("GitHub 更新响应格式无效") from error
+            if not isinstance(payload, dict):
+                raise UpdateCheckError("GitHub 更新响应格式无效")
+            cache = {"payload": payload, "fetchedAt": now}
     if not isinstance(payload, dict):
         raise UpdateCheckError("GitHub 更新响应格式无效")
 
@@ -103,7 +177,7 @@ def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[
                 continue
             name = str(item.get("name") or "")
             url = str(item.get("browser_download_url") or "")
-            expected_name = f"MAW-bd-{latest_version}-macOS-arm64.zip"
+            expected_name = f"MAW-bd-{latest_version}-{'Windows-x64' if sys.platform == 'win32' else 'macOS-arm64'}.zip"
             expected_url = f"{ASSET_URL_PREFIX}{tag}/{expected_name}"
             if name == expected_name and url == expected_url:
                 asset_name = name
@@ -116,9 +190,11 @@ def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[
                     asset_size = 0
                 break
 
+    if sys.platform == "win32" and not asset_name:
+        available = False
     incremental = None
     delta_name = f"MAW-bd-{current_version}-to-{latest_version}-macOS-arm64.delta.zip"
-    for item in assets if isinstance(assets, list) else []:
+    for item in assets if isinstance(assets, list) and sys.platform == "darwin" else []:
         if not isinstance(item, dict):
             continue
         size = item.get("size")
@@ -133,8 +209,13 @@ def check_latest_release(current_version: str, *, timeout: float = 6.0) -> dict[
     notes = str(payload.get("body") or "").strip()
     if len(notes) > 4000:
         notes = notes[:3999] + "…"
+    _write_release_cache(cache_path, cache)
     return {
         "ok": True,
+        "warning": warning,
+        "autoInstallSupported": sys.platform == "darwin",
+        "platformNotice": "最新发布尚未提供 Windows 安装包" if sys.platform == "win32" and not asset_name else "",
+        "cached": bool(fresh or limited or warning),
         "currentVersion": current_version,
         "latestVersion": latest_version,
         "available": available,
@@ -160,7 +241,7 @@ def current_app_bundle(executable: str | None = None) -> Path | None:
 
 
 def update_cache_root() -> Path:
-    return Path.home() / "Library" / "Application Support" / "MAW" / "updates"
+    return default_app_data_root() / "updates"
 
 
 def update_result_path() -> Path:

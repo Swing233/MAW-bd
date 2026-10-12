@@ -217,3 +217,43 @@ test('launcher compact progress labels fit without overflowing', async ({page}) 
   expect(layout.scroll).toBeLessThanOrEqual(layout.width);
   await page.screenshot({path:'/private/tmp/maw-launcher-polished.png'});
 });
+
+test('rate-limited update check provides a release-page fallback and coalesces bridge events', async ({page}) => {
+ await page.addInitScript(() => {
+  window.__updateChecks = 0;
+  window.__releaseOpens = 0;
+  window.pywebview = {api:{
+   get_state: async () => ({appVersion:'1.8.0',status:{step:'idle'},result:{},config:{}}),
+   check_for_updates: async () => {
+    window.__updateChecks++;
+    await new Promise(resolve => setTimeout(resolve,200));
+    return {ok:false,error:'GitHub 更新接口暂时限流，约 10 分钟后可重试；可直接打开发布页面下载。'};
+   },
+   open_update_page:async()=>{window.__releaseOpens++;return {ok:true};},
+  }};
+ });
+ await page.goto(pathToFileURL(launcherPath).href);
+ await page.evaluate(()=>{for(let i=0;i<5;i++)window.dispatchEvent(new Event('pywebviewready'));});
+ await expect(page.locator('#update-notes')).toContainText('10 分钟');
+ expect(await page.evaluate(()=>window.__updateChecks)).toBe(1);
+ await expect(page.locator('#btn-update-download')).toHaveText('打开发布页面');
+ await page.locator('#btn-update-download').click();
+ expect(await page.evaluate(()=>window.__releaseOpens)).toBe(1);
+});
+
+test('Windows update opens its portable download without invoking the macOS installer', async ({page}) => {
+ await page.addInitScript(() => {
+  window.__portableOpened=0;
+  window.pywebview={api:{
+   get_state:async()=>({appVersion:'1.8.0',status:{step:'idle'},result:{},config:{}}),
+   check_for_updates:async()=>({ok:true,currentVersion:'1.8.0',latestVersion:'1.9.0',available:true,autoInstallSupported:false,assetName:'MAW-bd-1.9.0-Windows-x64.zip',downloadUrl:'https://github.com/Swing233/MAW-bd/releases/download/v1.9.0/MAW-bd-1.9.0-Windows-x64.zip',assetDigest:'sha256:'+ 'a'.repeat(64),assetSize:100}),
+   open_update_page:async()=>{window.__portableOpened++;return {ok:true};},
+   install_update:async()=>{throw new Error('Windows must not use the macOS installer');},
+  }};
+ });
+ await page.goto(pathToFileURL(launcherPath).href);
+ await page.evaluate(()=>window.dispatchEvent(new Event('pywebviewready')));
+ await expect(page.locator('#btn-update-download')).toHaveText('查看更新');
+ await page.locator('#btn-update-download').click();
+ expect(await page.evaluate(()=>window.__portableOpened)).toBe(1);
+});

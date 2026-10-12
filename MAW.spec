@@ -82,12 +82,17 @@ datas = [
     (str(ROOT / "edit.py"), "local-runtime"),
 ]
 # Independent local inference bootstrap: a native uv plus locked, hash-checked dependencies.
-if sys.platform == "darwin":
+if sys.platform in {"darwin", "win32"}:
     _uv = shutil.which("uv") or str(Path.home() / ".local/bin/uv")
     if not Path(_uv).is_file():
-        raise RuntimeError("macOS 构建必须提供 uv，以保证应用可独立准备本地环境")
+        raise RuntimeError("正式构建必须提供 uv，以保证应用可独立准备本地环境")
     datas.append((_uv, "bootstrap"))
-    datas.append((str(ROOT / "assets/runtime/requirements-local.txt"), "bootstrap"))
+    _requirements = "requirements-local-windows.txt" if sys.platform == "win32" else "requirements-local.txt"
+    # Runtime uses a stable basename regardless of host-specific dependency lock.
+    import tempfile
+    _bootstrap_dir = Path(tempfile.mkdtemp(prefix="maw-bootstrap-"))
+    shutil.copy2(ROOT / "assets/runtime" / _requirements, _bootstrap_dir / "requirements-local.txt")
+    datas.append((str(_bootstrap_dir / "requirements-local.txt"), "bootstrap"))
     datas.append((str(ROOT / "assets/runtime/UV-LICENSE-MIT"), "bootstrap"))
 
 for _name in _runtime_maw_files:
@@ -209,7 +214,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='MAW',
+    name='MAW-bd' if sys.platform == 'win32' else 'MAW',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -229,7 +234,7 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='MAW',
+    name='MAW-bd' if sys.platform == 'win32' else 'MAW',
 )
 
 if sys.platform == 'darwin':
