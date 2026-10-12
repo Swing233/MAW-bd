@@ -7738,7 +7738,7 @@ function navigateCuePanel(direction) {
     : target.kind === 'overlay'
       ? `.overlay-track-cue[data-overlay-idx="${next}"]`
       : `.cue[data-idx="${next}"]`);
-  if (cue) scrollCueToCenter(cue);
+  if (cue) scrollCueIntoViewIfNeeded(cue);
   waveformEditor?.revealTime(segments[next].start, true);
 }
 
@@ -8182,7 +8182,7 @@ function buildOverlayCueEl(seg, index) {
     if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
     if (EDITOR_SETTINGS.cueListAutoScrollOnClick) {
       const row = container.querySelector(`.cue[data-overlay-idx="${index}"]`);
-      if (row) scrollCueToCenter(row);
+      if (row) scrollCueIntoViewIfNeeded(row, { revealAbove: false });
     }
   });
   el.addEventListener('dblclick', (event) => {
@@ -8896,7 +8896,7 @@ function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), du
       const currentRow = container.querySelector(
         `.multi-dual-cue[data-ext-idx="${index}"], .multi-extension-cue[data-ext-idx="${index}"]`,
       );
-      scrollCueToCenter(currentRow || dualRow || el);
+      scrollCueIntoViewIfNeeded(currentRow || dualRow || el, { revealAbove: false });
     }
   });
   el.addEventListener('pointermove', (event) => {
@@ -11704,11 +11704,14 @@ function scrollCueToCenter(cueEl, { owner = 'navigate' } = {}) {
     top: top - containerRect.top + Math.max(0, (bottom - top - rect.height) / 2),
   }, owner);
 }
-function scrollCueIntoViewIfNeeded(cueEl, options) {
+function scrollCueIntoViewIfNeeded(cueEl, { revealAbove = true, ...options } = {}) {
   if (!cueEl || cueEl.classList.contains('hidden')) return;
   const { top, bottom } = cueListVisibleBounds();
   const rect = cueEl.getBoundingClientRect();
-  if (rect.top < top || rect.bottom > bottom) scrollCueToCenter(cueEl, options);
+  // 顶部附近的可见行不提前居中；向上导航越过可视边界后才翻页。
+  if ((revealAbove && rect.top < top - 1) || rect.bottom > bottom + 1) {
+    scrollCueToCenter(cueEl, options);
+  }
 }
 
 function playbackCueListElement() {
@@ -12174,7 +12177,7 @@ function bindCueEvents(el, idx) {
 
     // 选择已经在 pointerdown 完成；这里仅处理列表滚动、波形定位和媒体 Seek。
     if (EDITOR_SETTINGS.cueListAutoScrollOnClick && !state?.preserveListScroll) {
-      scrollCueToCenter(el);
+      scrollCueIntoViewIfNeeded(el, { revealAbove: false });
     }
     waveformEditor?.revealTime(DATA.segments[idx].start, true);
     if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
@@ -13115,7 +13118,7 @@ function handleSubtitleNavigationShortcut(e, action) {
       ? `.multi-dual-cue[data-ext-idx="${next}"], .multi-extension-cue[data-ext-idx="${next}"]`
       : `.cue[data-idx="${next}"], .multi-dual-cue[data-main-idx="${next}"]`,
   );
-  if (cue) scrollCueToCenter(cue);
+  if (cue) scrollCueIntoViewIfNeeded(cue);
   waveformEditor?.revealTime(segments[next].start, true);
   seekFromWaveform(segments[next].start / 1000);
   if (wasPlaying && player.paused) {

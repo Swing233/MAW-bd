@@ -753,3 +753,39 @@ test('paired dual tracks keep their source during split merge and history', asyn
   await stable(page, mergeBefore, 75, 'paired undo C', info);
   expect(await page.evaluate(() => getMultiSubtitleState().bindings.length)).toBe(107);
 });
+
+for (const autoScroll of [false, true]) {
+  test(`top rows stay still until navigating above the first visible cue (${autoScroll})`, async ({ page }) => {
+    await open(page);
+    await position(page, 75);
+    await page.evaluate(autoScroll => {
+      updateEditorSettings({ cueListAutoScrollOnClick: autoScroll, clickBehavior: 'select-and-seek' });
+      interruptCueListFollowing();
+      const row = container.querySelector('.cue[data-idx="75"]');
+      container.scrollTop += row.getBoundingClientRect().top - cueListVisibleBounds().top;
+    }, autoScroll);
+    await page.waitForTimeout(400);
+    const before = await page.evaluate(() => container.scrollTop);
+    for (const index of [77, 76, 75]) {
+      await page.locator(`.cue[data-idx="${index}"] > .text`).click();
+      await page.waitForTimeout(300);
+      expect(Math.abs(await page.evaluate(() => container.scrollTop) - before)).toBeLessThan(1.5);
+    }
+    await page.locator('.cue[data-idx="77"] > .text').click();
+    for (const index of [76, 75]) {
+      await page.keyboard.press('w');
+      await expect(page.locator(`.cue[data-idx="${index}"]`)).toHaveClass(/selected/);
+      await page.waitForTimeout(300);
+      expect(Math.abs(await page.evaluate(() => container.scrollTop) - before)).toBeLessThan(1.5);
+    }
+    await page.keyboard.press('w');
+    await expect(page.locator('.cue[data-idx="74"]')).toHaveClass(/selected/);
+    await expect.poll(() => page.evaluate(() => container.scrollTop)).toBeLessThan(before - 10);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => {
+      const rect = container.querySelector('.cue[data-idx="74"]').getBoundingClientRect();
+      const bounds = cueListVisibleBounds();
+      return rect.top >= bounds.top - 1 && rect.bottom <= bounds.bottom + 1;
+    })).toBe(true);
+  });
+}

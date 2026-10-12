@@ -1,0 +1,374 @@
+{
+  "01-launcher": {
+    "height": 1340,
+    "width": 1265,
+    "boxes": [
+      {
+        "height": 32.5,
+        "label": "已有视频和 SRT",
+        "number": 1,
+        "selector": "#btn-media-editor",
+        "width": 141.8671875,
+        "x": 330.5,
+        "y": 97
+      },
+      {
+        "height": 32.5,
+        "label": "选择媒体",
+        "number": 2,
+        "selector": "#btn-media",
+        "width": 111.9921875,
+        "x": 125.5,
+        "y": 217.5
+      },
+      {
+        "height": 36,
+        "label": "首次准备模型",
+        "number": 3,
+        "selector": "#btn-model-download",
+        "width": 332,
+        "x": 125.5,
+        "y": 416.5
+      },
+      {
+        "height": 32.5,
+        "label": "开始识别",
+        "number": 4,
+        "selector": "#btn-asr",
+        "width": 78.3203125,
+        "x": 125.5,
+        "y": 559.5
+      }
+    ]
+  },
+  "02-deepseek-config": {
+    "height": 1340,
+    "width": 1265,
+    "boxes": [
+      {
+        "height": 34.5,
+        "label": "填写自己的 API Key",
+        "number": 1,
+        "selector": "#deepseek-key",
+        "width": 332,
+        "x": 125.5,
+        "y": 1158.09375
+      },
+      {
+        "height": 32.5,
+        "label": "保存配置",
+        "number": 2,
+        "selector": "#btn-save-config",
+        "width": 74,
+        "x": 125.5,
+        "y": 1200.59375
+      },
+      {
+        "height": 34.5,
+        "label": "默认模型",
+        "number": 3,
+        "selector": "#deepseek-model",
+        "width": 332,
+        "x": 467.5,
+        "y": 693
+      },
+      {
+        "height": 32.5,
+        "label": "添加参考文稿",
+        "number": 4,
+        "selector": "#btn-manuscript",
+        "width": 74,
+        "x": 125.5,
+        "y": 735.5
+      },
+      {
+        "height": 32.5,
+        "label": "开始校对",
+        "number": 5,
+        "selector": "#btn-revise",
+        "width": 74,
+        "x": 125.5,
+        "y": 808.5
+      }
+    ]
+  },
+  "03-editor": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 30,
+        "label": "先保存工程",
+        "number": 1,
+        "selector": "#save-project",
+        "width": 70,
+        "x": 298,
+        "y": 42.5
+      },
+      {
+        "height": 30,
+        "label": "导出字幕",
+        "number": 2,
+        "selector": "#subtitle-export-btn",
+        "width": 81,
+        "x": 1109,
+        "y": 42.5
+      },
+      {
+        "height": 249.984375,
+        "label": "当前字幕文字",
+        "number": 3,
+        "selector": "#current-cue-panel",
+        "width": 250.8046875,
+        "x": 448.4921875,
+        "y": 118.5
+      },
+      {
+        "height": 332.515625,
+        "label": "波形与时间调整",
+        "number": 4,
+        "selector": "#waveform-pane",
+        "width": 687.296875,
+        "x": 12,
+        "y": 375.484375
+      },
+      {
+        "height": 589.5,
+        "label": "字幕列表",
+        "number": 5,
+        "selector": "#cues-container",
+        "width": 561.703125,
+        "x": 706.296875,
+        "y": 118.5
+      }
+    ]
+  },
+  "04-review": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 519.328125,
+        "label": "可组合筛选条件",
+        "number": 1,
+        "selector": "#proofread-filter-menu",
+        "width": 280,
+        "x": 954.7578125,
+        "y": 163.5
+      },
+      {
+        "height": 30,
+        "label": "审阅入口",
+        "number": 2,
+        "selector": "#proofread-filter-btn",
+        "width": 48,
+        "x": 954.7578125,
+        "y": 127.5
+      }
+    ]
+  },
+  "05-proofread": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 222,
+        "label": "原文与修改差异",
+        "number": 1,
+        "selector": "#cue-panel-proofread",
+        "width": 480,
+        "x": 729.296875,
+        "y": 328.5
+      },
+      {
+        "height": 28,
+        "label": "恢复原文",
+        "number": 2,
+        "selector": "#proofread-suggestion-keep",
+        "width": 70,
+        "x": 1048.296875,
+        "y": 509.5
+      }
+    ]
+  },
+  "06-text": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 394,
+        "label": "数字与英文处理",
+        "number": 1,
+        "selector": "#text-process-modal",
+        "width": 430,
+        "x": 842,
+        "y": 163.5
+      },
+      {
+        "height": 16.5,
+        "label": "确认处理范围",
+        "number": 2,
+        "selector": "#text-process-scope-info",
+        "width": 396,
+        "x": 859,
+        "y": 261.5
+      },
+      {
+        "height": 30.5,
+        "label": "查看预览后应用",
+        "number": 3,
+        "selector": "#text-process-confirm",
+        "width": 78,
+        "x": 1177,
+        "y": 510
+      }
+    ]
+  },
+  "07-edit": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 94.390625,
+        "label": "修改文字",
+        "number": 1,
+        "selector": "#waveform-cue-edit-text",
+        "width": 334,
+        "x": 35,
+        "y": 334
+      },
+      {
+        "height": 34.5,
+        "label": "在文字光标处切割",
+        "number": 2,
+        "selector": "#waveform-cue-edit-split",
+        "width": 95.984375,
+        "x": 133.03125,
+        "y": 441.890625
+      },
+      {
+        "height": 34.5,
+        "label": "Enter 保存",
+        "number": 3,
+        "selector": "#waveform-cue-edit-save",
+        "width": 81.3203125,
+        "x": 287.6796875,
+        "y": 441.890625
+      }
+    ]
+  },
+  "08-export": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 34.5,
+        "label": "核对源视频参数",
+        "number": 1,
+        "selector": "#fcpxml-source-format",
+        "width": 592.5,
+        "x": 343.75,
+        "y": 284.75
+      },
+      {
+        "height": 30,
+        "label": "匹配目标工程帧率",
+        "number": 2,
+        "selector": "#fcpxml-export-fps",
+        "width": 484.5,
+        "x": 451.75,
+        "y": 337.25
+      },
+      {
+        "height": 30,
+        "label": "分辨率和宽高比",
+        "number": 3,
+        "selector": "#fcpxml-export-resolution",
+        "width": 484.5,
+        "x": 451.75,
+        "y": 375.25
+      },
+      {
+        "height": 34.5,
+        "label": "导出 FCPXML",
+        "number": 4,
+        "selector": "#fcpxml-export-confirm",
+        "width": 100.5859375,
+        "x": 835.6640625,
+        "y": 457.25
+      }
+    ]
+  },
+  "09-settings": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 385,
+        "label": "列表显示偏好",
+        "number": 1,
+        "selector": "#cue-list-settings-panel",
+        "width": 260,
+        "x": 997,
+        "y": 199.5
+      },
+      {
+        "height": 30,
+        "label": "空隙高亮阈值（按帧）",
+        "number": 2,
+        "selector": "#list-gap-highlight-ms",
+        "width": 66,
+        "x": 1162,
+        "y": 535.5
+      }
+    ]
+  },
+  "10-gaps": {
+    "height": 720,
+    "width": 1280,
+    "boxes": [
+      {
+        "height": 30,
+        "label": "最大间隔",
+        "number": 1,
+        "selector": "#subtitle-gap-max",
+        "width": 165,
+        "x": 1090,
+        "y": 277.890625
+      },
+      {
+        "height": 30,
+        "label": "选择处理范围",
+        "number": 2,
+        "selector": "#subtitle-gap-scope",
+        "width": 165,
+        "x": 1090,
+        "y": 317.890625
+      },
+      {
+        "height": 30,
+        "label": "预览后执行",
+        "number": 3,
+        "selector": "#subtitle-gap-apply",
+        "width": 48,
+        "x": 1207,
+        "y": 538.0859375
+      }
+    ]
+  },
+  "11-deepseek-entry": {
+    "height": 1326,
+    "width": 1265,
+    "boxes": [
+      {
+        "height": 44,
+        "label": "进入 API 开放平台",
+        "number": 1,
+        "selector": "a.ds-btn-secondary[href=\"https://platform.deepseek.com/\"]",
+        "width": 152.5703125,
+        "x": 565.1875,
+        "y": 538.6484375
+      }
+    ]
+  }
+}
