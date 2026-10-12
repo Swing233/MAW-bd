@@ -220,7 +220,7 @@ class FocusedGuiContractTests(unittest.TestCase):
 
     def test_local_runtime_python_path(self) -> None:
         p = local_runtime_python()
-        self.assertTrue(str(p).endswith("local-runtime/bin/python"))
+        self.assertEqual(p.parts[-3:], ("local-runtime", "Scripts", "python.exe") if os.name == "nt" else ("local-runtime", "bin", "python"))
 
     def test_standalone_child_receives_parent_app_ffmpeg(self) -> None:
         from maw.ffmpeg import resolve_ffmpeg_tools
@@ -230,7 +230,7 @@ class FocusedGuiContractTests(unittest.TestCase):
             tools = (bundle / "ffmpeg" / "bin").resolve()
             tools.mkdir(parents=True)
             for name in ("ffmpeg", "ffprobe"):
-                (tools / name).write_text("bundled binary")
+                (tools / (name + (".exe" if os.name == "nt" else ""))).write_text("bundled binary")
             with (
                 patch("sys.frozen", True, create=True),
                 patch("sys.executable", str(bundle / "MAW")),
@@ -241,8 +241,8 @@ class FocusedGuiContractTests(unittest.TestCase):
             self.assertEqual(env["PATH"].split(os.pathsep)[0], str(tools))
             # Resolve as an ordinary Python child: no frozen bundle or Homebrew.
             resolved = resolve_ffmpeg_tools(environment=env, include_bundled=False, include_macos=False)
-            self.assertEqual(resolved.ffmpeg, tools / "ffmpeg")
-            self.assertEqual(resolved.ffprobe, tools / "ffprobe")
+            self.assertEqual(resolved.ffmpeg, tools / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg"))
+            self.assertEqual(resolved.ffprobe, tools / ("ffprobe.exe" if os.name == "nt" else "ffprobe"))
 
     def test_local_asr_does_not_write_bytecode_into_signed_app(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

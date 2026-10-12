@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import io
+import sys
 import urllib.error
 import hashlib
 import plistlib
@@ -182,6 +183,7 @@ class AppUpdateTests(unittest.TestCase):
             with self.assertRaises(UpdateInstallError):
                 _validate_app_bundle(app, "1.2.0")
 
+    @unittest.skipUnless(sys.platform == "darwin", "macOS shell installer integration")
     def test_helper_swaps_app_after_parent_exits(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

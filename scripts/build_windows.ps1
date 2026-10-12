@@ -3,6 +3,8 @@ param(
   [switch]$SkipTests
 )
 $ErrorActionPreference = 'Stop'
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
 if ($env:OS -ne 'Windows_NT') { throw 'This build must run on Windows x64.' }
 Set-Location (Split-Path -Parent $PSScriptRoot)
 $FFmpegZip = (Resolve-Path $FFmpegZip).Path

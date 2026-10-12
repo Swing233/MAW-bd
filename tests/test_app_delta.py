@@ -15,6 +15,11 @@ from maw.app_update import _download_archive, check_latest_release, stage_update
 
 
 class DeltaTests(unittest.TestCase):
+    def setUp(self):
+        platform = patch('maw.app_update.sys.platform', 'darwin')
+        platform.start()
+        self.addCleanup(platform.stop)
+
     def app(self, root, version):
         root.mkdir()
         (root / "Contents").mkdir()
