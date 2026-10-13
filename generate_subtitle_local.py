@@ -90,8 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-ll", "--length-limit", type=parse_duration, help="只处理前 N 秒，例如 2m")
     parser.add_argument("-o", "--output", help="输出 SRT 路径（默认与输入同目录）")
-    parser.add_argument("--max-len", type=int, default=20, help="中文普通字幕上限（默认 20；25 字仅为绝对兜底）")
-    parser.add_argument("--min-len", type=int, default=5, help="中文短句合并阈值")
+    parser.add_argument("--max-len", type=int, default=30, help="每条中文字幕最多 30 字")
+    parser.add_argument("--min-len", type=int, default=0, help="中文短句合并阈值（默认 0，不设字数下限）")
     parser.add_argument("--max-words", type=int, default=DEFAULT_MAX_WORDS, help="英文单条字幕最大单词数")
     parser.add_argument("--min-words", type=int, default=DEFAULT_MIN_WORDS, help="英文短句合并阈值（单词数）")
     parser.add_argument("--gap-split", type=int, default=750, help="真实强停顿阈值（默认 750ms）")
@@ -167,7 +167,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.default_audio_track is not None and args.default_audio_track < 0:
         print("错误: --default-audio-track 必须是非负整数")
         return 2
-    if args.max_len < 1 or args.min_len < 1 or args.max_words < 1 or args.min_words < 1 or args.gap_split < 0:
+    if args.max_len < 1 or args.min_len < 0 or args.max_words < 1 or args.min_words < 1 or args.gap_split < 0:
         print("错误: 字幕切分参数无效")
         return 2
     if args.max_len < args.min_len or args.max_words < args.min_words:

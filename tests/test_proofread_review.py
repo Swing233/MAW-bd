@@ -109,6 +109,7 @@ class AutoProofreadTests(unittest.TestCase):
             ("曲水 试验", "驱水试验", "驱水 试验"),
             ("使用 Qwen ASR 1.7B", "使用Qwen ASR 1.7B", "使用 Qwen ASR 1.7B"),
             ("hello world", "hello brave world", "hello brave world"),
+            ("使用Qwen ASR模型", "使用 Qwen ASR 模型", "使用Qwen ASR模型"),
             ("字幕一行", "字幕<br>一\n行", "字幕一行"),
         ]:
             with self.subTest(before=before):

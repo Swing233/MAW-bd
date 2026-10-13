@@ -275,11 +275,15 @@ class FocusedLauncherApi:
                     {"id": "cloud", "label": "云端 Qwen API"},
                 ],
                 "localEngines": [
-                    {"id": "qwen-asr", "label": "Qwen3-ASR 1.7B"},
+                    {"id": "qwen-asr", "label": "Qwen3-ASR"},
                     {"id": "funasr", "label": "FunASR paraformer-zh"},
                     {"id": "whisper", "label": "faster-whisper"},
                 ],
                 "localModel": "Qwen/Qwen3-ASR-1.7B",
+                "localModels": [
+                    {"id": "Qwen/Qwen3-ASR-1.7B", "label": "1.7B（默认）"},
+                    {"id": "Qwen/Qwen3-ASR-0.6B", "label": "0.6B（轻量）"},
+                ],
                 "localRuntimeReady": runtime_ready(),
                 "localRuntimePath": str(rt_py),
                 "cloudModels": [
@@ -385,12 +389,13 @@ class FocusedLauncherApi:
         engine = str((payload or {}).get("localEngine") or "qwen-asr")
         if engine not in {"qwen-asr", "funasr", "whisper"}:
             return {"ok": False, "error": "不支持的本地引擎"}
+        model = str((payload or {}).get("localModel") or "Qwen/Qwen3-ASR-1.7B") if engine == "qwen-asr" else ""
         self.cancel_event = threading.Event()
         self._model_preparation = {"engine": engine, "state": "downloading"}
         self._set_status(step="model_download", busy=True, progressKnown=False, progressLabel="", error="",
                          message="正在准备本地模型，首次下载可能需要数 GB；已有缓存会复用")
         self.pump.start()
-        self.worker = threading.Thread(target=self._download_model_worker, args=(engine,), daemon=True)
+        self.worker = threading.Thread(target=self._download_model_worker, args=(engine, model), daemon=True)
         self.worker.start()
         return {"ok": True, "started": True, "engine": engine}
 
@@ -414,7 +419,7 @@ class FocusedLauncherApi:
         env["PYTHONPATH"] = str(runtime_root) + os.pathsep + str(self.paths.root) + os.pathsep + env.get("PYTHONPATH", "")
         return env
 
-    def _download_model_worker(self, engine: str) -> None:
+    def _download_model_worker(self, engine: str, model: str = "") -> None:
         process = None
         reader = None
         try:
@@ -426,12 +431,12 @@ class FocusedLauncherApi:
             # Like upstream prepare_local_model: load once in a managed subprocess.
             code = (
                 "import sys; from maw.local_asr import create_local_engine; "
-                "engine=create_local_engine(sys.argv[1], device='auto'); "
+                "engine=create_local_engine(sys.argv[1], model=sys.argv[2] or None, device='auto'); "
                 "engine._load(lambda text: print(text, flush=True)); "
                 "print('本地模型及所需组件准备完成', flush=True)"
             )
             process = subprocess.Popen(
-                [str(local_runtime_python()), "-u", "-c", code, engine],
+                [str(local_runtime_python()), "-u", "-c", code, engine, model],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                 env=self._local_subprocess_environment(runtime_root),
                 **process_group_kwargs(),
@@ -585,9 +590,9 @@ class FocusedLauncherApi:
             "--device",
             "auto",
             "--max-len",
-            "20",
+            "30",
             "--min-len",
-            "5",
+            "0",
             "--gap-split",
             "750",
             "-o",
@@ -793,7 +798,7 @@ class FocusedLauncherApi:
                 self._set_status(step="resegment", message="正在按句断句…", progress=30, busy=True, error="")
                 from maw.bdversion.revise import resegment_project
 
-                out = resegment_project(project, max_len=20, min_len=5, gap_split_ms=750)
+                out = resegment_project(project, max_len=30, min_len=0, gap_split_ms=750)
                 if not out.get("ok"):
                     self._set_status(step="error", message="断句失败", busy=False, error=str(out.get("error") or "unknown"))
                     return

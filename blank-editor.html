@@ -5208,7 +5208,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="app-version" id="app-version" data-label="版本号">版本号 v1.8.1</span>
+  <span class="app-version" id="app-version" data-label="版本号">版本号 v1.8.2</span>
   <span class="json-name empty" id="json-name" title="点击复制工程文件名">未加载工程</span>
 </h1>
 <div class="server-connection-banner" id="server-connection-banner" hidden role="alert" aria-live="assertive">
@@ -5917,7 +5917,6 @@
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-subtitle-style" role="tab" data-settings-tab="subtitle-style" aria-selected="false" aria-controls="editor-settings-page-subtitle-style" tabindex="-1">字幕样式</button>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-subtitle-color" role="tab" data-settings-tab="subtitle-color" aria-selected="false" aria-controls="editor-settings-page-subtitle-color" tabindex="-1">字幕颜色</button>
       <div class="editor-settings-nav-group-label" aria-hidden="true">编辑</div>
-      <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-timebase" role="tab" data-settings-tab="timebase" aria-selected="false" aria-controls="editor-settings-page-timebase" tabindex="-1">时间基准</button>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-split-merge" role="tab" data-settings-tab="split-merge" aria-selected="false" aria-controls="editor-settings-page-split-merge" tabindex="-1">拆分与合并</button>
       <div class="editor-settings-nav-group-label" aria-hidden="true">工程与输出</div>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-export" role="tab" data-settings-tab="export" aria-selected="false" aria-controls="editor-settings-page-export" tabindex="-1">导出</button>
@@ -6030,6 +6029,7 @@
     <div class="editor-settings-item">合并字幕<kbd data-editing-shortcut-label="merge"></kbd><button type="button" data-editing-shortcut="merge" aria-label="自定义合并字幕快捷键">自定义</button></div>
     <div class="editor-settings-item">新建字幕<kbd data-editing-shortcut-label="create"></kbd><button type="button" data-editing-shortcut="create" aria-label="自定义新建字幕快捷键">自定义</button></div>
     <div class="editor-settings-item">设置起点<kbd data-editing-shortcut-label="start"></kbd><button type="button" data-editing-shortcut="start" aria-label="自定义设置起点快捷键">自定义</button></div>
+    <div class="editor-settings-item">删除空格<kbd data-editing-shortcut-label="removeSpaces"></kbd><button type="button" data-editing-shortcut="removeSpaces" aria-label="自定义删除空格快捷键">自定义</button></div>
     <div class="editor-settings-item">设置终点<kbd data-editing-shortcut-label="end"></kbd><button type="button" data-editing-shortcut="end" aria-label="自定义设置终点快捷键">自定义</button></div>
     <div class="editor-settings-item">上一条（原 W）<kbd data-editing-shortcut-label="navUp"></kbd><button type="button" data-editing-shortcut="navUp" aria-label="自定义上一条（原 W）快捷键">自定义</button></div>
     <div class="editor-settings-item">上一条 / 向左微调（原 A）<kbd data-editing-shortcut-label="navLeft"></kbd><button type="button" data-editing-shortcut="navLeft" aria-label="自定义上一条 / 向左微调（原 A）快捷键">自定义</button></div>
@@ -6340,47 +6340,6 @@
             </label>
           </div>
         </div>
-    </div>
-  </div>
-  </div>
-  <div class="editor-settings-page" id="editor-settings-page-timebase" role="tabpanel" aria-labelledby="editor-settings-tab-timebase" hidden>
-  <div class="editor-settings-group">
-    <div class="editor-settings-sub-group">
-    <div class="editor-settings-field timeline-settings-field">
-      <div class="editor-settings-field timeline-mode-field">
-        <div class="timeline-settings-controls">
-          <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
-            时间单位
-            <select id="timeline-timebase">
-              <option value="milliseconds" selected>毫秒</option>
-              <option value="frames">帧</option>
-            </select>
-          </label>
-          <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
-            FPS
-            <span class="gap-remove-number-control">
-              <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
-              <span class="gap-remove-unit">fps</span>
-            </span>
-          </label>
-        </div>
-        <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。切换为帧模式后，拖动、方向键和 A/D 微调都会按帧执行。</small>
-      </div>
-      <div class="editor-settings-field timeline-snap-field">
-        <label class="toggle editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
-          <input type="checkbox" id="timeline-snap-to-frame">
-          吸附到帧
-        </label>
-        <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
-      </div>
-      <div class="editor-settings-field timeline-separator-field">
-        <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
-          时间码分隔符
-          <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
-        </label>
-        <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
-      </div>
-    </div>
     </div>
   </div>
   </div>
@@ -7447,9 +7406,9 @@
       <select id="fcpxml-export-fps">
         <option value="23.98">23.98</option>
         <option value="24">24</option>
-        <option value="25" selected>25</option>
+        <option value="25">25</option>
         <option value="29.97">29.97</option>
-        <option value="30">30</option>
+        <option value="30" selected>30</option>
         <option value="50">50</option>
         <option value="59.94">59.94</option>
         <option value="60">60</option>
@@ -11888,12 +11847,11 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     return metadata;
   }
 
-  // Adopt a measured source clock; never invent a rate when probing failed.
+  // Legacy callers may retain the helper; source FPS never selects an editing clock.
   function adoptSourceVideoTimebase(project) {
-    const metadata = normalizeMediaMetadata(project?.media_metadata);
-    if (!metadata?.video_fps) return false;
-    project.timebase = { unit: 'frames', fps: metadata.video_fps };
-    return true;
+    if (!project || typeof project !== 'object') return false;
+    project.timebase = { ...normalizeTimelineTimebase(project.timebase), unit: 'milliseconds' };
+    return false;
   }
 
   // MP4/MOV sample tables can be read without decoding or loading the video.
@@ -12093,7 +12051,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
   }
 
-  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x', navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd' });
+  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x', navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd', removeSpaces: { key: 'Backspace', altKey: true, shiftKey: true } });
   function normalizeEditingShortcut(value) {
     const raw = typeof value === 'string' ? { key: value } : value;
     if (!raw || typeof raw.key !== 'string' || !raw.key || raw.key.length > 64
@@ -25429,89 +25387,28 @@ function hasValidFramePair(value) {
     && value.end_frame > value.start_frame;
 }
 
-function syncTimeRangeObjectTimebase(value, timebase, { preferFrames = false, frameBounds = null } = {}) {
+function syncTimeRangeObjectTimebase(value) {
   if (!value || typeof value !== 'object') return null;
-  const frameMode = timebase.unit === 'frames';
-  const hasFrames = hasValidFramePair(value);
-  const rawStartMs = Number(value.start);
-  const rawEndMs = Number(value.end);
-  let startFrame = hasFrames && preferFrames
-    ? value.start_frame : frameNumberFromMilliseconds(rawStartMs, timebase.fps);
-  let endFrame = hasFrames && preferFrames
-    ? value.end_frame : frameNumberFromMilliseconds(rawEndMs, timebase.fps);
-  if (!Number.isInteger(startFrame) || startFrame < 0) startFrame = 0;
-  if (!Number.isInteger(endFrame) || endFrame <= startFrame) endFrame = startFrame + 1;
-
-  if (frameMode) {
-    if (frameBounds && Number.isInteger(frameBounds.start) && Number.isInteger(frameBounds.end)) {
-      const lower = Math.max(0, frameBounds.start);
-      const upper = Math.max(lower + 1, frameBounds.end);
-      startFrame = Math.min(Math.max(startFrame, lower), upper - 1);
-      endFrame = Math.min(Math.max(endFrame, startFrame + 1), upper);
-      if (endFrame <= startFrame) {
-        startFrame = Math.max(lower, upper - 1);
-        endFrame = upper;
-      }
-    }
-    value.start_frame = startFrame;
-    value.end_frame = endFrame;
-    value.start = millisecondsFromFrameNumber(startFrame, timebase.fps);
-    value.end = millisecondsFromFrameNumber(endFrame, timebase.fps);
-  } else {
-    const startMs = Number.isFinite(rawStartMs)
-      ? Math.max(0, Math.round(rawStartMs)) : millisecondsFromFrameNumber(startFrame, timebase.fps);
-    const endMs = Number.isFinite(rawEndMs)
-      ? Math.max(startMs + 1, Math.round(rawEndMs)) : millisecondsFromFrameNumber(endFrame, timebase.fps);
-    value.start = startMs;
-    value.end = Math.max(startMs + 1, endMs);
-    value.start_frame = frameNumberFromMilliseconds(value.start, timebase.fps);
-    value.end_frame = Math.max(
-      value.start_frame + 1,
-      frameNumberFromMilliseconds(value.end, timebase.fps),
-    );
-  }
-  return { startFrame: value.start_frame, endFrame: value.end_frame };
+  // 毫秒是真源；旧工程的可选帧字段只保留，不用于重写时间。
+  const start = Number(value.start);
+  const end = Number(value.end);
+  if (Number.isFinite(start)) value.start = Math.max(0, Math.round(start));
+  if (Number.isFinite(end)) value.end = Math.max((value.start || 0) + 1, Math.round(end));
+  return null;
 }
 
-function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumStartFrame = 0 } = {}) {
+function syncSegmentTimebase(segment) {
   if (!segment || typeof segment !== 'object') return;
-  const range = syncTimeRangeObjectTimebase(segment, timebase, { preferFrames });
-  if (timebase.unit === 'frames') {
-    const startFrame = Math.max(minimumStartFrame, segment.start_frame);
-    const endFrame = Math.max(startFrame + 1, segment.end_frame);
-    segment.start_frame = startFrame;
-    segment.end_frame = endFrame;
-    segment.start = millisecondsFromFrameNumber(startFrame, timebase.fps);
-    segment.end = millisecondsFromFrameNumber(endFrame, timebase.fps);
-  }
-  if (!Array.isArray(segment.items)) return range;
-  const frameBounds = timebase.unit === 'frames'
-    ? { start: segment.start_frame, end: segment.end_frame } : null;
-  segment.items.forEach((item) => {
-    syncTimeRangeObjectTimebase(item, timebase, { preferFrames, frameBounds });
-  });
-  if (timebase.unit === 'frames') {
-    window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
-  }
-  return range;
+  syncTimeRangeObjectTimebase(segment);
+  (segment.items || []).forEach(item => syncTimeRangeObjectTimebase(item));
 }
 
-function syncTrackTimebase(segments, timebase, { preferFrames = false } = {}) {
-  if (!Array.isArray(segments)) return;
-  let previousEndFrame = 0;
-  segments.forEach((segment) => {
-    syncSegmentTimebase(segment, timebase, {
-      preferFrames,
-      minimumStartFrame: timebase.unit === 'frames' ? previousEndFrame : 0,
-    });
-    if (timebase.unit === 'frames' && Number.isInteger(segment?.end_frame)) {
-      previousEndFrame = segment.end_frame;
-    }
-  });
+function syncTrackTimebase(segments) {
+  if (Array.isArray(segments)) segments.forEach(segment => syncSegmentTimebase(segment));
 }
 
 function projectTimebase(project = DATA) {
-  return normalizeTimelineTimebase(project?.timebase);
+  return { ...normalizeTimelineTimebase(project?.timebase), unit: 'milliseconds' };
 }
 
 function hasExplicitTimelineFps(value) {
@@ -25595,59 +25492,17 @@ function timelineMinimumDurationValue() {
 }
 
 function timelineTimingAdapter() {
-  const timebase = projectTimebase();
-  const frameMode = timebase.unit === 'frames';
-  const minimumDuration = timelineMinimumDurationValue();
-  const snapThreshold = frameMode
-    ? Math.max(1, Math.round(80 * timebase.fps / 1000)) : 80;
-  if (!frameMode) {
-    return {
-      unit: 'milliseconds',
-      fps: timebase.fps,
-      minDuration: minimumDuration,
-      snapThreshold,
-      round: roundTimelineMilliseconds,
-      getStart: (segment) => Number(segment?.start),
-      getEnd: (segment) => Number(segment?.end),
-      setStart: (segment, value) => { segment.start = roundTimelineMilliseconds(value); },
-      setEnd: (segment, value) => { segment.end = roundTimelineMilliseconds(value); },
-      getItemStart: (item) => Number(item?.start),
-      getItemEnd: (item) => Number(item?.end),
-      setItemStart: (item, value) => { item.start = roundTimelineMilliseconds(value); },
-      setItemEnd: (item, value) => { item.end = roundTimelineMilliseconds(value); },
-      fromMs: (value) => Number(value),
-      toMs: (value) => Number(value),
-      format: formatTimelineMilliseconds,
-    };
-  }
-  const readFrame = (value, frameField, msField) => Number.isInteger(value?.[frameField])
-    ? value[frameField] : frameNumberFromMilliseconds(value?.[msField], timebase.fps);
-  const writeFrame = (value, frameField, msField, frame) => {
-    const next = Math.max(0, Math.round(Number(frame)));
-    value[frameField] = next;
-    value[msField] = millisecondsFromFrameNumber(next, timebase.fps);
-  };
   return {
-    unit: 'frames',
-    fps: timebase.fps,
-    minDuration: minimumDuration,
-    snapThreshold,
-    round: (value) => Math.round(Number(value)),
-    getStart: (segment) => readFrame(segment, 'start_frame', 'start'),
-    getEnd: (segment) => readFrame(segment, 'end_frame', 'end'),
-    setStart: (segment, value) => writeFrame(segment, 'start_frame', 'start', value),
-    setEnd: (segment, value) => writeFrame(segment, 'end_frame', 'end', value),
-    getItemStart: (item) => readFrame(item, 'start_frame', 'start'),
-    getItemEnd: (item) => readFrame(item, 'end_frame', 'end'),
-    setItemStart: (item, value) => writeFrame(item, 'start_frame', 'start', value),
-    setItemEnd: (item, value) => writeFrame(item, 'end_frame', 'end', value),
-    fromMs: (value) => frameNumberFromMilliseconds(value, timebase.fps),
-    toMs: (value) => millisecondsFromFrameNumber(value, timebase.fps),
-    format: (value) => formatFrameTimecode(
-      value,
-      timebase.fps,
-      EDITOR_SETTINGS.timelineTimecodeSeparator,
-    ),
+    unit: 'milliseconds', fps: projectTimebase().fps,
+    minDuration: SUBTITLE_MIN_DURATION_MS, snapThreshold: 80,
+    round: roundTimelineMilliseconds,
+    getStart: segment => Number(segment?.start), getEnd: segment => Number(segment?.end),
+    setStart: (segment, value) => { segment.start = roundTimelineMilliseconds(value); },
+    setEnd: (segment, value) => { segment.end = roundTimelineMilliseconds(value); },
+    getItemStart: item => Number(item?.start), getItemEnd: item => Number(item?.end),
+    setItemStart: (item, value) => { item.start = roundTimelineMilliseconds(value); },
+    setItemEnd: (item, value) => { item.end = roundTimelineMilliseconds(value); },
+    fromMs: value => Number(value), toMs: value => Number(value), format: formatTimelineMilliseconds,
   };
 }
 
@@ -25658,7 +25513,7 @@ function formatTimelineMilliseconds(ms) {
   return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(3).padStart(6, '0')}`;
 }
 
-window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+// 源视频帧率仅供导出参考，编辑始终使用毫秒。
 syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
 
 // 标记颜色：5 种基础色，用于给字幕分组着色。
@@ -27001,6 +26856,7 @@ document.addEventListener('keydown', event => {
   else if (action === 'split') handleEditingSplitShortcut(event);
   else if (action === 'merge') handleEditingMergeShortcut(event);
   else if (action === 'create') handleEditingCreateShortcut(event);
+  else if (action === 'removeSpaces') applySubtitleTextTransform('removeSpaces', true);
 }, true);
 document.getElementById('editing-shortcuts-reset')?.addEventListener('click', () => {
   cancelEditingShortcutCapture();
@@ -29057,29 +28913,6 @@ function timelineMediaSeekStepMilliseconds() {
   return timelineValueToMilliseconds(timelineMediaSeekStepValue());
 }
 
-function timelineHasSubtitleData() {
-  return (Array.isArray(DATA?.segments) && DATA.segments.length > 0)
-    || (Array.isArray(DATA?.multi_subtitle?.tracks)
-      && DATA.multi_subtitle.tracks.some((track) => Array.isArray(track?.segments)
-        && track.segments.length > 0));
-}
-
-function confirmTimelineFrameRemap(current, nextUnit, nextFps) {
-  const enteringFrames = current.unit !== 'frames' && nextUnit === 'frames';
-  const changingFrameRate = current.unit === 'frames' && current.fps !== nextFps;
-  if ((!enteringFrames && !changingFrameRate) || !timelineHasSubtitleData()) return true;
-  const message = enteringFrames
-    ? timelineUiText(
-      `切换到帧时间基准（${nextFps} FPS）会批量将当前工程的所有字幕段、字词和副字幕时间映射到最近帧，并重写毫秒兼容值。原始的非帧对齐毫秒值无法在切回毫秒时恢复。是否继续？`,
-      `Switching to the frame timebase (${nextFps} FPS) will remap all subtitle segments, word timings, and secondary subtitle timings to frame boundaries and rewrite the compatible millisecond values. Original non-frame-aligned millisecond values cannot be restored when switching back. Continue?`,
-    )
-    : timelineUiText(
-      `将 FPS 从 ${current.fps} 改为 ${nextFps} 会批量重新映射当前工程的所有字幕段、字词和副字幕时间，并重写毫秒兼容值。原始的非帧对齐毫秒值无法恢复。是否继续？`,
-      `Changing FPS from ${current.fps} to ${nextFps} will remap all subtitle segments, word timings, and secondary subtitle timings and rewrite the compatible millisecond values. Original non-frame-aligned millisecond values cannot be restored. Continue?`,
-    );
-  return window.confirm(message);
-}
-
 function refreshTimelineSettingsUi() {
   const timebase = projectTimebase();
   const frameMode = timebase.unit === 'frames';
@@ -29178,42 +29011,9 @@ function refreshTimelineSettingsUi() {
   refreshMediaSeekControlLabels();
 }
 
-function setTimelineTimebase(patch = {}) {
-  const current = projectTimebase();
-  const nextUnit = patch.unit === 'frames' || patch.unit === 'milliseconds'
-    ? patch.unit : current.unit;
-  const hasFpsPatch = Object.prototype.hasOwnProperty.call(patch, 'fps');
-  const mediaDefaultFps = !timelineFpsManuallySet
-    && !hasFpsPatch
-    && current.unit !== 'frames'
-    && nextUnit === 'frames'
-    ? projectMediaVideoFps()
-    : null;
-  const nextFps = mediaDefaultFps ?? normalizeTimelineFps(patch.fps, current.fps);
-  if (current.unit === nextUnit && current.fps === nextFps) {
-    if (hasFpsPatch) timelineFpsManuallySet = true;
-    refreshTimelineSettingsUi();
-    return;
-  }
-  if (!confirmTimelineFrameRemap(current, nextUnit, nextFps)) {
-    refreshTimelineSettingsUi();
-    return;
-  }
-  if (hasFpsPatch) timelineFpsManuallySet = true;
-  // 先按旧时间基准把当前工程的双份时间值同步，再决定新 FPS 下是否保留帧号。
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: current.unit === 'frames' });
-  DATA.timebase = { unit: nextUnit, fps: nextFps };
-  // 变更 FPS 时保持媒体中的实际时间位置，再按新 FPS 重算独立帧字段；
-  // 否则同一个帧号会因 FPS 改变而把字幕整体提前或推后。
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-  projectImportDirty = true;
+function setTimelineTimebase() {
+  syncProjectTimebaseAndBindingOffsets(DATA);
   refreshTimelineSettingsUi();
-  renderAll({ waveform: 'full' });
-  scheduleAutoSaveFlush();
-  const description = nextUnit === 'frames'
-    ? timelineUiText(`已切换到帧时间基准（${nextFps} FPS）`, `Switched to frame timebase (${nextFps} FPS)`)
-    : timelineUiText('已切换到毫秒时间基准', 'Switched to millisecond timebase');
-  flashHint(description, 'success');
 }
 
 function refreshMediaSeekInputStep(value = timelineMediaSeekStepValue()) {
@@ -43026,7 +42826,7 @@ function applyCanonicalProject(data, filename) {
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(data.overlay_track);
-  window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+  // 源视频帧率仅供导出参考，编辑始终使用毫秒。
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   editorHistory.clear();
   updateUndoRedoButtons();
@@ -43849,13 +43649,13 @@ async function loadMediaFile(file) {
     const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
     if (measured) {
       DATA.media_metadata = { ...DATA.media_metadata, ...measured };
-      window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+      // 源视频帧率仅供导出参考，编辑始终使用毫秒。
       syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
       projectImportDirty = true;
     } else {
       DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
       syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-      flashHint('未读取到视频帧率，暂用毫秒；可在工程设置中指定帧率', 'warning');
+      // 未知帧率不影响毫秒编辑。
     }
   } else {
     DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
@@ -44469,6 +44269,18 @@ document.getElementById('text-process-close')?.addEventListener('click', closeTe
 textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
+function applySubtitleTextTransform(key, value) {
+  ctxmenu.classList.remove('show');
+  if (textProcessModal.classList.contains('show')) closeTextProcessModal();
+  openTextProcessModal();
+  if (key === 'removeSpaces') textProcessRemoveSpaces = true;
+  else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
+  else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
+  renderTextProcessPreview();
+  if (!textProcessConfirm.disabled) textProcessConfirm.click();
+  else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
+}
+
 textProcessConfirm?.addEventListener('click', () => {
   const options = getTextProcessOptions();
   const result = {
@@ -46516,19 +46328,8 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     ['数字转换', 'numbers', [['233→二三三', 'toChinese'], ['二三三→233', 'toArabic']]],
     ['英文大小写', 'englishCase', [['每个单词首字母大写', 'initial'], ['全大写', 'upper'], ['全小写', 'lower']]],
   ];
-  function applyTransform(key, value) {
-    ctxmenu.classList.remove('show');
-    if (textProcessModal.classList.contains('show')) closeTextProcessModal();
-    openTextProcessModal();
-    if (key === 'removeSpaces') textProcessRemoveSpaces = true;
-    else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
-    else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
-    renderTextProcessPreview();
-    if (!textProcessConfirm.disabled) textProcessConfirm.click();
-    else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
-  }
-  addItem('删除空格', '', () => applyTransform('removeSpaces', true));
-  addItem('删除标点符号', '', () => applyTransform('removePunctuation', true));
+  addItem('删除空格', editingShortcutLabel('removeSpaces'), () => applySubtitleTextTransform('removeSpaces', true));
+  addItem('删除标点符号', '', () => applySubtitleTextTransform('removePunctuation', true));
   transforms.forEach(([title, key, options], groupIndex) => {
     const group = document.createElement('div'); group.className = 'ctx-text-transform';
     const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'item ctx-submenu-trigger'; trigger.textContent = title;
@@ -46549,7 +46350,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }
     options.forEach(([label, value]) => {
       const button = document.createElement('button'); button.className = 'item'; button.type = 'button'; button.textContent = label; button.setAttribute('role','menuitem');
-      button.addEventListener('click', () => applyTransform(key, value)); submenu.appendChild(button);
+      button.addEventListener('click', () => applySubtitleTextTransform(key, value)); submenu.appendChild(button);
     });
     group.addEventListener('pointerenter', open);
     group.addEventListener('pointerleave', () => { closeTimer = setTimeout(close, 180); });
@@ -47594,7 +47395,7 @@ document.getElementById('fcpxml-export-cancel')?.addEventListener('click', () =>
 });
 document.getElementById('fcpxml-export-confirm')?.addEventListener('click', async () => {
   try {
-    const fps = document.getElementById('fcpxml-export-fps')?.value || '25';
+    const fps = document.getElementById('fcpxml-export-fps')?.value || '30';
     const resolution = document.getElementById('fcpxml-export-resolution')?.value || '1920x1080';
     const projectName = document.getElementById('fcpxml-export-project-name')?.value || PROJECT_NAME || 'MAW Subtitles';
     const xml = window.AsrEditorUtils.buildFcpxmlFromSegments(DATA.segments, { fps, resolution, projectName });

@@ -1418,89 +1418,28 @@ function hasValidFramePair(value) {
     && value.end_frame > value.start_frame;
 }
 
-function syncTimeRangeObjectTimebase(value, timebase, { preferFrames = false, frameBounds = null } = {}) {
+function syncTimeRangeObjectTimebase(value) {
   if (!value || typeof value !== 'object') return null;
-  const frameMode = timebase.unit === 'frames';
-  const hasFrames = hasValidFramePair(value);
-  const rawStartMs = Number(value.start);
-  const rawEndMs = Number(value.end);
-  let startFrame = hasFrames && preferFrames
-    ? value.start_frame : frameNumberFromMilliseconds(rawStartMs, timebase.fps);
-  let endFrame = hasFrames && preferFrames
-    ? value.end_frame : frameNumberFromMilliseconds(rawEndMs, timebase.fps);
-  if (!Number.isInteger(startFrame) || startFrame < 0) startFrame = 0;
-  if (!Number.isInteger(endFrame) || endFrame <= startFrame) endFrame = startFrame + 1;
-
-  if (frameMode) {
-    if (frameBounds && Number.isInteger(frameBounds.start) && Number.isInteger(frameBounds.end)) {
-      const lower = Math.max(0, frameBounds.start);
-      const upper = Math.max(lower + 1, frameBounds.end);
-      startFrame = Math.min(Math.max(startFrame, lower), upper - 1);
-      endFrame = Math.min(Math.max(endFrame, startFrame + 1), upper);
-      if (endFrame <= startFrame) {
-        startFrame = Math.max(lower, upper - 1);
-        endFrame = upper;
-      }
-    }
-    value.start_frame = startFrame;
-    value.end_frame = endFrame;
-    value.start = millisecondsFromFrameNumber(startFrame, timebase.fps);
-    value.end = millisecondsFromFrameNumber(endFrame, timebase.fps);
-  } else {
-    const startMs = Number.isFinite(rawStartMs)
-      ? Math.max(0, Math.round(rawStartMs)) : millisecondsFromFrameNumber(startFrame, timebase.fps);
-    const endMs = Number.isFinite(rawEndMs)
-      ? Math.max(startMs + 1, Math.round(rawEndMs)) : millisecondsFromFrameNumber(endFrame, timebase.fps);
-    value.start = startMs;
-    value.end = Math.max(startMs + 1, endMs);
-    value.start_frame = frameNumberFromMilliseconds(value.start, timebase.fps);
-    value.end_frame = Math.max(
-      value.start_frame + 1,
-      frameNumberFromMilliseconds(value.end, timebase.fps),
-    );
-  }
-  return { startFrame: value.start_frame, endFrame: value.end_frame };
+  // 毫秒是真源；旧工程的可选帧字段只保留，不用于重写时间。
+  const start = Number(value.start);
+  const end = Number(value.end);
+  if (Number.isFinite(start)) value.start = Math.max(0, Math.round(start));
+  if (Number.isFinite(end)) value.end = Math.max((value.start || 0) + 1, Math.round(end));
+  return null;
 }
 
-function syncSegmentTimebase(segment, timebase, { preferFrames = false, minimumStartFrame = 0 } = {}) {
+function syncSegmentTimebase(segment) {
   if (!segment || typeof segment !== 'object') return;
-  const range = syncTimeRangeObjectTimebase(segment, timebase, { preferFrames });
-  if (timebase.unit === 'frames') {
-    const startFrame = Math.max(minimumStartFrame, segment.start_frame);
-    const endFrame = Math.max(startFrame + 1, segment.end_frame);
-    segment.start_frame = startFrame;
-    segment.end_frame = endFrame;
-    segment.start = millisecondsFromFrameNumber(startFrame, timebase.fps);
-    segment.end = millisecondsFromFrameNumber(endFrame, timebase.fps);
-  }
-  if (!Array.isArray(segment.items)) return range;
-  const frameBounds = timebase.unit === 'frames'
-    ? { start: segment.start_frame, end: segment.end_frame } : null;
-  segment.items.forEach((item) => {
-    syncTimeRangeObjectTimebase(item, timebase, { preferFrames, frameBounds });
-  });
-  if (timebase.unit === 'frames') {
-    window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);
-  }
-  return range;
+  syncTimeRangeObjectTimebase(segment);
+  (segment.items || []).forEach(item => syncTimeRangeObjectTimebase(item));
 }
 
-function syncTrackTimebase(segments, timebase, { preferFrames = false } = {}) {
-  if (!Array.isArray(segments)) return;
-  let previousEndFrame = 0;
-  segments.forEach((segment) => {
-    syncSegmentTimebase(segment, timebase, {
-      preferFrames,
-      minimumStartFrame: timebase.unit === 'frames' ? previousEndFrame : 0,
-    });
-    if (timebase.unit === 'frames' && Number.isInteger(segment?.end_frame)) {
-      previousEndFrame = segment.end_frame;
-    }
-  });
+function syncTrackTimebase(segments) {
+  if (Array.isArray(segments)) segments.forEach(segment => syncSegmentTimebase(segment));
 }
 
 function projectTimebase(project = DATA) {
-  return normalizeTimelineTimebase(project?.timebase);
+  return { ...normalizeTimelineTimebase(project?.timebase), unit: 'milliseconds' };
 }
 
 function hasExplicitTimelineFps(value) {
@@ -1584,59 +1523,17 @@ function timelineMinimumDurationValue() {
 }
 
 function timelineTimingAdapter() {
-  const timebase = projectTimebase();
-  const frameMode = timebase.unit === 'frames';
-  const minimumDuration = timelineMinimumDurationValue();
-  const snapThreshold = frameMode
-    ? Math.max(1, Math.round(80 * timebase.fps / 1000)) : 80;
-  if (!frameMode) {
-    return {
-      unit: 'milliseconds',
-      fps: timebase.fps,
-      minDuration: minimumDuration,
-      snapThreshold,
-      round: roundTimelineMilliseconds,
-      getStart: (segment) => Number(segment?.start),
-      getEnd: (segment) => Number(segment?.end),
-      setStart: (segment, value) => { segment.start = roundTimelineMilliseconds(value); },
-      setEnd: (segment, value) => { segment.end = roundTimelineMilliseconds(value); },
-      getItemStart: (item) => Number(item?.start),
-      getItemEnd: (item) => Number(item?.end),
-      setItemStart: (item, value) => { item.start = roundTimelineMilliseconds(value); },
-      setItemEnd: (item, value) => { item.end = roundTimelineMilliseconds(value); },
-      fromMs: (value) => Number(value),
-      toMs: (value) => Number(value),
-      format: formatTimelineMilliseconds,
-    };
-  }
-  const readFrame = (value, frameField, msField) => Number.isInteger(value?.[frameField])
-    ? value[frameField] : frameNumberFromMilliseconds(value?.[msField], timebase.fps);
-  const writeFrame = (value, frameField, msField, frame) => {
-    const next = Math.max(0, Math.round(Number(frame)));
-    value[frameField] = next;
-    value[msField] = millisecondsFromFrameNumber(next, timebase.fps);
-  };
   return {
-    unit: 'frames',
-    fps: timebase.fps,
-    minDuration: minimumDuration,
-    snapThreshold,
-    round: (value) => Math.round(Number(value)),
-    getStart: (segment) => readFrame(segment, 'start_frame', 'start'),
-    getEnd: (segment) => readFrame(segment, 'end_frame', 'end'),
-    setStart: (segment, value) => writeFrame(segment, 'start_frame', 'start', value),
-    setEnd: (segment, value) => writeFrame(segment, 'end_frame', 'end', value),
-    getItemStart: (item) => readFrame(item, 'start_frame', 'start'),
-    getItemEnd: (item) => readFrame(item, 'end_frame', 'end'),
-    setItemStart: (item, value) => writeFrame(item, 'start_frame', 'start', value),
-    setItemEnd: (item, value) => writeFrame(item, 'end_frame', 'end', value),
-    fromMs: (value) => frameNumberFromMilliseconds(value, timebase.fps),
-    toMs: (value) => millisecondsFromFrameNumber(value, timebase.fps),
-    format: (value) => formatFrameTimecode(
-      value,
-      timebase.fps,
-      EDITOR_SETTINGS.timelineTimecodeSeparator,
-    ),
+    unit: 'milliseconds', fps: projectTimebase().fps,
+    minDuration: SUBTITLE_MIN_DURATION_MS, snapThreshold: 80,
+    round: roundTimelineMilliseconds,
+    getStart: segment => Number(segment?.start), getEnd: segment => Number(segment?.end),
+    setStart: (segment, value) => { segment.start = roundTimelineMilliseconds(value); },
+    setEnd: (segment, value) => { segment.end = roundTimelineMilliseconds(value); },
+    getItemStart: item => Number(item?.start), getItemEnd: item => Number(item?.end),
+    setItemStart: (item, value) => { item.start = roundTimelineMilliseconds(value); },
+    setItemEnd: (item, value) => { item.end = roundTimelineMilliseconds(value); },
+    fromMs: value => Number(value), toMs: value => Number(value), format: formatTimelineMilliseconds,
   };
 }
 
@@ -1647,7 +1544,7 @@ function formatTimelineMilliseconds(ms) {
   return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(3).padStart(6, '0')}`;
 }
 
-window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+// 源视频帧率仅供导出参考，编辑始终使用毫秒。
 syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
 
 // 标记颜色：5 种基础色，用于给字幕分组着色。
@@ -2990,6 +2887,7 @@ document.addEventListener('keydown', event => {
   else if (action === 'split') handleEditingSplitShortcut(event);
   else if (action === 'merge') handleEditingMergeShortcut(event);
   else if (action === 'create') handleEditingCreateShortcut(event);
+  else if (action === 'removeSpaces') applySubtitleTextTransform('removeSpaces', true);
 }, true);
 document.getElementById('editing-shortcuts-reset')?.addEventListener('click', () => {
   cancelEditingShortcutCapture();
@@ -5046,29 +4944,6 @@ function timelineMediaSeekStepMilliseconds() {
   return timelineValueToMilliseconds(timelineMediaSeekStepValue());
 }
 
-function timelineHasSubtitleData() {
-  return (Array.isArray(DATA?.segments) && DATA.segments.length > 0)
-    || (Array.isArray(DATA?.multi_subtitle?.tracks)
-      && DATA.multi_subtitle.tracks.some((track) => Array.isArray(track?.segments)
-        && track.segments.length > 0));
-}
-
-function confirmTimelineFrameRemap(current, nextUnit, nextFps) {
-  const enteringFrames = current.unit !== 'frames' && nextUnit === 'frames';
-  const changingFrameRate = current.unit === 'frames' && current.fps !== nextFps;
-  if ((!enteringFrames && !changingFrameRate) || !timelineHasSubtitleData()) return true;
-  const message = enteringFrames
-    ? timelineUiText(
-      `切换到帧时间基准（${nextFps} FPS）会批量将当前工程的所有字幕段、字词和副字幕时间映射到最近帧，并重写毫秒兼容值。原始的非帧对齐毫秒值无法在切回毫秒时恢复。是否继续？`,
-      `Switching to the frame timebase (${nextFps} FPS) will remap all subtitle segments, word timings, and secondary subtitle timings to frame boundaries and rewrite the compatible millisecond values. Original non-frame-aligned millisecond values cannot be restored when switching back. Continue?`,
-    )
-    : timelineUiText(
-      `将 FPS 从 ${current.fps} 改为 ${nextFps} 会批量重新映射当前工程的所有字幕段、字词和副字幕时间，并重写毫秒兼容值。原始的非帧对齐毫秒值无法恢复。是否继续？`,
-      `Changing FPS from ${current.fps} to ${nextFps} will remap all subtitle segments, word timings, and secondary subtitle timings and rewrite the compatible millisecond values. Original non-frame-aligned millisecond values cannot be restored. Continue?`,
-    );
-  return window.confirm(message);
-}
-
 function refreshTimelineSettingsUi() {
   const timebase = projectTimebase();
   const frameMode = timebase.unit === 'frames';
@@ -5167,42 +5042,9 @@ function refreshTimelineSettingsUi() {
   refreshMediaSeekControlLabels();
 }
 
-function setTimelineTimebase(patch = {}) {
-  const current = projectTimebase();
-  const nextUnit = patch.unit === 'frames' || patch.unit === 'milliseconds'
-    ? patch.unit : current.unit;
-  const hasFpsPatch = Object.prototype.hasOwnProperty.call(patch, 'fps');
-  const mediaDefaultFps = !timelineFpsManuallySet
-    && !hasFpsPatch
-    && current.unit !== 'frames'
-    && nextUnit === 'frames'
-    ? projectMediaVideoFps()
-    : null;
-  const nextFps = mediaDefaultFps ?? normalizeTimelineFps(patch.fps, current.fps);
-  if (current.unit === nextUnit && current.fps === nextFps) {
-    if (hasFpsPatch) timelineFpsManuallySet = true;
-    refreshTimelineSettingsUi();
-    return;
-  }
-  if (!confirmTimelineFrameRemap(current, nextUnit, nextFps)) {
-    refreshTimelineSettingsUi();
-    return;
-  }
-  if (hasFpsPatch) timelineFpsManuallySet = true;
-  // 先按旧时间基准把当前工程的双份时间值同步，再决定新 FPS 下是否保留帧号。
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: current.unit === 'frames' });
-  DATA.timebase = { unit: nextUnit, fps: nextFps };
-  // 变更 FPS 时保持媒体中的实际时间位置，再按新 FPS 重算独立帧字段；
-  // 否则同一个帧号会因 FPS 改变而把字幕整体提前或推后。
-  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-  projectImportDirty = true;
+function setTimelineTimebase() {
+  syncProjectTimebaseAndBindingOffsets(DATA);
   refreshTimelineSettingsUi();
-  renderAll({ waveform: 'full' });
-  scheduleAutoSaveFlush();
-  const description = nextUnit === 'frames'
-    ? timelineUiText(`已切换到帧时间基准（${nextFps} FPS）`, `Switched to frame timebase (${nextFps} FPS)`)
-    : timelineUiText('已切换到毫秒时间基准', 'Switched to millisecond timebase');
-  flashHint(description, 'success');
 }
 
 function refreshMediaSeekInputStep(value = timelineMediaSeekStepValue()) {
@@ -19015,7 +18857,7 @@ function applyCanonicalProject(data, filename) {
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(data.overlay_track);
-  window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+  // 源视频帧率仅供导出参考，编辑始终使用毫秒。
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
   editorHistory.clear();
   updateUndoRedoButtons();
@@ -19838,13 +19680,13 @@ async function loadMediaFile(file) {
     const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
     if (measured) {
       DATA.media_metadata = { ...DATA.media_metadata, ...measured };
-      window.AsrEditorUtils.adoptSourceVideoTimebase(DATA);
+      // 源视频帧率仅供导出参考，编辑始终使用毫秒。
       syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
       projectImportDirty = true;
     } else {
       DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
       syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-      flashHint('未读取到视频帧率，暂用毫秒；可在工程设置中指定帧率', 'warning');
+      // 未知帧率不影响毫秒编辑。
     }
   } else {
     DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
@@ -20458,6 +20300,18 @@ document.getElementById('text-process-close')?.addEventListener('click', closeTe
 textProcessModal?.addEventListener('click', (event) => {
   if (event.target === textProcessModal) closeTextProcessModal();
 });
+function applySubtitleTextTransform(key, value) {
+  ctxmenu.classList.remove('show');
+  if (textProcessModal.classList.contains('show')) closeTextProcessModal();
+  openTextProcessModal();
+  if (key === 'removeSpaces') textProcessRemoveSpaces = true;
+  else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
+  else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
+  renderTextProcessPreview();
+  if (!textProcessConfirm.disabled) textProcessConfirm.click();
+  else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
+}
+
 textProcessConfirm?.addEventListener('click', () => {
   const options = getTextProcessOptions();
   const result = {
@@ -22505,19 +22359,8 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     ['数字转换', 'numbers', [['233→二三三', 'toChinese'], ['二三三→233', 'toArabic']]],
     ['英文大小写', 'englishCase', [['每个单词首字母大写', 'initial'], ['全大写', 'upper'], ['全小写', 'lower']]],
   ];
-  function applyTransform(key, value) {
-    ctxmenu.classList.remove('show');
-    if (textProcessModal.classList.contains('show')) closeTextProcessModal();
-    openTextProcessModal();
-    if (key === 'removeSpaces') textProcessRemoveSpaces = true;
-    else if (key === 'removePunctuation') textProcessRemovePunctuation = true;
-    else (key === 'numbers' ? textProcessNumbers : textProcessEnglishCase).value = value;
-    renderTextProcessPreview();
-    if (!textProcessConfirm.disabled) textProcessConfirm.click();
-    else { closeTextProcessModal(); flashHint('选中的字幕无需修改'); }
-  }
-  addItem('删除空格', '', () => applyTransform('removeSpaces', true));
-  addItem('删除标点符号', '', () => applyTransform('removePunctuation', true));
+  addItem('删除空格', editingShortcutLabel('removeSpaces'), () => applySubtitleTextTransform('removeSpaces', true));
+  addItem('删除标点符号', '', () => applySubtitleTextTransform('removePunctuation', true));
   transforms.forEach(([title, key, options], groupIndex) => {
     const group = document.createElement('div'); group.className = 'ctx-text-transform';
     const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'item ctx-submenu-trigger'; trigger.textContent = title;
@@ -22538,7 +22381,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     }
     options.forEach(([label, value]) => {
       const button = document.createElement('button'); button.className = 'item'; button.type = 'button'; button.textContent = label; button.setAttribute('role','menuitem');
-      button.addEventListener('click', () => applyTransform(key, value)); submenu.appendChild(button);
+      button.addEventListener('click', () => applySubtitleTextTransform(key, value)); submenu.appendChild(button);
     });
     group.addEventListener('pointerenter', open);
     group.addEventListener('pointerleave', () => { closeTimer = setTimeout(close, 180); });
@@ -23583,7 +23426,7 @@ document.getElementById('fcpxml-export-cancel')?.addEventListener('click', () =>
 });
 document.getElementById('fcpxml-export-confirm')?.addEventListener('click', async () => {
   try {
-    const fps = document.getElementById('fcpxml-export-fps')?.value || '25';
+    const fps = document.getElementById('fcpxml-export-fps')?.value || '30';
     const resolution = document.getElementById('fcpxml-export-resolution')?.value || '1920x1080';
     const projectName = document.getElementById('fcpxml-export-project-name')?.value || PROJECT_NAME || 'MAW Subtitles';
     const xml = window.AsrEditorUtils.buildFcpxmlFromSegments(DATA.segments, { fps, resolution, projectName });

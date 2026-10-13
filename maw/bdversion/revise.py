@@ -382,8 +382,8 @@ def revise_project(
 def resegment_project(
     project_path: Path | str,
     *,
-    max_len: int = 20,
-    min_len: int = 5,
+    max_len: int = 30,
+    min_len: int = 0,
     gap_split_ms: int = 750,
 ) -> dict[str, Any]:
     """Conservative sentence split applied in-place; writes only one project + one SRT.

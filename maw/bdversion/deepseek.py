@@ -14,6 +14,7 @@ from typing import Any, Final
 from maw.bdversion.alignment import AlignmentResult
 from maw.bdversion.project_meta import PROOFREAD_STATUSES, attach_alignment_to_segments
 from maw.bdversion.status import should_call_llm
+from maw.bdversion.text_format import preserve_subtitle_spacing
 from maw.postprocess_llm import LlmClientError, LlmDelta, LlmSettings, _read_stream_response, preset_by_id
 from maw.project_preview import JsonDict
 
@@ -34,7 +35,7 @@ SYSTEM_PROMPT: Final = (
     "6. 不允许补入 ASR 中不存在的文稿内容。\n"
     "7. 不要输出或修改任何时间；不要改变字幕顺序。\n"
     "8. 校对文字中的明确数字默认使用阿拉伯数字（如‘二十五个’写作‘25个’）；只改变数字写法，绝不增删数字或改变语义。成语、人名、地名、专有名词中的汉字数字及含义不确定的数字保持原样。\n"
-    "9. 保持原字幕空格排版，不额外在中文词句之间插入空格；每条字幕仅一行，不输出换行或 <br>。\n"
+    "9. 保持原字幕空格排版，不额外在中文词句之间或中文与英文、数字之间插入空格；英文单词之间必要的空格保留；每条字幕仅一行，不输出换行或 <br>。\n"
     "只返回一个严格有效的 JSON 对象，不要 Markdown 代码块或解释。\n"
     '返回格式：{"results":[{"id":"c0001","corrected_text":"...","status":"verified|improvised|uncertain",'
     '"changed":true|false,"reason":"..."}]}\n'
@@ -293,7 +294,8 @@ def run_conservative_proofread(
                     )
                 )
                 continue
-            changed = result.corrected_text != cue.primary_asr
+            corrected = preserve_subtitle_spacing(cue.primary_asr, result.corrected_text)
+            changed = corrected != cue.primary_asr
             status = result.status
             if not changed:
                 # LLM confirmed ASR; high-enough alignment → verified
@@ -304,7 +306,7 @@ def run_conservative_proofread(
             results.append(
                 ProofreadResult(
                     cue_id=cue.cue_id,
-                    corrected_text=result.corrected_text,
+                    corrected_text=corrected,
                     status=status if status in PROOFREAD_STATUSES else "uncertain",
                     changed=changed,
                     reason=result.reason,

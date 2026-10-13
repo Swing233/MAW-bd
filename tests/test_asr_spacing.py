@@ -17,7 +17,7 @@ class AsrSpacingTests(unittest.TestCase):
                     'items': [{'text': '你好， ', 'start': 12, 'end': 500}, {'text': ' 世界', 'start': 500, 'end': 1000}]}]}
         before = deepcopy(project)
         normalize_asr_spacing(project)
-        self.assertEqual(project['segments'][0]['text'], '你好 世界 hello world 1,000元')
+        self.assertEqual(project['segments'][0]['text'], '你好 世界hello world 1,000元')
         self.assertEqual(''.join(i['text'] for i in project['segments'][0]['items']), '你好 世界')
         for original, actual in zip(before['segments'], project['segments']):
             self.assertEqual({k: v for k, v in original.items() if k not in ('text', 'items')},
@@ -41,3 +41,16 @@ class AsrSpacingTests(unittest.TestCase):
         project = {'segments': [{'text': '1,000元', 'items': [{'text': text, 'start': i, 'end': i + 1} for i, text in enumerate(['1', ',', '000元'])]}]}
         normalize_asr_spacing(project)
         self.assertEqual(''.join(i['text'] for i in project['segments'][0]['items']), '1,000元')
+
+    def test_cjk_latin_boundaries_are_compact_across_word_items(self):
+        project = {'segments': [{'text': '使用 Qwen ASR 模型和 GPT 5 技术', 'start': 17, 'end': 4000,
+                   'items': [{'text': text, 'start': i*100+17, 'end': i*100+117}
+                             for i,text in enumerate(['使用', ' Qwen', ' ASR ', '模型和 ', 'GPT ', '5 ', '技术'])]}]}
+        original = deepcopy(project)
+        normalize_asr_spacing(project)
+        segment = project['segments'][0]
+        self.assertEqual(segment['text'], '使用Qwen ASR模型和GPT 5技术')
+        self.assertEqual(''.join(item['text'] for item in segment['items']), segment['text'])
+        self.assertEqual([(item['start'],item['end']) for item in segment['items']],
+                         [(item['start'],item['end']) for item in original['segments'][0]['items']])
+        self.assertEqual((segment['start'],segment['end']), (17,4000))

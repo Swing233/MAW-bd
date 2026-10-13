@@ -48,6 +48,7 @@ _runtime_maw_files = [
     "app_paths.py",
     "colors.py",
     "console.py",
+    "chinese_segmentation.py",
     "ffmpeg.py",
     "gui_config.py",
     "language.py",
@@ -246,8 +247,8 @@ if sys.platform == 'darwin':
         info_plist={
             "CFBundleDisplayName": "MAW-bd",
             "CFBundleName": "MAW-bd",
-            "CFBundleShortVersionString": "1.8.1",
-            "CFBundleVersion": "1.8.1",
+            "CFBundleShortVersionString": "1.8.2",
+            "CFBundleVersion": "1.8.2",
             "NSHighResolutionCapable": True,
         },
     )

@@ -5,6 +5,17 @@ import re
 from difflib import SequenceMatcher
 
 
+_MIXED_BOUNDARY_SPACES = re.compile(
+    r"(?<=[\u3400-\u9fff\uf900-\ufaff])[ \t\u3000]+(?=[A-Za-z0-9])"
+    r"|(?<=[A-Za-z0-9])[ \t\u3000]+(?=[\u3400-\u9fff\uf900-\ufaff])"
+)
+
+
+def remove_mixed_boundary_spaces(text: str) -> str:
+    """Remove ASR padding at CJK/Latin boundaries, retaining English word spaces."""
+    return _MIXED_BOUNDARY_SPACES.sub("", text)
+
+
 def preserve_subtitle_spacing(original: str, corrected: str) -> str:
     """Restore original spaces; retain necessary Latin word separators only.
 
@@ -63,7 +74,7 @@ def normalize_asr_spacing(project: dict) -> int:
             continue
         before = segment.get("text")
         if isinstance(before, str):
-            after = clean(before).strip()
+            after = remove_mixed_boundary_spaces(clean(before).strip())
             if after != before:
                 segment["text"] = after
                 changed += 1
@@ -86,4 +97,16 @@ def normalize_asr_spacing(project: dict) -> int:
             items[0]["text"] = items[0]["text"].lstrip()
         if items and isinstance(items[-1], dict) and isinstance(items[-1].get("text"), str):
             items[-1]["text"] = items[-1]["text"].rstrip()
+        # Work across item boundaries without creating, dropping or retiming items.
+        joined = "".join(item["text"] for item in items
+                         if isinstance(item, dict) and isinstance(item.get("text"), str))
+        removed = {index for match in _MIXED_BOUNDARY_SPACES.finditer(joined)
+                   for index in range(match.start(), match.end())}
+        position = 0
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                continue
+            text = item["text"]
+            item["text"] = "".join(char for i, char in enumerate(text) if position + i not in removed)
+            position += len(text)
     return changed

@@ -5758,11 +5758,11 @@ test('space removal removes horizontal Unicode spaces without adding or rewritin
  assert.equal(helpers.applyTextProcessing('价格￥20+3=23',{removePunctuation:true}), '价格￥20+3=23');
  });
 
- test('source FPS selects frames without guessing unknown media rates', () => {
+ test('source FPS remains export metadata and never selects a frame editing clock', () => {
  for(const fps of [24000/1001,24,25,30000/1001,30,50,60000/1001,60]) {
   const project={timebase:{unit:'milliseconds',fps:30},media_metadata:{video_fps:fps}};
-  assert.equal(helpers.adoptSourceVideoTimebase(project),true);
-  assert.equal(project.timebase.unit,'frames');assert.equal(project.timebase.fps,fps);
+  assert.equal(helpers.adoptSourceVideoTimebase(project),false);
+  assert.equal(project.timebase.unit,'milliseconds');assert.equal(project.timebase.fps,30);
   let ms=10000;for(let i=0;i<100;i++)ms=helpers.millisecondsFromFrameNumber(helpers.frameNumberFromMilliseconds(ms,fps)+1,fps);
   assert.equal(helpers.frameNumberFromMilliseconds(ms,fps),helpers.frameNumberFromMilliseconds(10000,fps)+100);
  }

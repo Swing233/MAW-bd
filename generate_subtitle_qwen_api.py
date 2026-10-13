@@ -16,6 +16,7 @@
 """
 
 import argparse
+from bisect import bisect_left
 import json
 import os
 import re as _re
@@ -47,6 +48,7 @@ from maw.language import (
     timestamp_granularity_for_items,
 )
 from maw.project_io import write_mosp
+from maw.chinese_segmentation import analyze_clauses, split_clauses
 
 from maw.media_cache import embed_media_caches, merge_media_caches
 from maw.media import resolve_default_audio_track
@@ -503,12 +505,12 @@ def _split_long_group(items: list[dict], max_len: int, weak_punct: set) -> list[
 
 # 中文字幕的正常阅读长度与绝对安全上限是两个不同概念。正常切分会
 # 尽量落在 10-16 字；只有找不到可靠词边界时才允许接近 25 字。
-CJK_PREFERRED_MIN_LEN = 10
+CJK_PREFERRED_MIN_LEN = 0
 CJK_PREFERRED_MAX_LEN = 16
 QWEN_AUDIO_NATURAL_TARGET_LEN = 14
-QWEN_AUDIO_NATURAL_MAX_LEN = 20
-QWEN_AUDIO_HARD_MAX_LEN = 25
-QWEN_AUDIO_NATURAL_MIN_LEN = 5
+QWEN_AUDIO_NATURAL_MAX_LEN = 30
+QWEN_AUDIO_HARD_MAX_LEN = 30
+QWEN_AUDIO_NATURAL_MIN_LEN = 0
 QWEN_AUDIO_SOFT_GAP_MS = 450
 QWEN_AUDIO_STRONG_GAP_MS = 750
 
@@ -526,7 +528,7 @@ def _split_cjk_group_naturally(
     """用动态规划、词性、标点和真实停顿切分长中文片段。
 
     该函数是云端 Qwen、本地 ASR 与手动重新断句共用的核心。它只在真实
-    item 边界或 jieba 完整词边界上选点；普通上限影响评分，25 字只作为
+    item 边界或 jieba 完整词边界上选点；普通上限影响评分，30 字只作为
     找不到更自然边界时的硬兜底。
     """
     text_total = "".join(item.get("text", "") for item in items)
@@ -548,6 +550,8 @@ def _split_cjk_group_naturally(
         end = position + len(value)
         tokens.append((position, end, value, str(flag)))
         position = end
+
+    _clause_cuts, semantic_scores = analyze_clauses(text_total, tokens)
 
     item_ends: list[int] = []
     position = 0
@@ -668,14 +672,16 @@ def _split_cjk_group_naturally(
                 score += 12.0
             elif gap >= soft_gap_ms:
                 score += 6.0
-        return score
+        return score + semantic_scores.get(boundary, 0.0)
 
+    start_positions = [0, *item_ends]
     paths: list[tuple[float, list[int]] | None] = [None] * (len(items) + 1)
     paths[0] = (0.0, [])
     for end_index in range(1, len(items) + 1):
         end_position = item_ends[end_index - 1]
         best: tuple[float, list[int]] | None = None
-        for start_index in range(end_index):
+        first_start = bisect_left(start_positions, end_position - max_len)
+        for start_index in range(first_start, end_index):
             previous = paths[start_index]
             if previous is None:
                 continue
@@ -722,7 +728,7 @@ def _split_cjk_group_naturally(
     return groups
 
 
-def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
+def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 0,
                              gap_split_ms: int = 1000,
                              natural_target_len: int | None = None,
                              natural_max_len: int | None = None) -> list[dict]:
@@ -785,14 +791,15 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
             if len(last_text) < min_len and not last_complete and len(previous_text) + len(last_text) <= max_len:
                 merged[-2].extend(merged.pop())
 
-        for grp in merged:
+        clause_groups = [clause for group in merged for clause in split_clauses(group)]
+        for grp in clause_groups:
             if natural_target_len is None:
                 final.extend(_split_long_group(grp, max_len, WEAK_PUNCT))
             else:
                 final.extend(_split_cjk_group_naturally(
                     grp,
                     target_len=natural_target_len,
-                    max_len=QWEN_AUDIO_HARD_MAX_LEN,
+                    max_len=min(QWEN_AUDIO_HARD_MAX_LEN, max_len),
                     normal_max_len=natural_max_len or max_len,
                     min_len=min_len,
                 ))
@@ -953,11 +960,11 @@ def split_segments_auto(items: list[dict], *, max_len: int, min_len: int,
                 0,
                 natural_target_len=(
                     min(QWEN_AUDIO_NATURAL_TARGET_LEN, max_len)
-                    if natural_cjk else None
+                    if use_cjk else None
                 ),
                 natural_max_len=(
                     min(QWEN_AUDIO_NATURAL_MAX_LEN, max_len)
-                    if natural_cjk else None
+                    if use_cjk else None
                 ),
             ))
         else:
@@ -2248,12 +2255,12 @@ def main():
     parser.add_argument("input", help="输入视频或音频文件路径")
     parser.add_argument("-o", "--output", help="输出 SRT 路径（默认与输入同目录）")
     parser.add_argument(
-        "-l", "--max-len", type=int, default=20,
-        help="中文普通字幕上限（默认 20；自然边界目标约 14 字，25 字仅为绝对兜底）",
+        "-l", "--max-len", type=int, default=30,
+        help="每条中文字幕最多 30 字，优先保留自然边界",
     )
     parser.add_argument(
-        "--min-len", type=int, default=5,
-        help="句号间最短字数，不足则合并（默认 5；仅 CJK 内容生效）",
+        "--min-len", type=int, default=0,
+        help="中文短句合并阈值（默认 0，不设字数下限）",
     )
     parser.add_argument(
         "--max-words", type=int, default=WESTERN_MAX_WORDS,
@@ -2375,7 +2382,7 @@ def main():
         parser.error("--default-audio-track 必须是非负整数")
     if args.with_spectral and not args.with_waveform:
         parser.error("--with-spectral 需要同时指定 --with-waveform")
-    if args.max_len < 1 or args.min_len < 1 or args.max_words < 1 or args.min_words < 1 or args.gap_split < 0:
+    if args.max_len < 1 or args.min_len < 0 or args.max_words < 1 or args.min_words < 1 or args.gap_split < 0:
         parser.error("字幕切分参数无效")
     if args.max_len < args.min_len or args.max_words < args.min_words:
         parser.error("最大值不能小于对应的短句合并阈值")

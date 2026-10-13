@@ -1,0 +1,28 @@
+{
+  "tag": "v1.8.0",
+  "commit": "81f4ab9c76d0b5e9a83cc3c620e124f598d53df6",
+  "functions": {
+    "generate_subtitle_qwen_api.py": {
+      "split_by_silence": "482ea5bebac1995b33db597dab961736773ba0ad44b83db3312befd22b944d35",
+      "_split_long_group": "c4c8f1c7a1dcc600dc22abf6300ce7602ab9b0037302a82da53a451ffcfed324",
+      "_split_cjk_group_naturally": "25fb42ab860081765a272db91a5f39dc8ee106a4a4d8490e807db9a9392d91c6",
+      "split_words_to_segments": "49fc49802bdb90db43f454f940749da59e36802c34eb167f448f32ba1dca06ba",
+      "split_segments_auto": "8d7bccc95ab26fec1b6abfd42005a6e1cabb7df61a2dc717b0d93bb05cbfe4ba",
+      "split_coarse_segment": "022b0c12b6c5fd66b2efd5cb72af8596fdeb45e922264dc2f0813ec3f00d58f7",
+      "build_segments_preserving_speakers": "00e95ce044d0df835fa0619e2f493bcffa836a6b2d1b604c753c383bbee8acb1",
+      "build_segments_from_api_sentences": "6124b49eebbd701681e2bbe181f5af1606f78fe7985edd898366e09de253b6a0"
+    },
+    "generate_subtitle_local.py": {
+      "build_parser": "2c9e791f867efa82e0f91b985544dad08500dbb41ddfd8b8f8b344a0369ed23f"
+    },
+    "maw/local_asr.py": {
+      "_resplit_engine_segment": "e59dfb825eb4fd9071e36f04d3ae9a016edaf6522618f960eca695a3098c6ad1",
+      "build_local_segments": "6ebad8b8635833aba91b8f9ff9bb0844390fd235eb1028461b1abdc797d85692"
+    },
+    "maw/bdversion/segment.py": {
+      "split_items_sentence_aware": "165c204fbbad5e5025a6fdbaf38b1a38011a73343e902a06cfd4e6c4638cd8d1",
+      "split_coarse_segments_sentence_aware": "5c6f03ada6383ca407c786b55cf109b5acc0f5b05c6f59295534ae215044fb56",
+      "resegment_segments": "3007777e1b356bb106aa860db32ec096e29283c998fa8700722f24347d9591eb"
+    }
+  }
+}

@@ -68,9 +68,15 @@
           </label>
           <label id="local-engine-wrap">本地引擎
             <select id="local-engine">
-              <option value="qwen-asr">Qwen3-ASR 1.7B（默认）</option>
+              <option value="qwen-asr">Qwen3-ASR</option>
               <option value="funasr">FunASR paraformer-zh</option>
               <option value="whisper">faster-whisper</option>
+            </select>
+          </label>
+          <label id="local-model-wrap">Qwen 模型
+            <select id="local-model">
+              <option value="Qwen/Qwen3-ASR-1.7B">1.7B（默认）</option>
+              <option value="Qwen/Qwen3-ASR-0.6B">0.6B（轻量）</option>
             </select>
           </label>
           <button type="button" id="btn-model-download">下载 / 检查本地模型</button>

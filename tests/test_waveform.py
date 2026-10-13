@@ -435,14 +435,16 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="editor-settings-drag-handle"', page)
         self.assertIn('id="editor-settings-close"', page)
         # 精简版导航只保留当前可用设置；隐藏兼容页仍留在 DOM 供旧工程读取。
-        for settings_section in ('interface', 'general', 'subtitle-preview', 'subtitle-style', 'subtitle-color', 'timebase', 'split-merge', 'export', 'save'):
+        self.assertNotIn('id="timeline-timebase"', page)
+        self.assertNotIn('id="editor-settings-tab-timebase"', page)
+        for settings_section in ('interface', 'general', 'subtitle-preview', 'subtitle-style', 'subtitle-color', 'split-merge', 'export', 'save'):
             self.assertIn(f'id="editor-settings-tab-{settings_section}"', page)
             self.assertIn(f'id="editor-settings-page-{settings_section}"', page)
         self.assertNotIn('id="editor-settings-tab-sticker"', page)
         self.assertNotIn('id="editor-settings-tab-easter-eggs"', page)
-        # 全局设置 9 个导航标签；帮助面板垂直标签页复用同款导航类，另有 7 个
-        self.assertEqual(page.count('class="editor-settings-nav-tab"'), 16)
-        self.assertEqual(page.count('class="editor-settings-page"'), 11)
+        # 全局设置 8 个导航标签；帮助面板垂直标签页复用同款导航类，另有 7 个
+        self.assertEqual(page.count('class="editor-settings-nav-tab"'), 15)
+        self.assertEqual(page.count('class="editor-settings-page"'), 10)
         self.assertEqual(page.count('class="editor-settings-nav-group-label"'), 4)
         for group_label in ('基础', '媒体', '编辑', '工程与输出'):
             self.assertIn(f'class="editor-settings-nav-group-label" aria-hidden="true">{group_label}</div>', page)
@@ -527,7 +529,7 @@ class EditorAssetTests(unittest.TestCase):
             + page.count('class="editor-settings-group subtitle-preview-style-group"')
             + page.count('class="editor-settings-group subtitle-color-settings-group"')
             + page.count('class="editor-settings-group subtitle-speaker-settings-group"'),
-            20,
+            19,
         )
         self.assertIn('id="editing-shortcuts-settings"', page)
         self.assertEqual(page.count('class="editor-settings-group split-language-type-group"'), 1)
@@ -610,12 +612,12 @@ class EditorAssetTests(unittest.TestCase):
         subtitle_style_page_start = page.index('id="editor-settings-page-subtitle-style"')
         subtitle_color_page_start = page.index('id="editor-settings-page-subtitle-color"')
         subtitle_speaker_title_start = page.index('id="subtitle-speaker-settings-title"')
-        timebase_page_start = page.index('id="editor-settings-page-timebase"')
+        split_merge_page_start = page.index('id="editor-settings-page-split-merge"')
         general_page = page[general_page_start:subtitle_preview_page_start]
         video_preview_page = page[subtitle_preview_page_start:subtitle_style_page_start]
         subtitle_style_page = page[subtitle_style_page_start:subtitle_color_page_start]
         subtitle_color_page = page[subtitle_color_page_start:subtitle_speaker_title_start]
-        subtitle_speaker_page = page[subtitle_speaker_title_start:timebase_page_start]
+        subtitle_speaker_page = page[subtitle_speaker_title_start:split_merge_page_start]
         # 「播放控制」组已从「通用操作」移入「视频预览」
         self.assertNotIn('id="jkl-playback-mode"', general_page)
         self.assertNotIn('id="media-seek-step"', general_page)
@@ -700,18 +702,18 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('mediaSeekStepForValue', page)
         self.assertIn('nextMediaSeekStepValue', page)
         self.assertIn('seekMediaBy(-timelineMediaSeekStepMilliseconds() / 1000)', page)
-        self.assertIn('id="timeline-timebase"', page)
-        self.assertIn('id="timeline-fps"', page)
-        self.assertIn('id="timeline-snap-to-frame"', page)
-        self.assertIn('id="timeline-timecode-separator"', page)
+        self.assertNotIn('id="timeline-timebase"', page)
+        self.assertNotIn('id="timeline-fps"', page)
+        self.assertNotIn('id="timeline-snap-to-frame"', page)
+        self.assertNotIn('id="timeline-timecode-separator"', page)
         self.assertIn('timelineSnapToFrame: true', page)
         self.assertIn('timelineSnapToFrame: savedSettings.timelineSnapToFrame !== false', page)
         self.assertIn(
             'getSnapToFrame: () => timelineIsFrameMode() && EDITOR_SETTINGS.timelineSnapToFrame',
             page,
         )
-        self.assertEqual(page.count('id="timeline-timebase"'), 1)
-        self.assertEqual(page.count('id="timeline-snap-to-frame"'), 1)
+        self.assertEqual(page.count('id="timeline-timebase"'), 0)
+        self.assertEqual(page.count('id="timeline-snap-to-frame"'), 0)
         self.assertIn('const ZOOM_PRESETS = [2, 5, 10, 20, 30, 60];', page)
         self.assertIn(
             "const showFineGrid = (this.settings.mode === 'basic' && this.settings.visibleSeconds === 2)\n"
@@ -720,16 +722,9 @@ class EditorAssetTests(unittest.TestCase):
         )
         self.assertIn('<option value="2">2 秒</option>', page)
         self.assertIn("rowGrid: get('--wave-row-grid'", page)
-        self.assertIn('timeline-settings-field', editor_settings_panel)
+        self.assertNotIn('timeline-settings-field', editor_settings_panel)
         self.assertNotIn('timeline-settings-field', page[waveform_pane_start:])
-        self.assertIn('function confirmTimelineFrameRemap(current, nextUnit, nextFps)', page)
-        self.assertIn(
-            'if (!confirmTimelineFrameRemap(current, nextUnit, nextFps)) {\n'
-            '    refreshTimelineSettingsUi();\n'
-            '    return;\n'
-            '  }',
-            page,
-        )
+        self.assertNotIn('function confirmTimelineFrameRemap(', page)
         self.assertIn(
             "updateEditorSettings({ timelineTimecodeSeparator: separator });\n"
             "  refreshTimelineSettingsUi();\n"
@@ -740,7 +735,7 @@ class EditorAssetTests(unittest.TestCase):
             page,
         )
         self.assertIn('function syncProjectTimebaseAndBindingOffsets(', page)
-        self.assertIn('window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);', page)
+        self.assertNotIn('window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);', page)
         self.assertIn(
             'function buildJson() {\n'
             '  syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });',

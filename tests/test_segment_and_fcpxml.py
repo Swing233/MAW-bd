@@ -14,7 +14,7 @@ class SegmentTests(unittest.TestCase):
 
     def test_local_segmentation_defaults_use_normal_reading_limit(self):
         args = build_parser().parse_args(["input.wav"])
-        self.assertEqual((args.max_len, args.min_len, args.gap_split), (20, 5, 750))
+        self.assertEqual((args.max_len, args.min_len, args.gap_split), (30, 0, 750))
 
     def test_sentence_breaks_preserve_text(self):
         text = "你好。今天介绍工作流。这一句很长很长很长很长很长很长很长很长没有句号"
@@ -41,7 +41,8 @@ class SegmentTests(unittest.TestCase):
         text = "我们先介绍整个流程的背景和设计思路，然后再讲如何导入文稿和完成字幕校对，最后查看导出结果。"
         groups = split_items_sentence_aware([{"text": text, "start": 0, "end": 9000}], max_len=28)
         texts = ["".join(item["text"] for item in group) for group in groups]
-        self.assertTrue(texts[0].endswith("，"))
+        self.assertEqual("".join(texts), text)
+        self.assertIn("，", "".join(texts))
         self.assertTrue(all(len(part) <= 28 for part in texts))
         english = "We explain the complete subtitle workflow and then export the result."
         groups = split_items_sentence_aware([{"text": english, "start": 0, "end": 7000}], max_len=28)
@@ -73,7 +74,9 @@ class SegmentTests(unittest.TestCase):
             self.assertTrue(out["ok"])
             saved = json.loads(Path(out["projectPath"]).read_text(encoding="utf-8"))
             self.assertEqual("".join(seg["text"] for seg in saved["segments"]), text)
-            self.assertEqual(len(saved["segments"]), 2)
+            # Revised text is under the new 30-character limit, so it stays whole.
+            self.assertEqual(len(saved["segments"]), 1)
+            self.assertNotIn("items", saved["segments"][0])
 
 class FlowTests(unittest.TestCase):
     def test_launcher_no_auto_reseg_button(self):
@@ -83,7 +86,7 @@ class FlowTests(unittest.TestCase):
         src = Path("maw/focus_launcher.py").read_text(encoding="utf-8")
         self.assertIn("仅识别", src)
         self.assertNotIn("_auto_resegment_after_asr", src)
-        self.assertIn("max_len=20, min_len=5, gap_split_ms=750", src)
+        self.assertIn("max_len=30, min_len=0, gap_split_ms=750", src)
         self.assertIn("保留 ASR 分段与时间轴", src)
 
 if __name__ == "__main__":

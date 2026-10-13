@@ -303,6 +303,7 @@
     const le = $('local-engine-wrap');
     const cm = $('cloud-model-wrap');
     if (le) le.hidden = !local;
+    $('local-model-wrap').hidden = !local || $('local-engine').value !== 'qwen-asr';
     $('btn-model-download').hidden = !local;
     if (cm) cm.hidden = local;
   }
@@ -316,7 +317,7 @@
     const button = $('btn-model-download');
     button.disabled = true;
     try {
-      const result = await a.download_local_model({ localEngine: $('local-engine').value });
+      const result = await a.download_local_model({ localEngine: $('local-engine').value, localModel: $('local-model').value });
       if (!result?.ok) {
         setMsg(result?.error || '无法开始模型下载', true);
         button.disabled = false;
@@ -340,6 +341,7 @@
     const res = await a.start_asr({
       asrMode,
       localEngine,
+      localModel: $('local-model').value,
       modelId,
       mediaPath: mediaFromInput(),
     });
@@ -578,6 +580,12 @@
     $('btn-clear-manuscript').addEventListener('click', clearManuscript);
     $('btn-manuscript-cancel').addEventListener('click', closeManuscriptDialog);
     $('btn-manuscript-ok').addEventListener('click', confirmManuscript);
+    const savedLocalModel = localStorage.getItem('mawbd_local_model');
+    if (Array.from($('local-model').options).some(option => option.value === savedLocalModel)) {
+      $('local-model').value = savedLocalModel;
+    }
+    $('local-model').addEventListener('change', () => localStorage.setItem('mawbd_local_model', $('local-model').value));
+    $('local-engine').addEventListener('change', toggleAsrMode);
     $('asr-mode').addEventListener('change', toggleAsrMode);
     $('btn-stop').addEventListener('click', async () => {
       const a = api();

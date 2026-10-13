@@ -76,7 +76,7 @@
 
 `media_metadata.audio_tracks` 是从源容器读取的音轨清单。`audio_index` 是音频流内部的从 0 开始顺序，`stream_index` 是源容器中的 FFmpeg stream index；其余字段用于保留编码、声道、采样率、语言、标题和默认标记。`media_metadata.selected_audio_track` 保存本工程转写时实际选择的零基音轨，编辑器重新打开工程时优先恢复该选择；旧工程没有此字段时，从已有波形载荷恢复，仍无记录则使用容器默认轨（没有 default disposition 时为索引 0）。编辑器导出 OTIO 时会为每条清单建立独立的 `Audio` 轨道，在达芬奇使用的 `Resolve_OTIO.Channels` 中写入源音轨/声道映射，并在 `moy` 元数据中保留对应的 stream index。旧工程缺少音轨清单时继续生成一条兼容的音频轨道。
 
-`timebase` 是字幕编辑器的时间基准，不改变媒体本身的时间单位。`unit: "milliseconds"` 保持旧行为；`unit: "frames"` 时，拖动、边界调整、方向键和 A/D 微调使用独立的帧字段，`fps` 决定帧与实际媒体时间的换算。为兼容旧工具，`start` / `end` 及字词时间码仍始终保存为整数毫秒；帧模式额外保存成对的 `start_frame` / `end_frame` 字段。帧时间码显示采用较通行的非丢帧格式 `HH:MM:SS:FF`，其中 `FF` 是当前秒内的帧号。
+`timebase` 保留历史格式以兼容旧工程。当前编辑器统一使用毫秒，旧 `unit: "frames"` 工程打开后按现有 `start` / `end` 及字词毫秒时间编辑，不依据帧字段重新映射。`start_frame` / `end_frame` 仅保留为兼容元数据。源视频帧率用于导出格式参考，不改变编辑时间轴。
 
 ### 1.0 工程文件扩展名
 

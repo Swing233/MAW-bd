@@ -43,3 +43,7 @@ The `web/` editor, Python scripts, and documentation in this repository are dist
 ## Windows FFmpeg / FFprobe distribution
 
 The Windows portable build uses the release essentials binaries from Gyan Doshi, linked by the FFmpeg project's official download page. These builds are distributed under GPLv3. The package preserves the vendor LICENSE/COPYING and README files beside ffmpeg/bin. Source and build information: https://www.gyan.dev/ffmpeg/builds/ and https://ffmpeg.org/download.html . No FFmpeg source is modified by MAW-bd.
+
+## Chinese clause segmentation reference
+
+[Huanshere/VideoLingo](https://github.com/Huanshere/VideoLingo), [Apache-2.0](https://github.com/Huanshere/VideoLingo/blob/main/LICENSE), was reviewed for staged punctuation, comma-clause checks, connector boundaries and long-sentence dynamic programming (`core/spacy_utils/`). MAW-bd independently adapts those ideas with existing jieba POS tokens, preserving source text and ASR item timestamps. No VideoLingo source, spaCy models, translation pipeline or other assets are incorporated. Original VideoLingo token-count minimums and maxima are not used; MAW-bd uses no character minimum and a 30-character maximum.

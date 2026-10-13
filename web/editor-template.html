@@ -747,7 +747,6 @@ __WAVEFORM_CSS__
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-subtitle-style" role="tab" data-settings-tab="subtitle-style" aria-selected="false" aria-controls="editor-settings-page-subtitle-style" tabindex="-1">字幕样式</button>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-subtitle-color" role="tab" data-settings-tab="subtitle-color" aria-selected="false" aria-controls="editor-settings-page-subtitle-color" tabindex="-1">字幕颜色</button>
       <div class="editor-settings-nav-group-label" aria-hidden="true">编辑</div>
-      <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-timebase" role="tab" data-settings-tab="timebase" aria-selected="false" aria-controls="editor-settings-page-timebase" tabindex="-1">时间基准</button>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-split-merge" role="tab" data-settings-tab="split-merge" aria-selected="false" aria-controls="editor-settings-page-split-merge" tabindex="-1">拆分与合并</button>
       <div class="editor-settings-nav-group-label" aria-hidden="true">工程与输出</div>
       <button type="button" class="editor-settings-nav-tab" id="editor-settings-tab-export" role="tab" data-settings-tab="export" aria-selected="false" aria-controls="editor-settings-page-export" tabindex="-1">导出</button>
@@ -860,6 +859,7 @@ __WAVEFORM_CSS__
     <div class="editor-settings-item">合并字幕<kbd data-editing-shortcut-label="merge"></kbd><button type="button" data-editing-shortcut="merge" aria-label="自定义合并字幕快捷键">自定义</button></div>
     <div class="editor-settings-item">新建字幕<kbd data-editing-shortcut-label="create"></kbd><button type="button" data-editing-shortcut="create" aria-label="自定义新建字幕快捷键">自定义</button></div>
     <div class="editor-settings-item">设置起点<kbd data-editing-shortcut-label="start"></kbd><button type="button" data-editing-shortcut="start" aria-label="自定义设置起点快捷键">自定义</button></div>
+    <div class="editor-settings-item">删除空格<kbd data-editing-shortcut-label="removeSpaces"></kbd><button type="button" data-editing-shortcut="removeSpaces" aria-label="自定义删除空格快捷键">自定义</button></div>
     <div class="editor-settings-item">设置终点<kbd data-editing-shortcut-label="end"></kbd><button type="button" data-editing-shortcut="end" aria-label="自定义设置终点快捷键">自定义</button></div>
     <div class="editor-settings-item">上一条（原 W）<kbd data-editing-shortcut-label="navUp"></kbd><button type="button" data-editing-shortcut="navUp" aria-label="自定义上一条（原 W）快捷键">自定义</button></div>
     <div class="editor-settings-item">上一条 / 向左微调（原 A）<kbd data-editing-shortcut-label="navLeft"></kbd><button type="button" data-editing-shortcut="navLeft" aria-label="自定义上一条 / 向左微调（原 A）快捷键">自定义</button></div>
@@ -1170,47 +1170,6 @@ __WAVEFORM_CSS__
             </label>
           </div>
         </div>
-    </div>
-  </div>
-  </div>
-  <div class="editor-settings-page" id="editor-settings-page-timebase" role="tabpanel" aria-labelledby="editor-settings-tab-timebase" hidden>
-  <div class="editor-settings-group">
-    <div class="editor-settings-sub-group">
-    <div class="editor-settings-field timeline-settings-field">
-      <div class="editor-settings-field timeline-mode-field">
-        <div class="timeline-settings-controls">
-          <label class="editor-settings-item" title="字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行">
-            时间单位
-            <select id="timeline-timebase">
-              <option value="milliseconds" selected>毫秒</option>
-              <option value="frames">帧</option>
-            </select>
-          </label>
-          <label class="editor-settings-item" title="帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码">
-            FPS
-            <span class="gap-remove-number-control">
-              <input type="number" id="timeline-fps" min="1" max="240" step="0.001" value="30" inputmode="decimal" aria-label="帧率 FPS">
-              <span class="gap-remove-unit">fps</span>
-            </span>
-          </label>
-        </div>
-        <small class="editor-settings-hint" id="timeline-timebase-hint">毫秒模式保持原有时间编辑方式。切换为帧模式后，拖动、方向键和 A/D 微调都会按帧执行。</small>
-      </div>
-      <div class="editor-settings-field timeline-snap-field">
-        <label class="toggle editor-settings-item" title="帧模式下把波形鼠标指针吸附到最近的帧；毫秒模式下不生效">
-          <input type="checkbox" id="timeline-snap-to-frame">
-          吸附到帧
-        </label>
-        <small class="editor-settings-hint" id="timeline-snap-to-frame-hint">仅帧模式生效；切换到帧模式后可启用。</small>
-      </div>
-      <div class="editor-settings-field timeline-separator-field">
-        <label class="editor-settings-item" title="帧时间码中秒与帧之间的分隔符；只使用一个非字母数字符号">
-          时间码分隔符
-          <input type="text" id="timeline-timecode-separator" class="timeline-timecode-separator-input" value=":" maxlength="1" size="1" inputmode="text" autocomplete="off" spellcheck="false" aria-label="时间码分隔符">
-        </label>
-        <small class="editor-settings-hint" id="timeline-timecode-separator-hint">帧时间码示例：HH:MM:SS:FF；只替换秒与帧之间的分隔符。</small>
-      </div>
-    </div>
     </div>
   </div>
   </div>
@@ -2277,9 +2236,9 @@ __WAVEFORM_CSS__
       <select id="fcpxml-export-fps">
         <option value="23.98">23.98</option>
         <option value="24">24</option>
-        <option value="25" selected>25</option>
+        <option value="25">25</option>
         <option value="29.97">29.97</option>
-        <option value="30">30</option>
+        <option value="30" selected>30</option>
         <option value="50">50</option>
         <option value="59.94">59.94</option>
         <option value="60">60</option>

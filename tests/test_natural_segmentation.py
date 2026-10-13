@@ -193,7 +193,7 @@ class LauncherContractTests(unittest.TestCase):
     def test_asr_worker_does_not_auto_resegment(self) -> None:
         source = Path("maw/focus_launcher.py").read_text(encoding="utf-8")
         self.assertNotIn("_auto_resegment_after_asr", source)
-        self.assertIn('"20"', source)
+        self.assertIn('"30"', source)
         self.assertIn('"750"', source)
 
 

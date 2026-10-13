@@ -2924,12 +2924,11 @@
     return metadata;
   }
 
-  // Adopt a measured source clock; never invent a rate when probing failed.
+  // Legacy callers may retain the helper; source FPS never selects an editing clock.
   function adoptSourceVideoTimebase(project) {
-    const metadata = normalizeMediaMetadata(project?.media_metadata);
-    if (!metadata?.video_fps) return false;
-    project.timebase = { unit: 'frames', fps: metadata.video_fps };
-    return true;
+    if (!project || typeof project !== 'object') return false;
+    project.timebase = { ...normalizeTimelineTimebase(project.timebase), unit: 'milliseconds' };
+    return false;
   }
 
   // MP4/MOV sample tables can be read without decoding or loading the video.
@@ -3129,7 +3128,7 @@
     return Math.min(maximum, Math.max(minimum, Number.isFinite(rounded) ? rounded : fallback));
   }
 
-  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x', navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd' });
+  const EDITING_SHORTCUT_DEFAULTS = Object.freeze({ split: 'b', merge: 'c', create: 'n', start: 'z', end: 'x', navUp: 'w', navLeft: 'a', navDown: 's', navRight: 'd', removeSpaces: { key: 'Backspace', altKey: true, shiftKey: true } });
   function normalizeEditingShortcut(value) {
     const raw = typeof value === 'string' ? { key: value } : value;
     if (!raw || typeof raw.key !== 'string' || !raw.key || raw.key.length > 64

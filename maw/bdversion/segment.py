@@ -44,7 +44,7 @@ def split_items_sentence_aware(
         pieces = split_coarse_segment(
             {"start": start, "end": max(start + 1, end), "text": text},
             max_len=max(1, int(max_len)),
-            min_len=max(1, int(min_len)),
+            min_len=max(0, int(min_len)),
             gap_split_ms=0,
             split_mode=split_mode,
         )
@@ -57,7 +57,7 @@ def split_items_sentence_aware(
     segments = split_segments_auto(
         source,
         max_len=max(1, int(max_len)),
-        min_len=max(1, int(min_len)),
+        min_len=max(0, int(min_len)),
         gap_split_ms=max(0, int(gap_split_ms)),
         natural_cjk=split_mode == "continuous",
         split_mode=split_mode,
@@ -97,7 +97,7 @@ def split_coarse_segments_sentence_aware(
         pieces = split_coarse_segment(
             original,
             max_len=max(1, int(max_len)),
-            min_len=max(1, int(min_len)),
+            min_len=max(0, int(min_len)),
             gap_split_ms=max(0, int(gap_split_ms)),
             split_mode="continuous",
         )
