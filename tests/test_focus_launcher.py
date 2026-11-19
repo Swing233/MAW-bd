@@ -93,6 +93,19 @@ class FocusedGuiContractTests(unittest.TestCase):
             self.assertNotIn("--no-waveform", command)
             self.assertNotIn("-m", command)
 
+    def test_pure_audio_cannot_start_asr_or_create_editor_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("voice.wav", "voice.m4a", "voice-renamed.mp4"):
+                with self.subTest(name=name):
+                    media = Path(tmp) / name
+                    media.write_bytes(b"not a video")
+                    api = FocusedLauncherApi()
+                    payload = {"mediaPath": str(media)}
+                    self.assertIn("视频轨", api.start_asr(payload)["error"])
+                    self.assertIn("视频轨", api.open_media_editor(payload)["error"])
+                    self.assertIsNone(api.worker)
+                    self.assertFalse(media.with_suffix(".maw-edit.mosp").exists())
+
     def test_media_editor_creates_project_and_imports_same_name_srt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             media = Path(tmp) / "clip.mp4"
@@ -103,7 +116,10 @@ class FocusedGuiContractTests(unittest.TestCase):
                 encoding="utf-8",
             )
             api = FocusedLauncherApi()
-            with patch.object(api, "open_editor", return_value={"ok": True, "url": "http://127.0.0.1:8250"}) as open_editor:
+            with (
+                patch("maw.focus_launcher.probe_video_fps", return_value={"video_width": 320, "video_height": 180}),
+                patch.object(api, "open_editor", return_value={"ok": True, "url": "http://127.0.0.1:8250"}) as open_editor,
+            ):
                 result = api.open_media_editor({"mediaPath": str(media)})
 
             self.assertTrue(result["ok"])

@@ -407,7 +407,7 @@
         setMsg('当前环境不支持选择媒体', true);
         return;
       }
-      setMsg('请选择要直接编辑的视频或音频…');
+      setMsg('请选择要直接编辑的视频…');
       try {
         const picked = await a.browse_media({});
         if (!picked || !picked.path) {

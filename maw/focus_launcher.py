@@ -45,11 +45,20 @@ from maw.local_bootstrap import ensure_runtime, runtime_python, runtime_ready
 from maw.app_paths import default_app_data_root
 from maw.gui_platform import asset_path, process_group_kwargs
 from maw.local_log import redact_sensitive_text
-from maw.media import probe_video_fps
+from maw.media import VIDEO_EXTENSIONS, probe_video_fps
 from maw.postprocess_io import read_srt, render_srt
 from maw.project_io import write_mosp
 
-MEDIA_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"}
+VIDEO_FILE_FILTER = ("视频文件 (" + ";".join(f"*{ext}" for ext in sorted(VIDEO_EXTENSIONS)) + ")",)
+VIDEO_IMPORT_ERROR = "请选择包含视频轨的受支持视频文件"
+
+
+def _import_video_metadata(path: Path) -> dict[str, float | int | str] | None:
+    metadata = probe_video_fps(path)
+    if metadata and metadata.get("video_width") and metadata.get("video_height"):
+        return metadata
+    return None
+
 MANUSCRIPT_EXTS = {".txt", ".md", ".markdown", ".docx"}
 
 
@@ -236,15 +245,16 @@ class FocusedLauncherApi:
             return {"ok": False, "error": "window not ready"}
         result = window.create_file_dialog(
             webview.OPEN_DIALOG,
-            file_types=("媒体文件 (*.mp4;*.mkv;*.mov;*.wav;*.mp3;*.m4a;*.flac)",),
+            file_types=VIDEO_FILE_FILTER,
         )
         if not result:
             return {"ok": True, "path": ""}
         path = str(result[0])
-        if Path(path).suffix.lower() not in MEDIA_EXTS:
-            return {"ok": False, "error": "不支持的媒体类型"}
+        metadata = _import_video_metadata(Path(path))
+        if metadata is None:
+            return {"ok": False, "error": VIDEO_IMPORT_ERROR}
         self._result["mediaPath"] = path
-        self._result["mediaMetadata"] = probe_video_fps(Path(path)) or {}
+        self._result["mediaMetadata"] = metadata
         self._set_status(step="ready", message="已选择媒体", error="")
         return {"ok": True, "path": path}
 
@@ -502,7 +512,9 @@ class FocusedLauncherApi:
         payload = payload or {}
         media = str(payload.get("mediaPath") or self._result.get("mediaPath") or "").strip()
         if not media or not Path(media).is_file():
-            return {"ok": False, "error": "请先选择媒体文件"}
+            return {"ok": False, "error": "请先选择视频文件"}
+        if _import_video_metadata(Path(media)) is None:
+            return {"ok": False, "error": VIDEO_IMPORT_ERROR}
         asr_mode = str(payload.get("asrMode") or "local").strip() or "local"
         engine = str(payload.get("localEngine") or "qwen-asr").strip() or "qwen-asr"
         local_model = str(payload.get("localModel") or "Qwen/Qwen3-ASR-1.7B")
@@ -845,10 +857,12 @@ class FocusedLauncherApi:
             return {"ok": False, "error": "工程文件不存在"}
         if path.suffix.lower() not in {".mosp", ".json"}:
             return {"ok": False, "error": "仅支持 .mosp / .json 工程"}
+        media = str(payload.get("mediaPath") or "").strip()
+        if media and _import_video_metadata(Path(media)) is None:
+            return {"ok": False, "error": VIDEO_IMPORT_ERROR}
         self._result["projectPath"] = str(path)
         # media: try sibling guess — editor will prompt if missing
         self._result["revisedProjectPath"] = ""
-        media = str(payload.get("mediaPath") or "").strip()
         opened = self.open_editor({"projectPath": str(path), "mediaPath": media})
         if not opened.get("ok"):
             return opened
@@ -868,14 +882,15 @@ class FocusedLauncherApi:
                 return {"ok": False, "error": "window not ready"}
             result = window.create_file_dialog(
                 webview.OPEN_DIALOG,
-                file_types=("视频 / 音频 (*.mp4;*.mov;*.mkv;*.m4v;*.wav;*.mp3;*.m4a;*.flac)",),
+                file_types=VIDEO_FILE_FILTER,
             )
             if not result:
                 return {"ok": True, "cancelled": True}
             media = str(result[0])
         media_path = Path(media).expanduser().resolve()
-        if not media_path.is_file() or media_path.suffix.lower() not in MEDIA_EXTS:
-            return {"ok": False, "error": "请选择有效的 MP4 或其它受支持音视频文件"}
+        metadata = _import_video_metadata(media_path)
+        if metadata is None:
+            return {"ok": False, "error": VIDEO_IMPORT_ERROR}
 
         project_path = media_path.with_name(f"{media_path.stem}.maw-edit.mosp")
         srt_path = media_path.with_suffix(".srt")
@@ -890,7 +905,7 @@ class FocusedLauncherApi:
                 return {"ok": False, "error": f"无法创建编辑工程：{error}"}
 
         self._result["mediaPath"] = str(media_path)
-        self._result["mediaMetadata"] = probe_video_fps(media_path) or {}
+        self._result["mediaMetadata"] = metadata
         self._result["projectPath"] = str(project_path)
         self._result["revisedProjectPath"] = ""
         self._result["srtPath"] = str(srt_path) if srt_path.is_file() else ""

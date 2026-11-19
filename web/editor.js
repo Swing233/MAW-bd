@@ -1701,9 +1701,9 @@ let jklReverseLastTimestamp = 0;
 // 工程内波形是可直接使用的缓存；加载关联媒体时不要因为媒体签名不同而覆盖它。
 // 媒体生成的波形则不属于工程缓存，切换媒体时仍应重新分析。
 let waveformLoadedFromProject = false;
-const MEDIA_FILE_RE = /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v|wav|mp3|m4a|aac|ogg|flac|opus)$/i;
+const VIDEO_FILE_RE = /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i;
 function isMediaFile(file) {
-  return Boolean(file) && (file.type.startsWith('video/') || file.type.startsWith('audio/') || MEDIA_FILE_RE.test(file.name));
+  return Boolean(file) && (!file.type.startsWith('audio/') && VIDEO_FILE_RE.test(file.name));
 }
 function isReapeaksFile(file) {
   // .quapeaks 是 MAW 自有容器（改名自 reapeaks 内核）：浏览器直读必须同样认它，
@@ -19604,36 +19604,32 @@ document.addEventListener('keydown', (event) => {
 }, true);
 
 async function loadMediaFile(file) {
-  if (!file) return;
+  if (!isMediaFile(file)) {
+    flashHint('仅支持导入视频文件', 'warning');
+    return false;
+  }
   const finishLoading = beginEditorLoading(`正在加载媒体 ${file.name}…`, 5);
   try {
   stopJklReversePlayback({ render: false });
   const preserveProjectWaveform = waveformLoadedFromProject
     && Boolean(waveformEditor?.getPayload?.());
   const url = URL.createObjectURL(file);
-  const isVideo = file.type.startsWith('video/') ||
-    /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(file.name);
   const oldPlayer = document.getElementById('player');
-  const wantTag = isVideo ? 'VIDEO' : 'AUDIO';
   const oldParent = oldPlayer.parentNode;
   const previousSource = oldPlayer.querySelector('source')?.src || oldPlayer.currentSrc || oldPlayer.src || '';
   let candidatePlayer = oldPlayer;
 
-  if (oldPlayer.tagName === wantTag) {
+  if (oldPlayer.tagName === 'VIDEO') {
     // 同类型：直接换 src，最简最安全
     const src = oldPlayer.querySelector('source');
     if (src) src.src = url; else oldPlayer.src = url;
     oldPlayer.load();
   } else {
     // 不同类型：替换整个元素
-    const newPlayer = document.createElement(isVideo ? 'video' : 'audio');
+    const newPlayer = document.createElement('video');
     newPlayer.id = 'player';
     newPlayer.preload = 'metadata';
-    if (isVideo) {
-      newPlayer.style.cssText = 'width:100%;background:#000;display:block;';
-    } else {
-      newPlayer.style.cssText = 'width:100%;display:block;';
-    }
+    newPlayer.style.cssText = 'width:100%;background:#000;display:block;';
     const source = document.createElement('source');
     source.src = url;
     newPlayer.appendChild(source);
@@ -19650,6 +19646,9 @@ async function loadMediaFile(file) {
   try {
     updateEditorLoading(45, `正在读取媒体信息 ${file.name}…`);
     await waitForMediaMetadata(candidatePlayer, file);
+    if (!candidatePlayer.videoWidth || !candidatePlayer.videoHeight) {
+      throw new Error('文件没有可播放的视频轨');
+    }
   } catch (error) {
     if (candidatePlayer !== oldPlayer && oldParent) {
       oldParent.replaceChild(oldPlayer, candidatePlayer);
@@ -19674,33 +19673,21 @@ async function loadMediaFile(file) {
   delete nextMetadata.video_fps; delete nextMetadata.video_fps_ratio; delete nextMetadata.video_frame_count;
   delete nextMetadata.video_width; delete nextMetadata.video_height;
   DATA.media_metadata = Object.keys(nextMetadata).length ? nextMetadata : null;
-  if (isVideo) {
-    captureProjectVideoDimensions(candidatePlayer);
-    updateEditorLoading(55, '正在检查视频帧率与帧数…');
-    const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
-    if (measured) {
-      DATA.media_metadata = { ...DATA.media_metadata, ...measured };
-      // 源视频帧率仅供导出参考，编辑始终使用毫秒。
-      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-      projectImportDirty = true;
-    } else {
-      DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
-      syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
-      // 未知帧率不影响毫秒编辑。
-    }
+  captureProjectVideoDimensions(candidatePlayer);
+  updateEditorLoading(55, '正在检查视频帧率与帧数…');
+  const measured = await window.AsrEditorUtils.readVideoFrameMetadata(file);
+  if (measured) {
+    DATA.media_metadata = { ...DATA.media_metadata, ...measured };
+    // 源视频帧率仅供导出参考，编辑始终使用毫秒。
+    syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+    projectImportDirty = true;
   } else {
     DATA.timebase = { unit: 'milliseconds', fps: DEFAULT_TIMELINE_FPS };
     syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });
+    // 未知帧率不影响毫秒编辑。
   }
   refreshTimelineSettingsUi();
   renderAll({ waveform: 'full' });
-
-  let mediaTimeReference = null;
-  try {
-    mediaTimeReference = await window.AsrEditorUtils.readBwfTimeReferenceFromFile(file);
-  } catch (_) {
-    // BWF metadata is optional; an unreadable header must not block playback.
-  }
 
   if (waveformEditor) waveformEditor.attachPlayer(player);
   syncPlayerPlaceholder();
@@ -19716,7 +19703,7 @@ async function loadMediaFile(file) {
   const stem = file.name.replace(/\.[^.]+$/, '');
   FILENAME_BASE = stem;
   DATA.media = file.name;
-  DATA.media_time_reference = mediaTimeReference;
+  DATA.media_time_reference = null;
   const mnEl = document.getElementById('media-name');
   if (mnEl) {
     mnEl.textContent = file.name;
@@ -19802,6 +19789,11 @@ function mediaLoadErrorMessage(file) {
 loadMediaFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  if (!isMediaFile(file)) {
+    pendingProjectMediaSelection = null;
+    flashHint('仅支持导入视频文件', 'warning');
+    return;
+  }
   if (!pendingProjectMediaSelection && !await ensureProjectCheckpointForImport(file)) return;
   pendingProjectMediaSelection = null;
   const imported = await loadMediaFile(file);
@@ -23200,7 +23192,7 @@ async function loadServerStartup() {
   await poll();
 }
 
-// === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===
+// === Drag & Drop：拖入视频/JSON/SRT 自动加载 ===
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
   const name = f.name.toLowerCase();
@@ -23219,7 +23211,7 @@ async function handleDroppedFiles(files) {
   const srtFile = files.find(isSrtFile);
   let stagedSrtSegments = null;
   if (!mediaFile && !reapeaksFile && !jsonFile && !srtFile) {
-    flashHint('不支持的文件类型（仅支持视频 / 音频 / JSON / SRT / reapeaks）', 'warning');
+    flashHint('不支持的文件类型（仅支持视频 / JSON / SRT / reapeaks）', 'warning');
     return;
   }
   if (jsonFile) {

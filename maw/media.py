@@ -142,7 +142,7 @@ def probe_video_fps(
         return None
     command = [
         str(executable), "-v", "error",
-        "-select_streams", "v:0",
+        "-select_streams", "V:0",
         "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,nb_frames",
         "-of", "json", str(source),
     ]

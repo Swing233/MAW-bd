@@ -123,7 +123,7 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(metadata["video_height"], 2160)
         command = process.call_args.args[0]
         self.assertIn("-select_streams", command)
-        self.assertIn("v:0", command)
+        self.assertIn("V:0", command)
         self.assertIn("stream=width,height,avg_frame_rate,r_frame_rate,nb_frames", command)
         self.assertIn("-of", command)
         self.assertIn("json", command)
